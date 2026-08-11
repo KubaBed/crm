@@ -52,6 +52,19 @@ integration tests. When you need to push past it — a WIP branch, a docker-less
 you are deliberately pushing to ask about — `git push --no-verify` skips it, and `CRM_SKIP_HOOKS=1`
 skips it for a whole shell.
 
+**The suite runs against `TEST_DATABASE_URL`, never `DATABASE_URL`, and refuses to start without
+it.** `bun run db:test` creates the database and migrates it; the name has to end in `_test`.
+These tests write and delete real rows, and the hook above runs them on every push — so without
+that split, one `git push` reaches whatever database your `.env` happens to name, which for a
+self-hoster is production. That is not hypothetical: a run that was interrupted between deleting
+the workspace's members and putting them back left the developer locked out of their own
+workspace, with the app reporting only "Only an owner or an admin can change this".
+
+**A test may not delete a row it did not create.** Snapshot-and-restore is not a substitute: it
+only holds if the process reaches the end, and a crashed run leaves the hole. Where a spec needs
+state it cannot own — `ensureWorkspaceMembership` only backfills an owner into an *empty*
+workspace — it asserts the precondition and fails, rather than clearing whatever is in the way.
+
 **`test` runs one package at a time (`turbo run test --concurrency=1`), and that is not an
 oversight.** `apps/api`, `apps/agent`, `packages/auth` and `packages/telemetry` all have real
 integration tests and they all point at the *same* database, so running them at once lets one
