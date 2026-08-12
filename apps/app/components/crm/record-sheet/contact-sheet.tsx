@@ -35,6 +35,7 @@ import {
 	InlineSelectField,
 	savingValue,
 } from "@/components/crm/inline-field";
+import { ContactMarketingActions } from "@/components/crm/marketing-actions";
 import { OwnerCell } from "@/components/crm/owner-cell";
 import { ContactSocials } from "@/components/crm/social-links";
 import { DealStageMenu } from "@/components/crm/stage-change";
@@ -180,6 +181,10 @@ export function ContactSheet({ contactId }: { contactId: string }) {
 				contact ? (
 					<>
 						<ContactEnrichmentAction contactId={contact.id} />
+						<ContactMarketingActions
+							contactId={contact.id}
+							hasEmail={Boolean(contact.email)}
+						/>
 						{contact.email ? (
 							<Button asChild variant="outline" size="sm">
 								<a href={`mailto:${contact.email}`}>

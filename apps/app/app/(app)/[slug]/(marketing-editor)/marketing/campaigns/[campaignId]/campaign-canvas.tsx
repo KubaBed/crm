@@ -22,6 +22,8 @@ import { CampaignStatus } from "../../../../(marketing)/marketing/campaign-statu
 import { BlastComposer } from "./blast-composer";
 import { CampaignActions } from "./campaign-actions";
 import { CopilotRail } from "./copilot-rail";
+import { DripSettings } from "./drip-settings";
+import { LogicSheet } from "./logic-sheet";
 import { NodeSheet } from "./node-sheet";
 
 type Campaign = RouterOutputs["marketingCampaigns"]["byId"];
@@ -84,16 +86,10 @@ function toFlow(
 		};
 	});
 
-	const waiting = new Map<string, number>();
-	for (const row of stats.values()) waiting.set(row.nodeId, row.waiting);
+	const edges: FlowEdge[] = campaign.edges.map((edge) => {
+		const waiting = stats.get(edge.toId)?.waiting ?? 0;
 
-	const edges: FlowEdge[] = campaign.edges.map((edge) => ({
-		id: edge.id,
-		source: edge.fromId,
-		target: edge.toId,
-		sourceHandle: edge.handle === "next" ? null : edge.handle,
-		type: "smoothstep",
-		label:
+		const named =
 			edge.label ??
 			(edge.handle === "yes"
 				? "Yes"
@@ -101,8 +97,19 @@ function toFlow(
 					? "No"
 					: edge.weight !== 100
 						? `${edge.weight}%`
-						: undefined),
-	}));
+						: null);
+
+		const inFlight = waiting > 0 ? `${waiting.toLocaleString()} here` : null;
+
+		return {
+			id: edge.id,
+			source: edge.fromId,
+			target: edge.toId,
+			sourceHandle: edge.handle === "next" ? null : edge.handle,
+			type: "smoothstep",
+			label: [named, inFlight].filter(Boolean).join(" · ") || undefined,
+		};
+	});
 
 	return { nodes, edges };
 }
@@ -213,6 +220,13 @@ export function CampaignCanvas({ campaignId }: { campaignId: string }) {
 						</Button>
 					)}
 
+					<DripSettings
+						campaignId={campaignId}
+						cooldownDays={data.reentryCooldownDays}
+						maxPasses={data.maxPasses}
+						onChanged={() => void invalidate()}
+					/>
+
 					<CampaignActions
 						campaignId={campaignId}
 						status={data.status}
@@ -250,7 +264,15 @@ export function CampaignCanvas({ campaignId }: { campaignId: string }) {
 					}
 				/>
 
-				{selected ? (
+				{selected && selected.kind !== "EMAIL" ? (
+					<LogicSheet
+						node={selected}
+						campaign={data}
+						stats={stats}
+						onClose={() => setSelectedId(null)}
+						onChanged={() => void invalidate()}
+					/>
+				) : selected ? (
 					<NodeSheet
 						node={selected}
 						stats={stats.get(selected.id) ?? null}
