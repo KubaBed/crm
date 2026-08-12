@@ -9,12 +9,11 @@ Written 12 August 2026, after reading the tree rather than from memory.
 
 Last worked 12 August 2026.
 
-**Where it stands:** 37 commits on `lewis/marketing-suite`. A real email has gone
+**Where it stands:** 46 commits on `lewis/marketing-suite`. A real email has gone
 out through Resend. The engine walks a branching drip and the agent can build
-one. All 14 packages typecheck. 946 specs pass and 7 fail — the 7 are in
-`tracking-ingest` and they predate this branch. What follows is everything that
-is not done, ordered so that doing it top to bottom never leaves the product in
-a worse state than it is now.
+one. All 14 packages typecheck, lint is clean, and 971 specs pass. What follows
+is everything that is not done, ordered so that doing it top to bottom never
+leaves the product in a worse state than it is now.
 
 ---
 
@@ -39,6 +38,15 @@ a worse state than it is now.
   template, and `first_campaign_sent` as the ninth funnel step.
 - **A `building-a-segment` skill** gives the agent every facet and the tool
   order.
+- **A branch can be added from the canvas.** It arrives with a condition and
+  both arms, and the logic sheet edits that condition, refusing to save when a
+  rule is one the editor cannot show rather than dropping it.
+- **The shell is not a separate concept.** Header and Footer are rows in
+  Templates and open the same editor, with a co-pilot. A blast has one too.
+- **New campaign has no dropdown.** It creates an Untitled campaign and the
+  header toggles blast or drip while it is a draft.
+- **The node sheet edits the body.** Add block was a label; it is now the same
+  block editor a template uses.
 - **The unattended lane is whole.** `schedule_campaign` stages a draft as
   `PENDING_APPROVAL` with a note, **Waiting for you** on the overview lists what
   is staged, and Approve or Send back to draft finishes it. `update_node`
@@ -53,18 +61,17 @@ a worse state than it is now.
 
 ---
 
-## Broken now
+## Fixed while finishing this list
 
-Neither is marketing's fault and both block a clean `bun run lint` or
-`bun run test`.
+**Website tracking lost every event from a first-time visitor.** The ingest
+service wrote a `trackedEvent` pointing at a `trackedVisitor` row that nothing
+ever created, so the foreign key rejected the whole batch and the collector
+logged and swallowed it. It looked like 7 failing specs; it was the product.
+`accept()` now upserts the visitor first.
 
-1. **7 api specs fail** in `tracking-ingest`: a foreign key violation on
-   `trackedEvent.visitorId`. They fail with every marketing change reverted, so
-   they predate this branch. The fixtures create events for a visitor that is
-   not there.
-2. **`bun run lint` fails** on `apps/api/src/create-app.ts`, where Biome reads
-   `app.useGlobalPipes(...)` as a React hook called outside a component. The
-   file is untouched by this work. Suppress the rule for the Nest bootstrap.
+**`bun run lint` passes across the repo.** Biome read Nest's
+`app.useGlobalPipes(...)` as a React hook outside a component; the rule is off
+for `apps/api/**`.
 
 ---
 
@@ -131,11 +138,12 @@ Fix: done. The key is the index and the class together.
 
 ## What is left
 
-- **A `BRANCH` cannot be added from the canvas.** *Add step* offers Email, Wait
-  and Exit. A branch needs a condition and both arms before `validateGraph` will
-  take it, so it stays with the co-pilot and the logic sheet.
-- **The 7 `tracking-ingest` specs and the `create-app.ts` lint error** above.
-- **Paper has no board for the shell editor.** Every other surface has one.
+- **Paper has no board for the header and footer editor.** The Templates board
+  lists them; the editor itself is only in the app.
+- **The co-pilot on a header or footer has no preamble.** It opens with no
+  record context, because the agent's template tools do not reach a partial.
+- **Nobody has clicked any of this in a browser.** Every surface has specs and
+  typechecks; the assembled pages are still unopened.
 
 ---
 
@@ -150,7 +158,14 @@ Fix: done. The key is the index and the class together.
 - **`claimDueSends` binds the clock** as a parameter. Using `now()` against a
   naive `timestamp` column resolved through the session timezone and claimed
   nothing. Found by a spec.
-- **946 specs pass**: 341 api, 312 agent, 150 `@crm/db` (engine, re-entry row by
+- **The delivery webhook is exercised** with a real Svix signature: it records
+  a delivery, suppresses the address on a hard bounce, refuses a forged
+  signature and shrugs at an event for a send this install does not have.
+- **The staging lane is exercised**: `stageCampaign`, `updateCampaignNode`, both
+  preambles, `pending`, `approve`, `reject` and `setKind`. Add step is checked
+  against the validator the server runs, which caught an email that saved with
+  no subject.
+- **971 specs pass**: 359 api, 321 agent, 152 app, 150 `@crm/db` (engine, re-entry row by
   row, exit sweeps firing between touches, split stability across retries, blast
   idempotency, deliverability auto-pause, event retention, quiet hours, the
   daily cap, the graph validator), 61 telemetry, 43 auth, 17 env, 9 email render
@@ -160,8 +175,6 @@ Fix: done. The key is the index and the class together.
 
 - **The assembled canvas page has never been opened in a browser.** Every node
   component is asserted to render; React Flow's own layout of them is not.
-- **The webhook has never received a real Resend event.** Signature verification
-  is unexercised.
 - **Two `react` copies** remain in `node_modules` (19.2.8 and 19.2.4). Harmless
   today, and the same class of duplicate resolution that broke the eve build and
   cost an afternoon.
