@@ -4,7 +4,8 @@ import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import { HydrateClient } from "@/lib/trpc/hydrate";
 import { getServerQueryClient, getServerTrpc } from "@/lib/trpc/server";
-import { SetupWizard, STEPS } from "./setup-wizard";
+import { SetupWizard } from "./setup-wizard";
+import { isSetupStep } from "./steps";
 
 export const metadata: Metadata = { title: "Set up marketing" };
 
@@ -31,7 +32,7 @@ async function Setup({
 }: Pick<PageProps<"/[slug]/marketing/setup/[step]">, "params">) {
 	const { step } = await params;
 
-	if (!STEPS.some((candidate) => candidate.id === step)) notFound();
+	if (!isSetupStep(step)) notFound();
 
 	const queryClient = getServerQueryClient();
 	const trpc = getServerTrpc();

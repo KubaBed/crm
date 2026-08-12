@@ -171,6 +171,26 @@ sent.
 | `tracking_capped` | Submissions the hourly contact cap refused. Matched against `CONTACT_CAP_REASON` (`@crm/db/tracking`) exactly, so the wording is a constant two files share rather than prose one of them may reword |
 | `tracking_paused` | Whether collection is paused |
 
+### Marketing
+
+| Property | What it is |
+| --- | --- |
+| `cap_email_resend` | Whether Resend is connected. A boolean about a capability, never the key |
+| `marketing_onboarded` | Whether the wizard was finished |
+| `marketing_domain_verified` | Whether a sending domain is set. Never the domain |
+| `marketing_templates` | How many templates exist. Never a name or a subject |
+| `marketing_segments`, `marketing_segments_dynamic`, `marketing_segments_with_manual_members` | Counts. Never a segment name and never a rule |
+| `marketing_campaigns_by_status` | The status distribution, the same shape as `deals_by_stage` |
+| `marketing_blasts`, `marketing_drips` | How many of each kind |
+| `marketing_drip_nodes_max` | The biggest graph anybody has built. This is how we learn whether the canvas earns its keep or whether four boxes is the real ceiling |
+| `marketing_drips_with_branch`, `marketing_drips_with_split` | Whether branching and A/B — the two things the plan un-deferred — get used at all |
+| `marketing_enrolments_by_status` | The status distribution |
+| `marketing_sends`, `marketing_delivered`, `marketing_bounced`, `marketing_complained`, `marketing_unsubscribed` | Counts. Deliverability in aggregate, never a recipient |
+| `marketing_opens`, `marketing_clicks`, `marketing_replies` | Counts, never a rate and never a person. A rate here would be an Apple-inflated rate (`docs/marketing.md`) |
+| `marketing_tracking_opens`, `marketing_tracking_clicks` | **Whether Resend has tracking on** — booleans about a setting, never a measurement |
+| `marketing_brand_autofilled` | Whether the branding pass found a logo and a colour |
+| `marketing_copilot_graphs` | How many campaigns have a co-pilot conversation. The only honest measure of whether the chat is the feature or the decoration |
+
 ### The setup funnel
 
 Eight events, each sent once per install, ever. Each carries the timestamp of the thing it
@@ -293,6 +313,11 @@ default and the page has no field to type in.
 - `AgentEvent.data`, `AgentConversation` content, prompts, completions, reasoning traces
 - `ALLOWED_SIGN_IN`, `AppSetting.contextDevApiKey`, any key, secret, token or connection string
 - `SuppressedDomain` and `SuppressedContact` values — counts only
+- **Marketing:** a subject line, a preheader, a segment name, a segment rule, a template name, a
+  campaign name, an email document, a from address, a reply-to, a sending domain, a postal address,
+  a logo URL, a brand colour, a recipient address, an unsubscribe token, or `AppSetting.marketingResendApiKey`.
+  Counts and booleans only, and open and click **rates** are never sent either — only totals, because
+  a rate implies a denominator we would then be tempted to explain
 - **IP address.** Set `$ip: null` and disable geoip. n8n collects IP and has to caveat their
   anonymity claim because of it. We do not need it and we would rather the claim be unqualified.
 

@@ -16,13 +16,7 @@ import { useEffect, useId, useState } from "react";
 import { toast } from "sonner";
 import { useTRPC } from "@/lib/trpc/client";
 import { useWorkspaceUrl } from "@/lib/use-workspace-url";
-
-export const STEPS = [
-	{ id: "connect", title: "Connect" },
-	{ id: "identity", title: "Identity" },
-	{ id: "domain", title: "Domain" },
-	{ id: "test", title: "Test" },
-] as const;
+import { STEPS } from "./steps";
 
 export function SetupWizard({ step }: { step: string }) {
 	const trpc = useTRPC();
