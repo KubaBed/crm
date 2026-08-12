@@ -149,7 +149,7 @@ export async function writeMarketingSettings(
 	});
 }
 
-export type SetupStep = "connect" | "identity" | "domain" | "branding" | "test";
+export type SetupStep = "connect" | "identity" | "domain";
 
 export type Sendable =
 	| { ok: true }

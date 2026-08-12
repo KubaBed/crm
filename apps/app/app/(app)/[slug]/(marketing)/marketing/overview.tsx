@@ -16,15 +16,10 @@ import { Spinner } from "@crm/ui/components/spinner";
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { WaitingForYou } from "@/components/marketing/waiting-for-you";
+import { describeMissing } from "@/lib/marketing-setup-steps";
 import { useTRPC } from "@/lib/trpc/client";
 import { useWorkspaceUrl } from "@/lib/use-workspace-url";
 import { CampaignStatus } from "./campaign-status";
-
-const STEP_LABEL: Record<string, string> = {
-	connect: "connect Resend",
-	identity: "set the from address and postal address",
-	domain: "verify a sending domain",
-};
 
 const ERROR_TITLE = "We could not load your marketing numbers";
 const ERROR_BODY =
@@ -96,8 +91,7 @@ export function MarketingOverview() {
 				<div className="flex flex-col gap-3 rounded-lg border p-5">
 					<span className="font-medium text-xs">Marketing cannot send yet</span>
 					<span className="text-muted-foreground text-xs">
-						Still to do:{" "}
-						{data.missing.map((step) => STEP_LABEL[step] ?? step).join(", ")}.
+						Still to do: {describeMissing(data.missing)}.
 					</span>
 					<Button asChild size="sm" className="self-start">
 						<Link href={workspaceUrl("/marketing/setup/connect")}>

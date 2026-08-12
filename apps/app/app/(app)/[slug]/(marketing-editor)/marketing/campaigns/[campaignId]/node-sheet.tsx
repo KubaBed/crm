@@ -12,6 +12,7 @@ import { Icon } from "@crm/ui/components/icon";
 import { Input } from "@crm/ui/components/input";
 import { Label } from "@crm/ui/components/label";
 import { Spinner } from "@crm/ui/components/spinner";
+import { useAutosave } from "@crm/ui/hooks/use-autosave";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
@@ -85,6 +86,7 @@ export function NodeSheet({
 		blocksOf(node.document),
 	);
 	const [selected, setSelected] = useState<number | null>(null);
+	const [touched, setTouched] = useState(false);
 
 	const preview = useQuery(
 		trpc.marketingCampaigns.previewNode.queryOptions({
@@ -103,6 +105,21 @@ export function NodeSheet({
 			},
 			onError: (error) => toast.error(error.message),
 		}),
+	);
+
+	useAutosave(
+		{ subject, preheader, blocks },
+		(draft) =>
+			save.mutate({
+				nodeId: node.id,
+				subject: draft.subject,
+				preheader: draft.preheader || null,
+				document: { version: 1, blocks: draft.blocks } as unknown as Record<
+					string,
+					unknown
+				>,
+			}),
+		{ enabled: touched },
 	);
 
 	const percent = (part: number, whole: number) =>
@@ -156,7 +173,10 @@ export function NodeSheet({
 						<Input
 							id="node-subject"
 							value={subject}
-							onChange={(event) => setSubject(event.target.value)}
+							onChange={(event) => {
+								setSubject(event.target.value);
+								setTouched(true);
+							}}
 						/>
 						<span className="text-xs text-muted-foreground">
 							{subject.length} characters
@@ -176,7 +196,10 @@ export function NodeSheet({
 						<Input
 							id="node-preheader"
 							value={preheader}
-							onChange={(event) => setPreheader(event.target.value)}
+							onChange={(event) => {
+								setPreheader(event.target.value);
+								setTouched(true);
+							}}
 						/>
 					</div>
 
@@ -187,7 +210,10 @@ export function NodeSheet({
 							blocks={blocks}
 							selected={selected}
 							onSelect={setSelected}
-							onChange={setBlocks}
+							onChange={(next) => {
+								setBlocks(next);
+								setTouched(true);
+							}}
 						/>
 						<ShellRow
 							kind="Footer"
@@ -211,25 +237,12 @@ export function NodeSheet({
 					<div className="flex-1" />
 
 					<div className="flex items-center gap-2">
-						<Button variant="outline" onClick={onClose}>
-							Cancel
-						</Button>
+						<span className="text-muted-foreground text-xs">
+							{save.isPending ? "Saving…" : touched ? "Saved" : ""}
+						</span>
 						<div className="flex-1" />
-						<Button
-							disabled={save.isPending}
-							onClick={() =>
-								save.mutate({
-									nodeId: node.id,
-									subject,
-									preheader: preheader || null,
-									document: { version: 1, blocks } as unknown as Record<
-										string,
-										unknown
-									>,
-								})
-							}
-						>
-							Done
+						<Button variant="outline" onClick={onClose}>
+							Close
 						</Button>
 					</div>
 				</div>

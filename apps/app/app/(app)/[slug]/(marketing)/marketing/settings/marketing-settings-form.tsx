@@ -28,6 +28,7 @@ import {
 	SendingDomainActions,
 	SendingDomains,
 } from "@/components/marketing/sending-domains";
+import { describeMissing } from "@/lib/marketing-setup-steps";
 import { useTRPC } from "@/lib/trpc/client";
 
 const NO_QUIET = "none";
@@ -41,14 +42,6 @@ const ZONES = Intl.supportedValuesOf("timeZone").map((zone) => ({
 	value: zone,
 	label: zone.replace(/_/g, " "),
 }));
-
-const STEP_LABEL: Record<string, string> = {
-	connect: "connect Resend",
-	identity: "set the from address and postal address",
-	domain: "verify a sending domain",
-	branding: "build the header and footer",
-	test: "send yourself a test",
-};
 
 export function MarketingSettingsForm() {
 	const trpc = useTRPC();
@@ -157,11 +150,7 @@ export function MarketingSettingsForm() {
 					<CardHeader>
 						<CardTitle>Marketing cannot send yet</CardTitle>
 						<CardDescription>
-							Still to do:{" "}
-							{data.sendable.missing
-								.map((step) => STEP_LABEL[step] ?? step)
-								.join(", ")}
-							.
+							Still to do: {describeMissing(data.sendable.missing)}.
 						</CardDescription>
 					</CardHeader>
 				</Card>

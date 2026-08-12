@@ -11,9 +11,18 @@ import { MarketingCampaignsService } from "../src/marketing/marketing-campaigns.
 import type { MarketingTemplatesService } from "../src/marketing/marketing-templates.service";
 import type { ResendService } from "../src/marketing/resend.service";
 
-const TAG = `pause${Date.now()}`;
+const TAG = `guard${Date.now()}`;
 
-const resend = {} as unknown as ResendService;
+const resend = {
+	readDomain: async () => ({
+		id: "dom_1",
+		name: "mail.example.test",
+		status: "verified",
+		records: [],
+		openTracking: false,
+		clickTracking: false,
+	}),
+} as unknown as ResendService;
 const templates = {} as unknown as MarketingTemplatesService;
 
 const campaigns = new MarketingCampaignsService(db, resend, templates);
@@ -151,6 +160,54 @@ describe("pausing a campaign stops the mail already queued", () => {
 
 		expect(send.status).toBe("SKIPPED");
 		expect(send.skipReason).toBe("the campaign is paused");
+	});
+});
+
+describe("saving a graph", () => {
+	it("refuses a node that belongs to another campaign", async () => {
+		const other = await db.marketingCampaign.create({
+			data: {
+				name: `${TAG} other`,
+				kind: "DRIP",
+				nodes: {
+					create: [
+						{
+							kind: "EMAIL",
+							subject: "Theirs",
+							document: { version: 1, blocks: [] },
+							x: 0,
+							y: 0,
+						},
+					],
+				},
+			},
+			select: { nodes: { select: { id: true } } },
+		});
+
+		const theirs = other.nodes.at(0);
+		if (!theirs) throw new Error("The campaign was created with no node.");
+
+		const write = campaigns.writeGraph({
+			campaignId,
+			nodes: [
+				{
+					id: theirs.id,
+					kind: "EMAIL",
+					subject: "Mine",
+					document: { version: 1, blocks: [] },
+				},
+			],
+			edges: [],
+		});
+
+		await expect(write).rejects.toThrow(/another campaign/);
+
+		const kept = await db.marketingCampaignNode.findUniqueOrThrow({
+			where: { id: theirs.id },
+			select: { subject: true },
+		});
+
+		expect(kept.subject).toBe("Theirs");
 	});
 });
 

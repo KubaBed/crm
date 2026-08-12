@@ -8,6 +8,7 @@ import {
 	graphErrors,
 	MARKETING,
 	materialise,
+	PAUSE_SKIP_REASONS,
 	queueDirect,
 	readMarketingSettings,
 	segmentWhere,
@@ -28,7 +29,6 @@ import { ResendService } from "./resend.service";
 
 type Json = Record<string, unknown> | null;
 
-const PAUSED_SKIP_REASON = "the campaign is paused";
 const MANUAL_EXIT_REASON = "a rep removed them";
 
 export type NodeStats = {
@@ -918,7 +918,7 @@ export class MarketingCampaignsService {
 
 			await tx.marketingSend.updateMany({
 				where: { campaignId: id, status: "QUEUED" },
-				data: { status: "SKIPPED", skipReason: PAUSED_SKIP_REASON },
+				data: { status: "SKIPPED", skipReason: PAUSE_SKIP_REASONS.byPerson },
 			});
 		});
 
@@ -953,7 +953,9 @@ export class MarketingCampaignsService {
 			where: {
 				campaignId: id,
 				status: "SKIPPED",
-				skipReason: PAUSED_SKIP_REASON,
+				skipReason: {
+					in: [PAUSE_SKIP_REASONS.byPerson, PAUSE_SKIP_REASONS.bySystem],
+				},
 				OR: [{ enrolmentId: null }, { enrolment: { status: "ACTIVE" } }],
 			},
 			data: {

@@ -37,6 +37,7 @@ export {
 	materialise,
 	nextOpen,
 	type Outcome,
+	PAUSE_SKIP_REASONS,
 	pauseUnhealthy,
 	type QuietWindow,
 	queueDirect,

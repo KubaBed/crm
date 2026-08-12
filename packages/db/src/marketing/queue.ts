@@ -496,6 +496,11 @@ export async function healthOf(db: Db, campaignId: string): Promise<Health> {
 	};
 }
 
+export const PAUSE_SKIP_REASONS = {
+	byPerson: "the campaign is paused",
+	bySystem: "the campaign paused itself",
+} as const;
+
 export async function pauseUnhealthy(db: Db): Promise<string[]> {
 	const live = await db.marketingCampaign.findMany({
 		where: { status: { in: ["SENDING", "ACTIVE"] } },
@@ -524,7 +529,7 @@ export async function pauseUnhealthy(db: Db): Promise<string[]> {
 
 		await db.marketingSend.updateMany({
 			where: { campaignId: campaign.id, status: "QUEUED" },
-			data: { status: "SKIPPED", skipReason: "the campaign paused itself" },
+			data: { status: "SKIPPED", skipReason: PAUSE_SKIP_REASONS.bySystem },
 		});
 
 		paused.push(campaign.id);

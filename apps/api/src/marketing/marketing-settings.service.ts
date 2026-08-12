@@ -5,6 +5,7 @@ import {
 	maskKey,
 	queueDirect,
 	readMarketingSettings,
+	type SetupStep,
 	writeMarketingSettings,
 } from "@crm/db/marketing";
 import { BadRequestException, Injectable } from "@nestjs/common";
@@ -31,7 +32,7 @@ export type MarketingSettingsView = {
 	timeZone: string;
 	dailyCap: number | null;
 	onboardedAt: Date | null;
-	sendable: { ok: boolean; missing: string[] };
+	sendable: { ok: boolean; missing: SetupStep[] };
 };
 
 @Injectable()
