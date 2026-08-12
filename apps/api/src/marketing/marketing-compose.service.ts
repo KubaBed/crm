@@ -51,12 +51,23 @@ export class MarketingComposeService {
 		preheader?: string | null;
 		token: string;
 		context?: MergeContext;
+		shellOverride?: { header?: unknown; footer?: unknown };
 	}): Promise<Composed | null> {
 		const origin = this.origin();
 		if (!origin) return null;
 
-		const shell = await this.shell();
-		if (!shell) return null;
+		const base = await this.shell();
+		if (!base) return null;
+
+		const shell = {
+			...base,
+			...(input.shellOverride?.header !== undefined && {
+				header: readDocument(input.shellOverride.header),
+			}),
+			...(input.shellOverride?.footer !== undefined && {
+				footer: readDocument(input.shellOverride.footer),
+			}),
+		};
 
 		const unsubscribeUrl = `${origin}/u/${input.token}`;
 

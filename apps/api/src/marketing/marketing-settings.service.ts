@@ -1,6 +1,7 @@
 import type { Db } from "@crm/db";
 import {
 	assertSendable,
+	ensureDefaultSegments,
 	maskKey,
 	queueDirect,
 	readMarketingSettings,
@@ -352,5 +353,6 @@ export class MarketingSettingsService {
 
 	async markOnboarded(): Promise<void> {
 		await writeMarketingSettings(this.db, { onboardedAt: new Date() });
+		await ensureDefaultSegments(this.db).catch(() => 0);
 	}
 }

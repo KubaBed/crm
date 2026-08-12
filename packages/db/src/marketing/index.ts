@@ -56,6 +56,8 @@ export {
 } from "./recipients";
 export {
 	compile,
+	DEFAULT_SEGMENTS,
+	ensureDefaultSegments,
 	type Facet,
 	type Filter,
 	facetSchema,

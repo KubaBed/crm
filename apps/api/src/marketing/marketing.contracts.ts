@@ -162,6 +162,11 @@ export const memberInput = z.object({
 	contactId: z.string().min(1),
 });
 
+export const previewShellInput = z.object({
+	id: z.string().min(1),
+	document: z.unknown().optional(),
+});
+
 export const savePartialInput = z.object({
 	id: z.string().min(1),
 	name: z.string().min(1).max(160).optional(),

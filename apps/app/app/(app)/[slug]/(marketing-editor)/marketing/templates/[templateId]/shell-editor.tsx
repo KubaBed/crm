@@ -36,6 +36,9 @@ export function ShellEditor({ shellId }: { shellId: string }) {
 	const [blocks, setBlocks] = useState<EmailBlock[]>([]);
 	const [selected, setSelected] = useState<number | null>(null);
 	const [dirty, setDirty] = useState(false);
+	const [device, setDevice] = useState<"desktop" | "mobile" | "text">(
+		"desktop",
+	);
 
 	const data = shell.data;
 
@@ -44,6 +47,16 @@ export function ShellEditor({ shellId }: { shellId: string }) {
 		setName(data.name);
 		setBlocks(blocksOf(data.document));
 	}, [data, dirty]);
+
+	const previewOptions = trpc.marketingTemplates.previewShell.queryOptions({
+		id: shellId,
+		document: { version: 1, blocks } as unknown as Record<string, unknown>,
+	});
+
+	const preview = useQuery({
+		queryKey: previewOptions.queryKey,
+		queryFn: previewOptions.queryFn,
+	});
 
 	const save = useMutation(
 		trpc.marketingTemplates.savePartial.mutationOptions({
@@ -120,7 +133,7 @@ export function ShellEditor({ shellId }: { shellId: string }) {
 			}
 			rail={<CopilotRail record={{ kind: "template", id: shellId }} />}
 		>
-			<div className="flex min-w-0 flex-1 flex-col gap-4 overflow-y-auto p-4">
+			<div className="flex w-[400px] shrink-0 flex-col gap-4 overflow-y-auto border-r p-4">
 				<EmailBlockEditor
 					blocks={blocks}
 					selected={selected}
@@ -135,6 +148,50 @@ export function ShellEditor({ shellId }: { shellId: string }) {
 					The postal address and the unsubscribe link are added by the compiler
 					on every send. They are not blocks and nothing here can remove them.
 				</p>
+			</div>
+
+			<div className="flex min-h-0 min-w-0 flex-1 flex-col bg-muted">
+				<div className="flex h-12 shrink-0 items-center gap-2 border-b px-4">
+					<div className="flex items-center gap-0.5 rounded-md bg-muted p-0.5">
+						{(["desktop", "mobile", "text"] as const).map((mode) => (
+							<Button
+								key={mode}
+								variant={device === mode ? "outline" : "ghost"}
+								size="sm"
+								className="h-7 px-2.5 font-normal text-xs capitalize"
+								onClick={() => setDevice(mode)}
+							>
+								{mode === "text" ? "Plain text" : mode}
+							</Button>
+						))}
+					</div>
+					<span className="flex-1" />
+					<span className="text-muted-foreground text-xs">
+						An email wearing this, rendered by the code that sends it
+					</span>
+				</div>
+
+				<div className="flex min-h-0 flex-1 justify-center overflow-y-auto p-6">
+					{preview.isPending ? (
+						<Spinner />
+					) : preview.data?.blocked ? (
+						<p className="max-w-sm text-center text-muted-foreground text-xs">
+							{preview.data.blocked}
+						</p>
+					) : device === "text" ? (
+						<pre className="w-full whitespace-pre-wrap rounded-lg border bg-background p-5 text-xs">
+							{preview.data?.text}
+						</pre>
+					) : (
+						<iframe
+							title="Shell preview"
+							srcDoc={preview.data?.html ?? ""}
+							sandbox=""
+							className="h-full w-full rounded-lg border bg-background"
+							style={{ maxWidth: device === "mobile" ? 390 : 640 }}
+						/>
+					)}
+				</div>
 			</div>
 		</MarketingEditorShell>
 	);

@@ -18,6 +18,12 @@ import {
 	skipOverCap,
 	sweepEvents,
 } from "../src/marketing/queue";
+import {
+	DEFAULT_SEGMENTS,
+	ensureDefaultSegments,
+	filterSchema,
+	segmentWhere,
+} from "../src/marketing/segments";
 
 const TAG = `mktest${Date.now()}`;
 
@@ -724,5 +730,41 @@ describe("the daily cap", () => {
 	test("lets everybody through when the cap is zero", async () => {
 		const allowed = await skipOverCap(db, [], 0, new Date());
 		expect(allowed).toHaveLength(0);
+	});
+});
+
+describe("the segments an install starts with", () => {
+	test("creates them once and never twice", async () => {
+		const before = await db.marketingSegment.count();
+		const made = await ensureDefaultSegments(db);
+		const after = await db.marketingSegment.count();
+
+		expect(after - before).toBe(made);
+		expect(await ensureDefaultSegments(db)).toBe(0);
+	});
+
+	test("every one of them compiles", async () => {
+		for (const segment of DEFAULT_SEGMENTS) {
+			const parsed = filterSchema.safeParse(segment.definition);
+			expect(parsed.success).toBe(true);
+
+			await db.contact.count({
+				where: segmentWhere({ definition: segment.definition }),
+			});
+		}
+	});
+
+	test("All contacts holds everybody with an address", async () => {
+		const all = DEFAULT_SEGMENTS.find(
+			(segment) => segment.name === "All contacts",
+		);
+
+		const counted = await db.contact.count({
+			where: segmentWhere({ definition: all?.definition }),
+		});
+
+		expect(counted).toBe(
+			await db.contact.count({ where: { email: { not: null } } }),
+		);
 	});
 });

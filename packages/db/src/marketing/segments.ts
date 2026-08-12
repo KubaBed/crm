@@ -276,3 +276,66 @@ export function segmentWhere(segment: {
 		? { AND: [where, { id: { notIn: excluded } }] }
 		: where;
 }
+
+export const DEFAULT_SEGMENTS = [
+	{
+		name: "All contacts",
+		description: "Everybody with an email address.",
+		definition: { facet: { facet: "contact.hasEmail" } },
+	},
+	{
+		name: "Added in the last 30 days",
+		description: "New to the CRM, and reachable.",
+		definition: {
+			all: [
+				{ facet: { facet: "contact.hasEmail" } },
+				{ facet: { facet: "contact.createdWithin", days: 30 } },
+			],
+		},
+	},
+	{
+		name: "Quiet for 60 days",
+		description: "Nothing has happened with them in two months.",
+		definition: {
+			all: [
+				{ facet: { facet: "contact.hasEmail" } },
+				{ facet: { facet: "activity.notWithin", days: 60 } },
+			],
+		},
+	},
+	{
+		name: "No open deal",
+		description: "Reachable, and nothing is in the pipeline for them.",
+		definition: {
+			all: [
+				{ facet: { facet: "contact.hasEmail" } },
+				{ facet: { facet: "deal.hasNoOpen" } },
+			],
+		},
+	},
+] as const;
+
+export async function ensureDefaultSegments(db: Db): Promise<number> {
+	let made = 0;
+
+	for (const segment of DEFAULT_SEGMENTS) {
+		const existing = await db.marketingSegment.findFirst({
+			where: { name: segment.name },
+			select: { id: true },
+		});
+
+		if (existing) continue;
+
+		await db.marketingSegment.create({
+			data: {
+				name: segment.name,
+				description: segment.description,
+				definition: segment.definition as Prisma.InputJsonValue,
+			},
+		});
+
+		made += 1;
+	}
+
+	return made;
+}

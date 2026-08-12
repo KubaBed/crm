@@ -28,6 +28,13 @@ on the first facet that touches a relation, and the drift shows up as a branch
 sending people down the wrong arm, which nothing alerts on because both arms
 send something.
 
+**An install starts with four segments.** `ensureDefaultSegments` writes All
+contacts, Added in the last 30 days, Quiet for 60 days and No open deal. It runs
+on the seed and again when somebody finishes marketing setup, and it is
+idempotent by name, so a rep who renames one gets a fresh copy and a rep who
+deletes one gets it back on the next run. Every one of them carries
+`contact.hasEmail`, because a contact with no address is queued and skipped.
+
 ## Entry and exit are set operations
 
 Two queries per drip per tick, whatever the population. `sweepEntries` and

@@ -26,6 +26,7 @@ import {
 	pauseInput,
 	previewNodeInput,
 	previewSegmentInput,
+	previewShellInput,
 	previewTemplateInput,
 	rejectInput,
 	resumeInput,
@@ -442,6 +443,11 @@ export class MarketingTemplatesRouter {
 	@Mutation({ input: updateTemplateInput })
 	async update(@Input() input: z.infer<typeof updateTemplateInput>) {
 		return this.templates.update(input);
+	}
+
+	@Query({ input: previewShellInput })
+	async previewShell(@Input() input: z.infer<typeof previewShellInput>) {
+		return this.templates.previewShell(input);
 	}
 
 	@Mutation({ input: savePartialInput })

@@ -7,6 +7,7 @@ import {
 	DealStage,
 	RateSource,
 } from "../src/generated/prisma/enums";
+import { ensureDefaultSegments } from "../src/marketing/segments";
 import { readReportingCurrency, SETTINGS_ID } from "../src/settings";
 
 function makeRandom(seed: number): () => number {
@@ -763,6 +764,8 @@ async function seedActivities(
 }
 
 async function seedMarketing(): Promise<number> {
+	await ensureDefaultSegments(db);
+
 	const existing = await db.marketingPartial.count();
 	if (existing > 0) return 0;
 

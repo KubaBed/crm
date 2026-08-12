@@ -18,6 +18,25 @@ import { MarketingComposeService } from "./marketing-compose.service";
 
 const GLYPH_LINES = 4;
 
+const SHELL_PREVIEW_BODY = {
+	version: 1,
+	blocks: [
+		{
+			type: "heading",
+			level: 2,
+			text: [{ text: "The body of the email goes here" }],
+		},
+		{
+			type: "text",
+			text: [
+				{
+					text: "This is a stand-in so you can see the header and the footer around it. Every template wears them, and a campaign node cannot change them.",
+				},
+			],
+		},
+	],
+};
+
 export type TemplateGlyph = { accent: boolean; lines: number };
 
 function glyphOf(document: unknown): TemplateGlyph {
@@ -314,6 +333,38 @@ export class MarketingTemplatesService {
 			...row,
 			document: readDocument(row.document),
 		}));
+	}
+
+	async previewShell(input: { id: string; document?: unknown }) {
+		const partial = await this.db.marketingPartial.findUnique({
+			where: { id: input.id },
+			select: { kind: true, document: true },
+		});
+
+		if (!partial) throw new NotFoundException("No such shell.");
+
+		const document = input.document ?? partial.document;
+		const context = await this.compose.contextFor(null);
+
+		const composed = await this.compose.compose({
+			document: SHELL_PREVIEW_BODY,
+			subject: "What every email wearing this looks like",
+			token: "preview",
+			context,
+			shellOverride:
+				partial.kind === "HEADER" ? { header: document } : { footer: document },
+		});
+
+		if (!composed) {
+			return {
+				html: null,
+				text: null,
+				blocked:
+					"Set a postal address in Marketing settings, and APP_URL for this install, before anything can be previewed.",
+			};
+		}
+
+		return { html: composed.html, text: composed.text, blocked: null };
 	}
 
 	async savePartial(input: { id: string; name?: string; document?: unknown }) {
