@@ -20,6 +20,7 @@ import type { RouterOutputs } from "@/lib/trpc/types";
 import { useWorkspaceUrl } from "@/lib/use-workspace-url";
 import { CampaignStatus } from "../../../../(marketing)/marketing/campaign-status";
 import { BlastComposer } from "./blast-composer";
+import { CampaignActions } from "./campaign-actions";
 import { CopilotRail } from "./copilot-rail";
 import { NodeSheet } from "./node-sheet";
 
@@ -139,13 +140,6 @@ export function CampaignCanvas({ campaignId }: { campaignId: string }) {
 		}),
 	);
 
-	const pause = useMutation(
-		trpc.marketingCampaigns.pause.mutationOptions({
-			onSuccess: () => invalidate(),
-			onError: (error) => toast.error(error.message),
-		}),
-	);
-
 	const data = campaign.data;
 
 	const stats = useMemo(
@@ -209,16 +203,7 @@ export function CampaignCanvas({ campaignId }: { campaignId: string }) {
 
 					<div className="flex-1" />
 
-					{live ? (
-						<Button
-							variant="outline"
-							size="sm"
-							disabled={pause.isPending}
-							onClick={() => pause.mutate({ id: campaignId })}
-						>
-							Pause
-						</Button>
-					) : (
+					{live ? null : (
 						<Button
 							size="sm"
 							disabled={activate.isPending || data.kind !== "DRIP"}
@@ -227,6 +212,13 @@ export function CampaignCanvas({ campaignId }: { campaignId: string }) {
 							Activate
 						</Button>
 					)}
+
+					<CampaignActions
+						campaignId={campaignId}
+						status={data.status}
+						inFlight={data.inFlight}
+						onChanged={() => void invalidate()}
+					/>
 				</div>
 
 				<div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
