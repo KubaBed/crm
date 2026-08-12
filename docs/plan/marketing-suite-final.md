@@ -7,11 +7,14 @@ rules a future change must read first in [`../marketing.md`](../marketing.md).
 
 Written 12 August 2026, after reading the tree rather than from memory.
 
-**Where it stands:** 31 commits on `lewis/marketing-suite`. A real email has gone
+Last worked 12 August 2026.
+
+**Where it stands:** 37 commits on `lewis/marketing-suite`. A real email has gone
 out through Resend. The engine walks a branching drip and the agent can build
-one. 228 specs pass. What follows is everything that is not done, ordered so
-that doing it top to bottom never leaves the product in a worse state than it is
-now.
+one. All 14 packages typecheck. 946 specs pass and 7 fail — the 7 are in
+`tracking-ingest` and they predate this branch. What follows is everything that
+is not done, ordered so that doing it top to bottom never leaves the product in
+a worse state than it is now.
 
 ---
 
@@ -36,8 +39,44 @@ now.
   template, and `first_campaign_sent` as the ninth funnel step.
 - **A `building-a-segment` skill** gives the agent every facet and the tool
   order.
+- **Every Paper comment on `/marketing` is resolved** — eleven of them, listed
+  under "What the comments asked for" below. The page has none open.
 
 ---
+
+## Broken now
+
+Neither is marketing's fault and both block a clean `bun run lint` or
+`bun run test`.
+
+1. **7 api specs fail** in `tracking-ingest`: a foreign key violation on
+   `trackedEvent.visitorId`. They fail with every marketing change reverted, so
+   they predate this branch. The fixtures create events for a visitor that is
+   not there.
+2. **`bun run lint` fails** on `apps/api/src/create-app.ts`, where Biome reads
+   `app.useGlobalPipes(...)` as a React hook called outside a component. The
+   file is untouched by this work. Suppress the rule for the Nest bootstrap.
+
+---
+
+## What the comments asked for
+
+Eleven threads on the `/marketing` page in Paper, all now resolved. The page has
+no open thread left.
+
+| Comment | What it meant | Done |
+| --- | --- | --- |
+| "Who gives a fuck about compilers?" | Settings copy leaked an implementation word | Rewritten |
+| "Why do we need to share the DNS?" | Connect to verified Resend domains, never onboard one | Domain picker; no records anywhere |
+| "Too verbose" | Tracking copy ran four lines | One line |
+| "Turn these into a switch" | Open and click tracking were read-only text | Two switches that write to Resend |
+| "This should be in the card header" | The Replace key button sat in the card body | `CardAction` |
+| "Similar issue, buttons go in the card action header" | Same for Save | `CardAction` |
+| "Delete this whole thing… card in card" | Domains were bordered boxes inside a bordered card | Plain rows |
+| "No multi-line table cells!" | Segments, templates and campaigns stacked two lines in a cell | One line each |
+| "Don't we need a full co-pilot here?" | The segment editor had no rail | Rail added, and every editor now has one |
+| "Remove the Segment dropdown" | The new-campaign sheet asked too early | The sheet is gone; a campaign is created Untitled |
+| "The current app looks nothing like this" | The templates list had no thumbnail and no checks | Glyph, Subject, Used by, Last edited, Checks |
 
 ## Found while using it
 
@@ -73,6 +112,13 @@ buttons fell back to the library's light theme, so white icons sat on a white
 button in dark mode, and the nodes had the library's 3px corners.
 Fix: done. The file now names the base tokens (`--foreground`, `--card`), and
 `--radius-sm/lg/xl` are real variables.
+
+### 5. Two React children shared a key
+
+`EmailGlyph` keyed its bars by width class, and two bars are `w-full`.
+Fix: done. The key is the index and the class together.
+
+---
 
 ## The unattended half of the agent
 
@@ -123,11 +169,11 @@ the two that make an autonomous run useful.
 - **`claimDueSends` binds the clock** as a parameter. Using `now()` against a
   naive `timestamp` column resolved through the session timezone and claimed
   nothing. Found by a spec.
-- **228 specs**: 150 in `@crm/db` (engine, re-entry row by row, exit sweeps
-  firing between touches, split stability across retries, blast idempotency,
-  deliverability auto-pause, event retention, quiet hours, the daily cap, the
-  graph validator), 61 telemetry,
-  9 email render and lint, 8 canvas node rendering.
+- **946 specs pass**: 341 api, 312 agent, 150 `@crm/db` (engine, re-entry row by
+  row, exit sweeps firing between touches, split stability across retries, blast
+  idempotency, deliverability auto-pause, event retention, quiet hours, the
+  daily cap, the graph validator), 61 telemetry, 43 auth, 17 env, 9 email render
+  and lint, 8 canvas node rendering, 5 validation.
 
 ## Known unknowns
 
@@ -148,7 +194,7 @@ builder. Nothing here is a gap.
 
 ---
 
-## Two process notes worth keeping
+## Three process notes worth keeping
 
 **Paper drifts within a single session.** It went out of date three times while
 this was being built, because the app kept changing after each sync. Syncing
@@ -157,3 +203,10 @@ Paper belongs in the definition of done for a change, not at the end of a batch.
 **The design was ahead of the code twice.** The settings rate control and the
 reply-to picker were both drawn and then not built. When Paper and the app
 disagree, check which one is right before assuming it is Paper.
+
+**Never `git stash` in this repository while other stashes exist.**
+`git stash push -- <path>` saved nothing on one occasion, and the `git stash pop`
+that followed applied somebody else's `WIP on main` entry over live work. It
+conflicted in `.github/`, `CHANGELOG.md`, `CONTRIBUTING.md` and `package.json`.
+Nothing was lost — a conflicted pop keeps the stash entry — but the recovery
+cost twenty minutes. Use a scratch branch or a worktree instead.
