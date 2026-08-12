@@ -21,7 +21,9 @@ import type {
 	ConversationEventsInput,
 	ConversationListInput,
 	ConversationSaveInput,
+	RecordScope,
 } from "./conversations.contracts";
+import { recordScopeIds } from "./conversations.contracts";
 
 export interface ConversationSummary {
 	id: string;
@@ -80,6 +82,9 @@ export class ConversationsService {
 				...(input.contactId ? { contactId: input.contactId } : {}),
 				...(input.companyId ? { companyId: input.companyId } : {}),
 				...(input.dealId ? { dealId: input.dealId } : {}),
+				...(input.campaignId ? { campaignId: input.campaignId } : {}),
+				...(input.segmentId ? { segmentId: input.segmentId } : {}),
+				...(input.templateId ? { templateId: input.templateId } : {}),
 			},
 			orderBy: { lastMessageAt: "desc" },
 			take: 20,
@@ -768,6 +773,9 @@ export class ConversationsService {
 			contactId: string | null;
 			companyId: string | null;
 			dealId: string | null;
+			campaignId: string | null;
+			segmentId: string | null;
+			templateId: string | null;
 		}) => {
 			if (existing.userId !== userId || existing.kind !== "RECORD") {
 				throw new NotFoundException(
@@ -776,7 +784,12 @@ export class ConversationsService {
 			}
 
 			const existingRecordId =
-				existing.contactId ?? existing.companyId ?? existing.dealId;
+				existing.contactId ??
+				existing.companyId ??
+				existing.dealId ??
+				existing.campaignId ??
+				existing.segmentId ??
+				existing.templateId;
 			if (existingRecordId !== recordId) {
 				throw new BadRequestException(
 					"A conversation cannot be moved to another CRM record.",
@@ -791,6 +804,9 @@ export class ConversationsService {
 					contactId: input.contactId ?? null,
 					companyId: input.companyId ?? null,
 					dealId: input.dealId ?? null,
+					campaignId: input.campaignId ?? null,
+					segmentId: input.segmentId ?? null,
+					templateId: input.templateId ?? null,
 				},
 				data: {
 					continuationToken: input.continuationToken ?? null,
@@ -818,6 +834,9 @@ export class ConversationsService {
 				contactId: true,
 				companyId: true,
 				dealId: true,
+				campaignId: true,
+				segmentId: true,
+				templateId: true,
 			},
 		});
 		let conversation: { id: string };
@@ -837,6 +856,9 @@ export class ConversationsService {
 						contactId: input.contactId ?? null,
 						companyId: input.companyId ?? null,
 						dealId: input.dealId ?? null,
+						campaignId: input.campaignId ?? null,
+						segmentId: input.segmentId ?? null,
+						templateId: input.templateId ?? null,
 					},
 					select: { id: true },
 				});
@@ -851,6 +873,9 @@ export class ConversationsService {
 						contactId: true,
 						companyId: true,
 						dealId: true,
+						campaignId: true,
+						segmentId: true,
+						templateId: true,
 					},
 				});
 				if (!winner) throw error;
@@ -943,19 +968,15 @@ export class ConversationsService {
 		return { id };
 	}
 
-	private recordId(input: {
-		contactId?: string;
-		companyId?: string;
-		dealId?: string;
-	}): string {
-		const recordIds = [input.contactId, input.companyId, input.dealId].filter(
+	private recordId(input: RecordScope): string {
+		const recordIds = recordScopeIds(input).filter(
 			(recordId): recordId is string => Boolean(recordId),
 		);
 		const [recordId] = recordIds;
 
 		if (!recordId || recordIds.length !== 1) {
 			throw new BadRequestException(
-				"Choose exactly one contact, company or deal.",
+				"Choose exactly one contact, company, deal, campaign, segment or template.",
 			);
 		}
 

@@ -4,16 +4,36 @@ const recordShape = {
 	contactId: z.string().trim().min(1).optional(),
 	companyId: z.string().trim().min(1).optional(),
 	dealId: z.string().trim().min(1).optional(),
+	campaignId: z.string().trim().min(1).optional(),
+	segmentId: z.string().trim().min(1).optional(),
+	templateId: z.string().trim().min(1).optional(),
 };
 
-const hasExactlyOneRecord = (input: {
+export type RecordScope = {
 	contactId?: string;
 	companyId?: string;
 	dealId?: string;
-}) =>
-	[input.contactId, input.companyId, input.dealId].filter(Boolean).length === 1;
+	campaignId?: string;
+	segmentId?: string;
+	templateId?: string;
+};
 
-const recordMessage = "Choose exactly one contact, company or deal.";
+export function recordScopeIds(input: RecordScope): (string | undefined)[] {
+	return [
+		input.contactId,
+		input.companyId,
+		input.dealId,
+		input.campaignId,
+		input.segmentId,
+		input.templateId,
+	];
+}
+
+const hasExactlyOneRecord = (input: RecordScope) =>
+	recordScopeIds(input).filter(Boolean).length === 1;
+
+const recordMessage =
+	"Choose exactly one contact, company, deal, campaign, segment or template.";
 
 export const conversationListInput = z
 	.object(recordShape)

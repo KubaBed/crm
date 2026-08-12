@@ -1617,12 +1617,22 @@ CASL wants three years of them and they are the evidence for a suppression.
 ## 15. Unsubscribe
 
 - **`GET /u/<token>`** — a page on the app, anonymous (add `/u` to `ANONYMOUS`
-  in `proxy.ts` beside `/t`). It names the workspace and the address, offers one
-  button, and confirms. No login, no form, no "are you sure".
-- **`POST /api/m/u/<token>`** — the one-click endpoint the header points at.
-  Returns 200 and nothing.
-- Both write `status = UNSUBSCRIBED` immediately. Not within ten days, not on a
-  sweep: the row is written before the response.
+  in `proxy.ts` beside `/t`). It names the workspace and the address, and offers
+  **one button that does it**. No login, no account, no reason required.
+- **The page does not unsubscribe on load, and this is a correction to an
+  earlier draft.** That draft said the GET should write immediately, on the
+  grounds that a confirm step is friction. It is worse than friction: Gmail,
+  Outlook and every corporate link scanner fetch the URLs in a message before a
+  human sees them, so a GET that writes unsubscribes people who never clicked.
+  They then stop getting mail they asked for and nobody finds out. One button is
+  not an "are you sure" — it is the difference between a person acting and a
+  robot acting.
+- **`POST /api/m/u/<token>`** — the one-click endpoint the `List-Unsubscribe`
+  header points at. This one *does* write immediately and returns 200 with an
+  empty body, which is exactly what RFC 8058 asks for. A POST is safe here
+  because scanners do not POST.
+- Both paths write `status = UNSUBSCRIBED` before they answer. Not within ten
+  days, not on a sweep.
 - A preference choice — *pause for 90 days* — sits under the button as a
   secondary action. Offering it is worth a few points of list retention; making
   it the primary action is the dark pattern every guide names, and the law in
