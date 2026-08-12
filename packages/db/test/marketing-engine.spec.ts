@@ -948,6 +948,30 @@ describe("the segments an install starts with", () => {
 		expect(await ensureDefaultSegments(db)).toBe(0);
 	});
 
+	test("a renamed default is not written a second time", async () => {
+		await ensureDefaultSegments(db);
+
+		const mine = await db.marketingSegment.findFirstOrThrow({
+			where: { isDefault: true },
+			select: { id: true, name: true },
+		});
+
+		await db.marketingSegment.update({
+			where: { id: mine.id },
+			data: { name: `${mine.name} — my version` },
+		});
+
+		expect(await ensureDefaultSegments(db)).toBe(0);
+		expect(
+			await db.marketingSegment.count({ where: { name: mine.name } }),
+		).toBe(0);
+
+		await db.marketingSegment.update({
+			where: { id: mine.id },
+			data: { name: mine.name },
+		});
+	});
+
 	test("every one of them compiles", async () => {
 		for (const segment of DEFAULT_SEGMENTS) {
 			const parsed = filterSchema.safeParse(segment.definition);

@@ -7,6 +7,7 @@ import {
 } from "@crm/ui/components/email-blocks";
 import { Spinner } from "@crm/ui/components/spinner";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useAutosave } from "@crm/ui/hooks/use-autosave";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { CopilotRail } from "@/components/marketing/copilot-rail";
@@ -69,6 +70,20 @@ export function ShellEditor({ shellId }: { shellId: string }) {
 			},
 			onError: (error) => toast.error(error.message),
 		}),
+	);
+
+	useAutosave(
+		{ name, blocks },
+		(draft) =>
+			save.mutate({
+				id: shellId,
+				name: draft.name,
+				document: { version: 1, blocks: draft.blocks } as unknown as Record<
+					string,
+					unknown
+				>,
+			}),
+		{ enabled: dirty },
 	);
 
 	if (shell.isPending) {

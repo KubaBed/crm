@@ -18,6 +18,7 @@ import { Label } from "@crm/ui/components/label";
 import { Spinner } from "@crm/ui/components/spinner";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
+import { useAutosave } from "@crm/ui/hooks/use-autosave";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { CopilotRail } from "@/components/marketing/copilot-rail";
@@ -116,6 +117,22 @@ export function TemplateEditor({ templateId }: { templateId: string }) {
 			onSuccess: (result) => toast.success(`Sent to ${result.to}.`),
 			onError: (error) => toast.error(error.message),
 		}),
+	);
+
+	useAutosave(
+		{ name, subject, preheader, blocks },
+		(draft) =>
+			save.mutate({
+				id: templateId,
+				name: draft.name,
+				subject: draft.subject,
+				preheader: draft.preheader || null,
+				document: { version: 1, blocks: draft.blocks } as unknown as Record<
+					string,
+					unknown
+				>,
+			}),
+		{ enabled: dirty },
 	);
 
 	if (template.isPending) {

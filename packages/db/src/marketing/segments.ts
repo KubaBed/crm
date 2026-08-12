@@ -332,19 +332,32 @@ export const DEFAULT_SEGMENTS = [
 export async function ensureDefaultSegments(db: Db): Promise<number> {
 	let made = 0;
 
+	const already = await db.marketingSegment.count({
+		where: { isDefault: true },
+	});
+
+	if (already > 0) return 0;
+
 	for (const segment of DEFAULT_SEGMENTS) {
-		const existing = await db.marketingSegment.findFirst({
+		const clash = await db.marketingSegment.findFirst({
 			where: { name: segment.name },
 			select: { id: true },
 		});
 
-		if (existing) continue;
+		if (clash) {
+			await db.marketingSegment.update({
+				where: { id: clash.id },
+				data: { isDefault: true },
+			});
+			continue;
+		}
 
 		await db.marketingSegment.create({
 			data: {
 				name: segment.name,
 				description: segment.description,
 				definition: segment.definition as Prisma.InputJsonValue,
+				isDefault: true,
 			},
 		});
 

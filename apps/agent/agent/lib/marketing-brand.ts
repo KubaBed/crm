@@ -69,11 +69,17 @@ export async function runMarketingBrand(): Promise<BrandPass> {
 		if (result?.outcome === "found") {
 			const mapped = brandToUpdate(result.brand, EMPTY_SNAPSHOT) as {
 				logoUrl?: string;
+				iconUrl?: string;
 				brandColor?: string;
 			};
 
-			const raster = rasterOnly(mapped.logoUrl ?? null);
-			if (raster) logoUrl = await mirror(raster, "marketing-logo");
+			const raster =
+				rasterOnly(mapped.logoUrl ?? null) ??
+				rasterOnly(mapped.iconUrl ?? null);
+
+			if (raster) {
+				logoUrl = (await mirror(raster, "marketing-logo")) ?? raster;
+			}
 
 			if (mapped.brandColor) {
 				colour = darkenUntilReadable(mapped.brandColor, "#ffffff");
@@ -148,7 +154,7 @@ export async function runMarketingBrand(): Promise<BrandPass> {
 		colour: colour ?? EMAIL_THEME.brand,
 		reason: logoUrl
 			? undefined
-			: "No usable logo — email needs a raster, and an SVG will not draw in Outlook.",
+			: "No usable logo — email needs a raster, and neither the logo nor the icon was one. An SVG will not draw in Outlook.",
 	};
 }
 
