@@ -12,6 +12,7 @@ import {
 import { Icon } from "@crm/ui/components/icon";
 import { Spinner } from "@crm/ui/components/spinner";
 import { useMutation } from "@tanstack/react-query";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { type ReactNode, Suspense } from "react";
 import { toast } from "sonner";
@@ -54,6 +55,32 @@ export function CreateTemplateButton() {
 		<Deferred label="New template">
 			<TemplateButton />
 		</Deferred>
+	);
+}
+
+export function EditShellButton() {
+	return (
+		<Suspense
+			fallback={
+				<Button variant="outline" disabled>
+					Edit the shell
+				</Button>
+			}
+		>
+			<ShellLink />
+		</Suspense>
+	);
+}
+
+function ShellLink() {
+	const workspaceUrl = useWorkspaceUrl();
+
+	return (
+		<Button asChild variant="outline">
+			<Link href={workspaceUrl("/marketing/templates/shell")} prefetch>
+				Edit the shell
+			</Link>
+		</Button>
 	);
 }
 

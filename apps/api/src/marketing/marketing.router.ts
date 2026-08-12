@@ -27,6 +27,7 @@ import {
 	previewNodeInput,
 	previewSegmentInput,
 	previewTemplateInput,
+	savePartialInput,
 	rejectInput,
 	resumeInput,
 	saveIdentityInput,
@@ -430,6 +431,11 @@ export class MarketingTemplatesRouter {
 	@Mutation({ input: updateTemplateInput })
 	async update(@Input() input: z.infer<typeof updateTemplateInput>) {
 		return this.templates.update(input);
+	}
+
+	@Mutation({ input: savePartialInput })
+	async savePartial(@Input() input: z.infer<typeof savePartialInput>) {
+		return this.templates.savePartial(input);
 	}
 
 	@Mutation({ input: idInput })

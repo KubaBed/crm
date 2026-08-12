@@ -257,6 +257,33 @@ export class MarketingTemplatesService {
 		}));
 	}
 
+	async savePartial(input: { id: string; name?: string; document?: unknown }) {
+		if (input.document !== undefined) {
+			const parsed = emailDocument.safeParse(input.document);
+			if (!parsed.success) {
+				throw new BadRequestException("That shell content cannot be read.");
+			}
+		}
+
+		const partial = await this.db.marketingPartial.findUnique({
+			where: { id: input.id },
+			select: { id: true },
+		});
+
+		if (!partial) throw new NotFoundException("No such shell.");
+
+		return this.db.marketingPartial.update({
+			where: { id: input.id },
+			data: {
+				...(input.name && { name: input.name }),
+				...(input.document !== undefined && {
+					document: input.document as Prisma.InputJsonValue,
+				}),
+			},
+			select: { id: true },
+		});
+	}
+
 	async options() {
 		return this.db.marketingTemplate.findMany({
 			where: { archivedAt: null },

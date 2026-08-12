@@ -23,7 +23,7 @@ import { dashboardSummaryInput } from "../dashboard/dashboard.contracts";
 import { dealListInput, dealIdInput, dealCreateInput, dealUpdateArgs, setStageInput, dealContactsInput, dealAttachContactInput, dealDetachContactInput, dealContactRoleInput, dealBulkOwnerInput, dealBulkStageInput, dealBulkInput } from "../deals/deals.contracts";
 import { fieldListInput, fieldByKeyInput, fieldIdInput, fieldCreateInput, fieldUpdateArgs, fieldReorderInput } from "../fields/fields.contracts";
 import { setAutoCreateInput, suppressDomainInput, threadInput, calendarEventInput } from "../google/google.contracts";
-import { idInput, setDomainInput, saveKeyInput, saveIdentityInput, saveSendingInput, setTrackingInput, campaignListInput, previewNodeInput, campaignPageInput, createCampaignInput, updateCampaignInput, writeGraphInput, updateNodeInput, scheduleInput, rejectInput, pauseInput, resumeInput, archiveCampaignInput, enrolInput, enrolCompanyInput, winnerInput, addAttachmentInput, sendDirectInput, sendCompanyInput, previewSegmentInput, createSegmentInput, updateSegmentInput, memberInput, previewTemplateInput, createTemplateInput, updateTemplateInput } from "../marketing/marketing.contracts";
+import { idInput, setDomainInput, saveKeyInput, saveIdentityInput, saveSendingInput, setTrackingInput, campaignListInput, previewNodeInput, campaignPageInput, createCampaignInput, updateCampaignInput, writeGraphInput, updateNodeInput, scheduleInput, rejectInput, pauseInput, resumeInput, archiveCampaignInput, enrolInput, enrolCompanyInput, winnerInput, addAttachmentInput, sendDirectInput, sendCompanyInput, previewSegmentInput, createSegmentInput, updateSegmentInput, memberInput, previewTemplateInput, createTemplateInput, updateTemplateInput, savePartialInput } from "../marketing/marketing.contracts";
 import { listInput } from "../marketing/../trpc/list-input";
 import { setOutlookAutoCreateInput } from "../microsoft/microsoft.contracts";
 import { setAgentModelInput, setResearchKeyInput } from "../settings/settings.contracts";
@@ -535,6 +535,9 @@ const appRouter = t.router({
     update: publicProcedure
       .input(updateTemplateInput)
       .mutation(async () => "PLACEHOLDER_DO_NOT_REMOVE" as unknown as Awaited<ReturnType<MarketingTemplatesRouter["update"]>>),
+    savePartial: publicProcedure
+      .input(savePartialInput)
+      .mutation(async () => "PLACEHOLDER_DO_NOT_REMOVE" as unknown as Awaited<ReturnType<MarketingTemplatesRouter["savePartial"]>>),
     duplicate: publicProcedure
       .input(idInput)
       .mutation(async () => "PLACEHOLDER_DO_NOT_REMOVE" as unknown as Awaited<ReturnType<MarketingTemplatesRouter["duplicate"]>>),
