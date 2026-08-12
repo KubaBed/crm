@@ -3,9 +3,11 @@
 import { DataTable, type DataTableColumn } from "@crm/ui/components/data-table";
 import { EmptyCellValue } from "@crm/ui/components/empty-cell";
 import { useQuery } from "@tanstack/react-query";
+import { useRouter } from "next/navigation";
 import { ListSearch } from "@/components/data-table/list-search";
 import { useTableQuery } from "@/components/data-table/use-table-query";
 import { useTRPC } from "@/lib/trpc/client";
+import { useWorkspaceUrl } from "@/lib/use-workspace-url";
 import type { RouterOutputs } from "@/lib/trpc/types";
 import { segmentsSearchParams } from "./segments-search-params";
 
@@ -90,6 +92,8 @@ const COLUMNS: DataTableColumn<SegmentRow>[] = [
 
 export function SegmentsTable() {
 	const trpc = useTRPC();
+	const router = useRouter();
+	const workspaceUrl = useWorkspaceUrl();
 	const { query, input } = useTableQuery(segmentsSearchParams);
 
 	const segments = useQuery({
@@ -106,6 +110,9 @@ export function SegmentsTable() {
 			total={segments.data?.total ?? 0}
 			getRowId={(row) => row.id}
 			loading={segments.isPending}
+			onRowClick={(row) =>
+				router.push(workspaceUrl(`/marketing/segments/${row.id}`))
+			}
 			empty="No segments yet. A segment is a saved question about your contacts, and every campaign shares them."
 		/>
 	);

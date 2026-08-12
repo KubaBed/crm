@@ -2,7 +2,10 @@ import { graphEdgeInput, graphNodeInput } from "@crm/db/marketing";
 import { z } from "zod";
 import { listInput } from "../trpc/list-input";
 
-const ruleTree = z.record(z.string(), z.unknown());
+const ruleTree = z.custom<Record<string, unknown>>(
+	(value) => typeof value === "object" && value !== null,
+	{ message: "Rules must be an object." },
+);
 
 export const idInput = z.object({ id: z.string().min(1) });
 
@@ -147,7 +150,9 @@ export const previewNodeInput = z.object({
 });
 
 export const previewTemplateInput = z.object({
-	document: z.record(z.string(), z.unknown()),
+	document: z.custom<Record<string, unknown>>(
+		(value) => typeof value === "object" && value !== null,
+	),
 	subject: z.string().max(200).nullish(),
 	preheader: z.string().max(300).nullish(),
 	contactId: z.string().nullish(),

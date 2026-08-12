@@ -177,7 +177,7 @@ export class MarketingSegmentsService {
 			id: row.id,
 			name: row.name,
 			description: row.description,
-			definition: row.definition,
+			definition: row.definition as Record<string, unknown> | null,
 			kind: row.kind,
 			counts: { ...counts, sendable, suppressed: excluded.length },
 			usedBy: row.campaigns,

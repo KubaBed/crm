@@ -23,7 +23,7 @@ export function UnsubscribeForm({
 	if (done) {
 		return (
 			<>
-				<h1 className="font-semibold text-xl tracking-tight">
+				<h1 className="font-medium text-xl tracking-tight">
 					You are unsubscribed
 				</h1>
 				<p className="text-muted-foreground text-sm">
@@ -41,7 +41,7 @@ export function UnsubscribeForm({
 
 	return (
 		<>
-			<h1 className="font-semibold text-xl tracking-tight">
+			<h1 className="font-medium text-xl tracking-tight">
 				Unsubscribe from {workspace}
 			</h1>
 

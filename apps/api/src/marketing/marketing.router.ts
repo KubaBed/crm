@@ -104,6 +104,11 @@ export class MarketingRouter {
 	}
 
 	@Mutation()
+	async sendTest(@Ctx() ctx: AuthedTrpcContext) {
+		return this.settingsService.sendTest(ctx.user.id);
+	}
+
+	@Mutation()
 	async markOnboarded() {
 		return this.settingsService.markOnboarded();
 	}

@@ -7,6 +7,7 @@ import { Button } from "@crm/ui/components/button";
 import { Field, FieldGroup, FieldLabel } from "@crm/ui/components/field";
 import { Icon } from "@crm/ui/components/icon";
 import { Input } from "@crm/ui/components/input";
+import Logo from "@crm/ui/components/logo";
 import { Spinner } from "@crm/ui/components/spinner";
 import { cn } from "@crm/ui/lib/utils";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -32,6 +33,7 @@ export function SetupWizard({ step }: { step: string }) {
 	const [fromAddress, setFromAddress] = useState("");
 	const [postalAddress, setPostalAddress] = useState("");
 	const [host, setHost] = useState("");
+	const [tested, setTested] = useState(false);
 
 	const keyId = useId();
 	const fromNameId = useId();
@@ -97,6 +99,16 @@ export function SetupWizard({ step }: { step: string }) {
 		}),
 	);
 
+	const sendTest = useMutation(
+		trpc.marketing.sendTest.mutationOptions({
+			onSuccess: (result) => {
+				setTested(true);
+				toast.success(`Sent to ${result.to}. Check your inbox.`);
+			},
+			onError: (error) => toast.error(error.message),
+		}),
+	);
+
 	if (settings.isPending || !data) {
 		return (
 			<div className="flex h-svh items-center justify-center">
@@ -110,7 +122,9 @@ export function SetupWizard({ step }: { step: string }) {
 			? data.connected || key.trim().length > 0
 			: step === "identity"
 				? fromAddress.trim().length > 0 && postalAddress.trim().length > 0
-				: true;
+				: step === "test"
+					? tested
+					: true;
 
 	const advance = () => {
 		if (step === "connect" && key.trim()) return saveKey.mutate({ key });
@@ -131,48 +145,60 @@ export function SetupWizard({ step }: { step: string }) {
 	return (
 		<div className="flex h-svh flex-col bg-background">
 			<header className="shrink-0">
-				<div className="flex items-center justify-between px-6 pt-5">
-					<div className="size-8 rounded-md bg-foreground" />
-					<Button asChild variant="ghost" size="sm" className="gap-1.5">
+				<div className="flex items-center gap-3 px-6 py-4">
+					<Link
+						href={workspaceUrl()}
+						aria-label="Homepage"
+						className="flex size-6 shrink-0 items-center justify-center text-foreground"
+					>
+						<Logo className="size-5" />
+					</Link>
+
+					<nav
+						aria-label="Setup steps"
+						className="flex min-w-0 flex-1 items-center gap-2 text-sm"
+					>
+						{STEPS.map((candidate, position) => (
+							<span key={candidate.id} className="flex items-center gap-2">
+								{position > 0 ? (
+									<span className="text-muted-foreground">/</span>
+								) : null}
+								<span
+									className={cn(
+										"flex items-center gap-1.5",
+										position <= index
+											? "text-foreground"
+											: "text-muted-foreground",
+									)}
+								>
+									<span
+										className={cn(
+											"size-1.5 shrink-0 rounded-sm",
+											position < index
+												? "bg-foreground"
+												: position === index
+													? "bg-primary"
+													: "bg-border",
+										)}
+									/>
+									{candidate.title}
+								</span>
+							</span>
+						))}
+					</nav>
+
+					<Button
+						asChild
+						variant="ghost"
+						size="sm"
+						className="shrink-0 gap-1.5"
+					>
 						<Link href={workspaceUrl("/")}>
 							<Icon icon={Close} className="size-3.5" />
 							Close setup wizard
 						</Link>
 					</Button>
 				</div>
-
-				<nav
-					aria-label="Setup steps"
-					className="flex items-center gap-2 px-6 pt-3 pb-3 text-xs"
-				>
-					{STEPS.map((candidate, position) => (
-						<span key={candidate.id} className="flex items-center gap-2">
-							{position > 0 ? (
-								<span className="text-muted-foreground">/</span>
-							) : null}
-							<span
-								className={cn(
-									"flex items-center gap-1.5",
-									position <= index
-										? "text-foreground"
-										: "text-muted-foreground",
-								)}
-							>
-								<span
-									className={cn(
-										"size-1.5 rounded-sm",
-										position < index
-											? "bg-foreground"
-											: position === index
-												? "bg-primary"
-												: "bg-border",
-									)}
-								/>
-								{candidate.title}
-							</span>
-						</span>
-					))}
-				</nav>
 
 				<div className="h-px w-full bg-border">
 					<div
@@ -281,11 +307,30 @@ export function SetupWizard({ step }: { step: string }) {
 							title="Send yourself one"
 							blurb="Nothing goes to a customer until you schedule a campaign. This proves the shell, the footer and the unsubscribe link all render."
 						>
-							<p className="text-muted-foreground text-sm">
-								{data.sendable.ok
-									? "Everything needed to send is in place."
-									: `Still to do: ${data.sendable.missing.join(", ")}.`}
-							</p>
+							{data.sendable.ok ? (
+								<>
+									<Button
+										variant="outline"
+										className="self-start"
+										disabled={sendTest.isPending}
+										onClick={() => sendTest.mutate()}
+									>
+										{sendTest.isPending ? <Spinner /> : null}
+										{tested ? "Send another" : "Send me a test"}
+									</Button>
+									{tested ? (
+										<p className="text-muted-foreground text-sm">
+											It went through the same path a campaign takes. If it is
+											not there in a minute, check the sending domain.
+										</p>
+									) : null}
+								</>
+							) : (
+								<p className="text-muted-foreground text-sm">
+									Still to do: {data.sendable.missing.join(", ")}. Go back and
+									finish those, and this step can prove the rest works.
+								</p>
+							)}
 						</Step>
 					) : null}
 				</div>
@@ -330,7 +375,9 @@ function Step({
 	return (
 		<div className="flex flex-col gap-6">
 			<div className="flex flex-col gap-2">
-				<h1 className="font-semibold text-3xl tracking-tight">{title}</h1>
+				<h1 className="font-medium text-2xl tracking-tight md:text-3xl">
+					{title}
+				</h1>
 				<p className="text-muted-foreground">{blurb}</p>
 			</div>
 			<FieldGroup>{children}</FieldGroup>

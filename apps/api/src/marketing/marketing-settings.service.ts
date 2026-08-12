@@ -2,12 +2,14 @@ import type { Db } from "@crm/db";
 import {
 	assertSendable,
 	maskKey,
+	queueDirect,
 	readMarketingSettings,
 	writeMarketingSettings,
 } from "@crm/db/marketing";
 import { BadRequestException, Injectable } from "@nestjs/common";
 import { blankToNull, normalizeEmail } from "../crm/values";
 import { InjectDatabase } from "../database/database.constants";
+import { MarketingDrainService } from "./marketing-drain.service";
 import type { DnsRecord } from "./resend.service";
 import { ResendService } from "./resend.service";
 
@@ -35,6 +37,7 @@ export class MarketingSettingsService {
 	constructor(
 		@InjectDatabase() private readonly db: Db,
 		private readonly resend: ResendService,
+		private readonly drain: MarketingDrainService,
 	) {}
 
 	async status(): Promise<MarketingStatus> {
@@ -218,6 +221,77 @@ export class MarketingSettingsService {
 		const state = await this.resend.readDomain(settings.resendDomainId);
 
 		return { status: state?.status ?? "unknown" };
+	}
+
+	async sendTest(userId: string): Promise<{ to: string }> {
+		const sendable = await assertSendable(this.db);
+		if (!sendable.ok) throw new BadRequestException(sendable.reason);
+
+		const user = await this.db.user.findUnique({
+			where: { id: userId },
+			select: { email: true, name: true },
+		});
+
+		if (!user?.email) {
+			throw new BadRequestException("Your account has no email address.");
+		}
+
+		const template = await this.db.marketingTemplate.findFirst({
+			where: { archivedAt: null },
+			select: { subject: true, document: true },
+			orderBy: { createdAt: "asc" },
+		});
+
+		const result = await queueDirect(this.db, {
+			address: user.email,
+			subject: template?.subject
+				? `[test] ${template.subject}`
+				: "[test] Your marketing setup works",
+			document: template?.document ?? {
+				version: 1,
+				blocks: [
+					{
+						type: "heading",
+						level: 1,
+						text: [{ text: "Your marketing setup works" }],
+					},
+					{
+						type: "text",
+						text: [
+							{
+								text: "This came through the same path a campaign takes — the same renderer, the same footer, the same unsubscribe link. Nothing has gone to a customer.",
+							},
+						],
+					},
+				],
+			},
+			replyTo: user.email,
+			requestedById: userId,
+			origin: "TEST",
+		});
+
+		if (!result.ok) {
+			throw new BadRequestException(
+				result.reason === "unsubscribed"
+					? "You unsubscribed from this workspace's marketing email, so the test cannot go to you."
+					: `The test could not be queued: ${result.reason}.`,
+			);
+		}
+
+		await this.drain.tick();
+
+		const send = await this.db.marketingSend.findUnique({
+			where: { id: result.sendId },
+			select: { status: true, error: true },
+		});
+
+		if (send?.status === "FAILED") {
+			throw new BadRequestException(
+				send.error ?? "Resend refused the test. Check the key and the domain.",
+			);
+		}
+
+		return { to: user.email };
 	}
 
 	async markOnboarded(): Promise<void> {

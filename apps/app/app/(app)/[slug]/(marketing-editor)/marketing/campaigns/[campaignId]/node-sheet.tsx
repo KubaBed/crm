@@ -47,7 +47,7 @@ function blockSummary(block: Block): string {
 function Stat({ label, value }: { label: string; value: string }) {
 	return (
 		<div className="flex w-[104px] shrink-0 flex-col gap-0.5">
-			<span className="text-[11px] text-muted-foreground">{label}</span>
+			<span className="text-xs text-muted-foreground">{label}</span>
 			<span className="font-medium text-sm">{value}</span>
 		</div>
 	);
@@ -57,7 +57,7 @@ function ShellRow({ kind, detail }: { kind: string; detail: string }) {
 	return (
 		<div className="flex h-9 items-center gap-2 bg-muted px-2.5">
 			<Icon icon={Locked} className="size-3 shrink-0 text-muted-foreground" />
-			<span className="shrink-0 rounded-sm bg-background px-1.5 py-px text-[11px] text-muted-foreground">
+			<span className="shrink-0 rounded-sm bg-background px-1.5 py-px text-xs text-muted-foreground">
 				{kind}
 			</span>
 			<span className="min-w-0 flex-1 truncate text-muted-foreground text-xs">
@@ -120,8 +120,8 @@ export function NodeSheet({
 					icon={Email}
 					className="size-3.5 shrink-0 text-muted-foreground"
 				/>
-				<span className="font-semibold text-sm">{node.label ?? "Email"}</span>
-				<span className="rounded-sm border px-1.5 py-px text-[11px] text-muted-foreground">
+				<span className="font-medium text-sm">{node.label ?? "Email"}</span>
+				<span className="rounded-sm border px-1.5 py-px text-xs text-muted-foreground">
 					Email
 				</span>
 				<div className="flex-1" />
@@ -154,7 +154,7 @@ export function NodeSheet({
 					<div className="flex flex-col gap-1.5">
 						<Label
 							htmlFor="node-subject"
-							className="text-[11px] text-muted-foreground"
+							className="text-xs text-muted-foreground"
 						>
 							Subject
 						</Label>
@@ -163,7 +163,7 @@ export function NodeSheet({
 							value={subject}
 							onChange={(event) => setSubject(event.target.value)}
 						/>
-						<span className="text-[11px] text-muted-foreground">
+						<span className="text-xs text-muted-foreground">
 							{subject.length} characters
 							{subject.length > 50
 								? " — most phones cut it at 50"
@@ -174,7 +174,7 @@ export function NodeSheet({
 					<div className="flex flex-col gap-1.5">
 						<Label
 							htmlFor="node-preheader"
-							className="text-[11px] text-muted-foreground"
+							className="text-xs text-muted-foreground"
 						>
 							Preheader
 						</Label>
@@ -186,7 +186,7 @@ export function NodeSheet({
 					</div>
 
 					<div className="flex flex-col gap-2">
-						<span className="text-[11px] text-muted-foreground">Body</span>
+						<span className="text-xs text-muted-foreground">Body</span>
 						<div className="overflow-clip rounded-lg border">
 							<ShellRow kind="Header" detail="Default shell · workspace logo" />
 							{blocks.map((block, index) => (
@@ -198,7 +198,7 @@ export function NodeSheet({
 										icon={Draggable}
 										className="size-3 shrink-0 text-border"
 									/>
-									<span className="shrink-0 rounded-sm bg-muted px-1.5 py-px text-[11px] text-muted-foreground">
+									<span className="shrink-0 rounded-sm bg-muted px-1.5 py-px text-xs text-muted-foreground">
 										{BLOCK_LABEL[block.type] ?? block.type}
 									</span>
 									<span className="min-w-0 flex-1 truncate text-xs">
@@ -217,10 +217,10 @@ export function NodeSheet({
 					</div>
 
 					<div className="flex flex-col gap-1 rounded-md bg-muted px-3 py-2.5">
-						<span className="font-medium text-[11px]">
+						<span className="font-medium text-xs">
 							Header and footer: Default shell
 						</span>
-						<span className="text-[11px] text-muted-foreground">
+						<span className="text-xs text-muted-foreground">
 							The logo, the address and the unsubscribe link are added by the
 							compiler. You cannot edit them here, and that is on purpose — edit
 							the shell once in Templates.
@@ -257,7 +257,7 @@ export function NodeSheet({
 									key={mode}
 									variant={device === mode ? "outline" : "ghost"}
 									size="sm"
-									className="h-6 px-2.5 font-normal text-[11px] capitalize"
+									className="h-6 px-2.5 font-normal text-xs capitalize"
 									onClick={() => setDevice(mode)}
 								>
 									{mode === "text" ? "Plain text" : mode}
@@ -265,7 +265,7 @@ export function NodeSheet({
 							))}
 						</div>
 						<div className="flex-1" />
-						<span className="text-[11px] text-muted-foreground">
+						<span className="text-xs text-muted-foreground">
 							Rendered by the code that sends it
 						</span>
 					</div>

@@ -192,8 +192,8 @@ export function CampaignCanvas({ campaignId }: { campaignId: string }) {
 						</Link>
 					</Button>
 					<span className="h-3.5 w-px bg-border" />
-					<h1 className="truncate font-semibold text-base">{data.name}</h1>
-					<span className="shrink-0 rounded-sm border px-1.5 py-px text-[11px] text-muted-foreground">
+					<h1 className="truncate font-medium text-sm">{data.name}</h1>
+					<span className="shrink-0 rounded-sm border px-1.5 py-px text-xs text-muted-foreground">
 						{data.kind === "DRIP" ? "Drip" : "Blast"}
 					</span>
 					<span className="shrink-0 text-xs">
@@ -222,7 +222,7 @@ export function CampaignCanvas({ campaignId }: { campaignId: string }) {
 					)}
 				</div>
 
-				<div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-muted-foreground">
+				<div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
 					<span>{data.enrolled.toLocaleString()} enrolled</span>
 					<span className="size-[3px] rounded-sm bg-border" />
 					<span>{data.inFlight.toLocaleString()} in flight</span>

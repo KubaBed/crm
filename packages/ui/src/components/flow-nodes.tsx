@@ -35,7 +35,7 @@ function percent(part: number, whole: number): string {
 }
 
 function Stat({ children }: { children: ReactNode }) {
-	return <span className="shrink-0 text-[11px] text-muted-foreground">{children}</span>;
+	return <span className="shrink-0 text-xs text-muted-foreground">{children}</span>;
 }
 
 function Target() {
@@ -66,7 +66,7 @@ export function EmailNode({ data, selected }: NodeProps) {
 					{node.label}
 				</span>
 				{node.chip ? (
-					<span className="shrink-0 rounded-sm border px-1.5 py-px text-[11px] text-muted-foreground">
+					<span className="shrink-0 rounded-sm border px-1.5 py-px text-xs text-muted-foreground">
 						{node.chip}
 					</span>
 				) : null}
@@ -122,7 +122,7 @@ export function LogicNode({ data, selected }: NodeProps) {
 					icon={FlowConnection}
 					className="size-3 shrink-0 text-muted-foreground"
 				/>
-				<span className="text-[11px] text-muted-foreground">{node.kind}</span>
+				<span className="text-xs text-muted-foreground">{node.kind}</span>
 			</div>
 			<div className="truncate font-medium text-xs">{node.label}</div>
 			{branch ? (
