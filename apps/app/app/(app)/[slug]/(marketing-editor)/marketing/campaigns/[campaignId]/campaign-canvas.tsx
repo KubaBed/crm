@@ -212,7 +212,7 @@ export function CampaignCanvas({ campaignId }: { campaignId: string }) {
 	}
 
 	const selected = data.nodes.find((node) => node.id === selectedId) ?? null;
-	const live = data.status === "ACTIVE";
+	const activatable = data.kind === "DRIP" && data.status === "DRAFT";
 
 	return (
 		<MarketingEditorShell
@@ -259,15 +259,16 @@ export function CampaignCanvas({ campaignId }: { campaignId: string }) {
 						</DropdownMenuContent>
 					</DropdownMenu>
 
-					{live ? null : (
+					{activatable ? (
 						<Button
 							size="sm"
-							disabled={activate.isPending || data.kind !== "DRIP"}
+							disabled={activate.isPending}
 							onClick={() => activate.mutate({ id: campaignId })}
 						>
+							{activate.isPending ? <Spinner /> : null}
 							Activate
 						</Button>
-					)}
+					) : null}
 
 					<DripSettings
 						campaignId={campaignId}
@@ -299,6 +300,7 @@ export function CampaignCanvas({ campaignId }: { campaignId: string }) {
 			rail={
 				selected && selected.kind !== "EMAIL" ? (
 					<LogicSheet
+						key={`${selected.id}:${selected.delayHours ?? ""}`}
 						node={selected}
 						campaign={data}
 						stats={stats}

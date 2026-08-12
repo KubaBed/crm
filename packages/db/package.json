@@ -25,7 +25,8 @@
 		"./tracking": "./src/tracking.ts",
 		"./workspace": "./src/workspace.ts",
 		"./values": "./src/values.ts",
-		"./marketing": "./src/marketing/index.ts"
+		"./marketing": "./src/marketing/index.ts",
+		"./marketing/facet-limits": "./src/marketing/facet-limits.ts"
 	},
 	"scripts": {
 		"build": "prisma generate",

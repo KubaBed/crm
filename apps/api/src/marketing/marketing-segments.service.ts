@@ -1,4 +1,4 @@
-import type { Db, Prisma } from "@crm/db";
+import { type Db, Prisma } from "@crm/db";
 import { filterSchema, segmentWhere } from "@crm/db/marketing";
 import {
 	BadRequestException,
@@ -289,9 +289,11 @@ export class MarketingSegmentsService {
 						: null,
 				}),
 				...(input.definition !== undefined && {
-					definition: (input.definition ?? undefined) as
-						| Prisma.InputJsonValue
-						| undefined,
+					definition:
+						input.definition === null
+							? Prisma.DbNull
+							: (input.definition as Prisma.InputJsonValue),
+					kind: input.definition === null ? "STATIC" : "DYNAMIC",
 				}),
 			},
 			select: { id: true },

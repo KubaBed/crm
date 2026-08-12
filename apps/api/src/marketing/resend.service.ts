@@ -1,7 +1,8 @@
+import { createHash } from "node:crypto";
 import type { Db } from "@crm/db";
 import { readMarketingSettings } from "@crm/db/marketing";
 import { Injectable, Logger } from "@nestjs/common";
-import { Resend } from "resend";
+import { type ErrorResponse, Resend } from "resend";
 import { InjectDatabase } from "../database/database.constants";
 
 export type SendOne = {
@@ -39,6 +40,19 @@ export type DomainState = {
 };
 
 const RETRYABLE = new Set([408, 429, 500, 502, 503, 504]);
+
+function retryable(error: ErrorResponse | null): boolean {
+	const status = error?.statusCode;
+	return status ? RETRYABLE.has(status) : true;
+}
+
+function batchKey(sendIds: string[]): string {
+	const digest = createHash("sha256")
+		.update([...sendIds].sort().join(","))
+		.digest("hex");
+
+	return `batch-send/${digest}`;
+}
 
 @Injectable()
 export class ResendService {
@@ -196,12 +210,10 @@ export class ResendService {
 			);
 
 			if (result.error || !result.data) {
-				const status = (result.error as { statusCode?: number } | null)
-					?.statusCode;
 				return {
 					ok: false,
 					error: result.error?.message ?? "Resend refused the message.",
-					retry: status ? RETRYABLE.has(status) : true,
+					retry: retryable(result.error),
 				};
 			}
 
@@ -249,14 +261,17 @@ export class ResendService {
 					replyTo: message.replyTo ?? settings.replyTo ?? undefined,
 					headers: message.headers,
 				})),
+				{ idempotencyKey: batchKey(messages.map((message) => message.sendId)) },
 			);
 
 			if (result.error || !result.data) {
+				const retry = retryable(result.error);
+
 				for (const message of messages) {
 					results.set(message.sendId, {
 						ok: false,
 						error: result.error?.message ?? "Resend refused the batch.",
-						retry: true,
+						retry,
 					});
 				}
 				return results;

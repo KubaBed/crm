@@ -18,12 +18,14 @@ import {
 	skipOverCap,
 	sweepEvents,
 } from "../src/marketing/queue";
+import { suppress, unsubscribeByToken } from "../src/marketing/recipients";
 import {
 	DEFAULT_SEGMENTS,
 	ensureDefaultSegments,
 	filterSchema,
 	segmentWhere,
 } from "../src/marketing/segments";
+import { MARKETING } from "../src/marketing/settings";
 
 const TAG = `mktest${Date.now()}`;
 
@@ -107,8 +109,57 @@ async function seedDrip(
 	} satisfies Seeded;
 }
 
+async function seedContinuous(cooldown: number | null) {
+	seq += 1;
+	const suffix = `${TAG}c${seq}`;
+
+	const contact = await db.contact.create({
+		data: {
+			firstName: "Cora",
+			lastName: TAG,
+			title: suffix,
+			email: `cora.${suffix}@example.test`,
+		},
+		select: { id: true },
+	});
+
+	const campaign = await db.marketingCampaign.create({
+		data: {
+			name: `${TAG} continuous ${seq}`,
+			kind: "DRIP",
+			status: "ACTIVE",
+			entryMode: "CONTINUOUS",
+			entryDefinition: {
+				facet: { facet: "contact.titleContains", value: suffix },
+			},
+			maxPasses: 3,
+			reentryCooldownDays: cooldown,
+		},
+		select: { id: true },
+	});
+
+	await db.marketingCampaignNode.create({
+		data: {
+			campaignId: campaign.id,
+			kind: "EMAIL",
+			subject: "First",
+			document: { version: 1, blocks: [] },
+		},
+	});
+
+	return { campaignId: campaign.id, contactId: contact.id };
+}
+
+async function completeEnrolments(campaignId: string) {
+	await db.marketingEnrolment.updateMany({
+		where: { campaignId },
+		data: { status: "COMPLETED", exitKind: "RULE", exitedAt: new Date() },
+	});
+}
+
 async function cleanup() {
 	await db.marketingCampaign.deleteMany({ where: { name: { contains: TAG } } });
+	await db.marketingTemplate.deleteMany({ where: { name: { contains: TAG } } });
 	await db.marketingSegment.deleteMany({ where: { name: { contains: TAG } } });
 	await db.marketingRecipient.deleteMany({
 		where: { address: { contains: TAG } },
@@ -293,6 +344,102 @@ describe("the entry sweep", () => {
 	test("does nothing for a manual drip", async () => {
 		const drip = await seedDrip();
 		expect(await sweepEntries(db, drip.campaignId)).toBe(0);
+	});
+
+	test("lets somebody straight back in when the cooldown is zero days", async () => {
+		const drip = await seedContinuous(0);
+
+		expect(await sweepEntries(db, drip.campaignId)).toBe(1);
+		await completeEnrolments(drip.campaignId);
+
+		expect(await sweepEntries(db, drip.campaignId)).toBe(1);
+	});
+
+	test("holds somebody out forever when the cooldown is not set", async () => {
+		const drip = await seedContinuous(null);
+
+		expect(await sweepEntries(db, drip.campaignId)).toBe(1);
+		await completeEnrolments(drip.campaignId);
+
+		expect(await sweepEntries(db, drip.campaignId)).toBe(0);
+	});
+});
+
+describe("a drip email that picks a template", () => {
+	async function seedTemplateDrip(node: {
+		subject?: string;
+		document?: unknown;
+	}) {
+		seq += 1;
+		const suffix = `${TAG}t${seq}`;
+
+		const contact = await db.contact.create({
+			data: {
+				firstName: "Theo",
+				lastName: TAG,
+				email: `theo.${suffix}@example.test`,
+			},
+			select: { id: true },
+		});
+
+		const template = await db.marketingTemplate.create({
+			data: {
+				name: `${TAG} template ${seq}`,
+				subject: "From the template",
+				document: { version: 1, blocks: [{ type: "divider" }] },
+			},
+			select: { id: true },
+		});
+
+		const campaign = await db.marketingCampaign.create({
+			data: {
+				name: `${TAG} template drip ${seq}`,
+				kind: "DRIP",
+				status: "ACTIVE",
+				entryMode: "MANUAL",
+			},
+			select: { id: true },
+		});
+
+		const touch = await db.marketingCampaignNode.create({
+			data: {
+				campaignId: campaign.id,
+				kind: "EMAIL",
+				templateId: template.id,
+				subject: node.subject ?? null,
+				document: (node.document ?? undefined) as never,
+			},
+			select: { id: true },
+		});
+
+		const enrolled = await enrolContact(db, campaign.id, contact.id);
+		if (!enrolled.ok) throw new Error(enrolled.reason);
+		await advance(db, enrolled.enrolmentId);
+
+		return db.marketingSend.findFirstOrThrow({
+			where: { nodeId: touch.id },
+			select: { subject: true, document: true },
+		});
+	}
+
+	test("queues the template's subject and body, not an empty send", async () => {
+		const send = await seedTemplateDrip({});
+
+		expect(send.subject).toBe("From the template");
+		expect(send.document).toEqual({
+			version: 1,
+			blocks: [{ type: "divider" }],
+		});
+	});
+
+	test("keeps the subject and the body copy the node edits", async () => {
+		const send = await seedTemplateDrip({
+			subject: "From the node",
+			document: { version: 1, blocks: [] },
+		});
+
+		expect(send.subject).toBe("From the node");
+		expect(send.document).toEqual({ version: 1, blocks: [] });
 	});
 });
 
@@ -545,6 +692,64 @@ describe("retention", () => {
 		]);
 	});
 
+	test("says a batch-sized pass is incomplete and finishes on the next one", async () => {
+		seq += 1;
+		const recipient = await db.marketingRecipient.create({
+			data: { address: `passes.${TAG}x${seq}@example.test` },
+			select: { id: true },
+		});
+
+		const campaign = await db.marketingCampaign.create({
+			data: { name: `${TAG} passes ${seq}`, kind: "BLAST", status: "SENT" },
+			select: { id: true },
+		});
+
+		const send = await db.marketingSend.create({
+			data: {
+				campaignId: campaign.id,
+				recipientId: recipient.id,
+				status: "SENT",
+				dueAt: new Date(),
+			},
+			select: { id: true },
+		});
+
+		const old = new Date(Date.now() - 200 * 86_400_000);
+
+		await db.marketingEvent.createMany({
+			data: [
+				{ sendId: send.id, type: "OPENED", at: old },
+				{ sendId: send.id, type: "CLICKED", at: old },
+				{ sendId: send.id, type: "DELIVERED", at: old },
+			],
+		});
+
+		const before = new Date(Date.now() - 90 * 86_400_000);
+		const first = await sweepEvents(db, before, 2);
+
+		expect(first.removed).toBe(2);
+		expect(first.complete).toBe(false);
+
+		let removed = first.removed;
+		let complete = first.complete;
+
+		for (
+			let pass = 0;
+			pass < MARKETING.retention.maxPasses && !complete;
+			pass += 1
+		) {
+			const next = await sweepEvents(db, before, 2);
+			removed += next.removed;
+			complete = next.complete;
+		}
+
+		expect(complete).toBe(true);
+		expect(removed).toBeGreaterThanOrEqual(3);
+		expect(await db.marketingEvent.count({ where: { sendId: send.id } })).toBe(
+			0,
+		);
+	});
+
 	test("leaves anything inside the window alone", async () => {
 		seq += 1;
 		const recipient = await db.marketingRecipient.create({
@@ -766,5 +971,212 @@ describe("the segments an install starts with", () => {
 		expect(counted).toBe(
 			await db.contact.count({ where: { email: { not: null } } }),
 		);
+	});
+});
+
+describe("a send that runs out of attempts", () => {
+	async function seedSend(attempts: number) {
+		seq += 1;
+		const drip = await seedDrip();
+
+		const recipient = await db.marketingRecipient.create({
+			data: { address: `retry.${TAG}r${seq}@example.test` },
+			select: { id: true },
+		});
+
+		return db.marketingSend.create({
+			data: {
+				campaignId: drip.campaignId,
+				recipientId: recipient.id,
+				status: "SENDING",
+				dueAt: new Date(),
+				attempts,
+			},
+			select: { id: true },
+		});
+	}
+
+	test("fails on the last attempt rather than queueing forever", async () => {
+		const send = await seedSend(MARKETING.drain.maxAttempts);
+
+		await settle(db, send.id, {
+			ok: false,
+			error: "Resend did not answer.",
+			retry: true,
+		});
+
+		const row = await db.marketingSend.findUniqueOrThrow({
+			where: { id: send.id },
+			select: { status: true },
+		});
+
+		const events = await db.marketingEvent.count({
+			where: { sendId: send.id, type: "FAILED" },
+		});
+
+		expect(row.status).toBe("FAILED");
+		expect(events).toBe(1);
+	});
+
+	test("queues again while an attempt is left", async () => {
+		const send = await seedSend(1);
+
+		await settle(db, send.id, {
+			ok: false,
+			error: "Resend did not answer.",
+			retry: true,
+		});
+
+		const row = await db.marketingSend.findUniqueOrThrow({
+			where: { id: send.id },
+			select: { status: true },
+		});
+
+		expect(row.status).toBe("QUEUED");
+	});
+});
+
+describe("opting out", () => {
+	async function seedQueued(prefix: string) {
+		seq += 1;
+		const drip = await seedDrip();
+
+		const recipient = await db.marketingRecipient.create({
+			data: { address: `${prefix}.${TAG}o${seq}@example.test` },
+			select: { id: true, token: true },
+		});
+
+		const send = await db.marketingSend.create({
+			data: {
+				campaignId: drip.campaignId,
+				recipientId: recipient.id,
+				status: "QUEUED",
+				dueAt: new Date(),
+			},
+			select: { id: true },
+		});
+
+		return { recipient, send };
+	}
+
+	test("the one-click link cancels the sends already queued", async () => {
+		const { recipient, send } = await seedQueued("oneclick");
+
+		await unsubscribeByToken(db, recipient.token);
+
+		const row = await db.marketingSend.findUniqueOrThrow({
+			where: { id: send.id },
+			select: { status: true, skipReason: true },
+		});
+
+		expect(row.status).toBe("SKIPPED");
+		expect(row.skipReason).toBe("unsubscribed");
+	});
+
+	test("a bounce cancels the sends already queued", async () => {
+		const { recipient, send } = await seedQueued("bounce");
+
+		const address = await db.marketingRecipient.findUniqueOrThrow({
+			where: { id: recipient.id },
+			select: { address: true },
+		});
+
+		await suppress(db, address.address, "BOUNCED", "hard bounce");
+
+		const row = await db.marketingSend.findUniqueOrThrow({
+			where: { id: send.id },
+			select: { status: true, skipReason: true },
+		});
+
+		expect(row.status).toBe("SKIPPED");
+		expect(row.skipReason).toBe("bounced");
+	});
+
+	test("the claim skips a recipient who is no longer sendable", async () => {
+		const { recipient, send } = await seedQueued("claim");
+
+		await db.marketingRecipient.update({
+			where: { id: recipient.id },
+			data: { status: "COMPLAINED" },
+		});
+
+		const claimed = await claimDueSends(db, 50);
+
+		const row = await db.marketingSend.findUniqueOrThrow({
+			where: { id: send.id },
+			select: { status: true, skipReason: true },
+		});
+
+		expect(claimed.some((candidate) => candidate.id === send.id)).toBe(false);
+		expect(row.status).toBe("SKIPPED");
+		expect(row.skipReason).toBe("complained");
+	});
+});
+
+describe("a template-backed blast", () => {
+	test("queues the template's subject and body, not an empty send", async () => {
+		seq += 1;
+		const suffix = `${TAG}b${seq}`;
+
+		const contact = await db.contact.create({
+			data: {
+				firstName: "Bella",
+				lastName: TAG,
+				title: suffix,
+				email: `bella.${suffix}@example.test`,
+			},
+			select: { id: true },
+		});
+
+		const segment = await db.marketingSegment.create({
+			data: {
+				name: `${TAG} blast segment ${seq}`,
+				definition: {
+					facet: { facet: "contact.titleContains", value: suffix },
+				},
+			},
+			select: { id: true },
+		});
+
+		const template = await db.marketingTemplate.create({
+			data: {
+				name: `${TAG} blast template ${seq}`,
+				subject: "From the template",
+				document: { version: 1, blocks: [{ type: "divider" }] },
+			},
+			select: { id: true },
+		});
+
+		const campaign = await db.marketingCampaign.create({
+			data: {
+				name: `${TAG} template blast ${seq}`,
+				kind: "BLAST",
+				status: "SCHEDULED",
+				segmentId: segment.id,
+				scheduledAt: new Date(),
+			},
+			select: { id: true },
+		});
+
+		await db.marketingCampaignNode.create({
+			data: {
+				campaignId: campaign.id,
+				kind: "EMAIL",
+				templateId: template.id,
+			},
+		});
+
+		await materialise(db, campaign.id);
+
+		const send = await db.marketingSend.findFirstOrThrow({
+			where: { campaignId: campaign.id, contactId: contact.id },
+			select: { subject: true, document: true },
+		});
+
+		expect(send.subject).toBe("From the template");
+		expect(send.document).toEqual({
+			version: 1,
+			blocks: [{ type: "divider" }],
+		});
 	});
 });

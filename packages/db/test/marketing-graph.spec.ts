@@ -48,6 +48,18 @@ describe("a graph that is fine", () => {
 	});
 });
 
+describe("an email that picks a template", () => {
+	test("passes, because the executor resolves the template at the send", () => {
+		const problems = validateGraph(
+			[{ id: "a", kind: "EMAIL", templateId: "tpl_1" }],
+			[],
+			{ openTracking: true },
+		);
+
+		expect(graphErrors(problems)).toEqual([]);
+	});
+});
+
 describe("a graph that loops", () => {
 	test("is refused, because a campaign runs forwards only", () => {
 		const problems = validateGraph(

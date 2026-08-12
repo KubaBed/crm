@@ -1,5 +1,6 @@
-import { db, type Prisma } from "@crm/db";
+import { db, type MarketingCampaignStatus, type Prisma } from "@crm/db";
 import {
+	assertSendable,
 	autoLayout,
 	filterSchema,
 	type GraphEdge,
@@ -13,12 +14,20 @@ import {
 import { readDocument } from "@crm/email/document";
 import { type LintFinding, lintEmail } from "@crm/email/lint";
 
+export const MARKETING_AGENT = {
+	graph: {
+		silentEditStatuses: ["DRAFT"] as readonly MarketingCampaignStatus[],
+	},
+} as const;
+
 export type ToolProblem = {
 	level: string;
 	code: string;
 	message: string;
 	nodeId?: string;
 };
+
+type GraphRefusal = { error: string; problems: ToolProblem[] };
 
 export async function listSegments(limit = 50) {
 	const rows = await db.marketingSegment.findMany({
@@ -339,6 +348,67 @@ export async function readCampaign(id: string) {
 	return { ...campaign, stats };
 }
 
+function documentProblems(nodes: GraphNode[]): ToolProblem[] {
+	const problems: ToolProblem[] = [];
+
+	for (const node of nodes) {
+		if (node.kind !== "EMAIL") continue;
+		if (node.document === undefined || node.document === null) continue;
+
+		const document = readDocument(node.document);
+
+		if (!document) {
+			problems.push({
+				level: "error",
+				code: "email-unreadable-document",
+				nodeId: node.id,
+				message: "This email's content cannot be read. Check the block shapes.",
+			});
+			continue;
+		}
+
+		if (document.blocks.length === 0) {
+			problems.push({
+				level: "error",
+				code: "email-empty",
+				nodeId: node.id,
+				message: "This email has no blocks, so it would go out blank.",
+			});
+			continue;
+		}
+
+		for (const finding of lintEmail({
+			document,
+			subject: node.subject,
+			preheader: node.preheader,
+		})) {
+			if (finding.level !== "error") continue;
+
+			problems.push({
+				level: finding.level,
+				code: finding.code,
+				message: finding.message,
+				nodeId: node.id,
+			});
+		}
+	}
+
+	return problems;
+}
+
+export async function graphEditNeedsPerson(
+	campaignId: string,
+): Promise<boolean> {
+	const campaign = await db.marketingCampaign.findUnique({
+		where: { id: campaignId },
+		select: { status: true },
+	});
+
+	if (!campaign) return false;
+
+	return !MARKETING_AGENT.graph.silentEditStatuses.includes(campaign.status);
+}
+
 export async function writeCampaignGraph(input: {
 	campaignId: string;
 	nodes: GraphNode[];
@@ -350,59 +420,121 @@ export async function writeCampaignGraph(input: {
 		openTracking: Boolean(settings.resendDomainId),
 	});
 
-	if (graphErrors(problems).length > 0) {
+	const errors = [...graphErrors(problems), ...documentProblems(input.nodes)];
+
+	if (errors.length > 0) {
 		return {
 			error: "This graph will not run. Fix these and call again.",
-			problems: graphErrors(problems),
+			problems: errors,
 		};
 	}
 
 	const positions = autoLayout(input.nodes, input.edges);
 
-	await db.$transaction(async (tx) => {
-		const keep = new Set(input.nodes.map((node) => node.id));
+	const refusal = await db.$transaction(
+		async (tx): Promise<GraphRefusal | null> => {
+			const keep = new Set(input.nodes.map((node) => node.id));
 
-		await tx.marketingCampaignEdge.deleteMany({
-			where: { campaignId: input.campaignId },
-		});
-		await tx.marketingCampaignNode.deleteMany({
-			where: { campaignId: input.campaignId, id: { notIn: [...keep] } },
-		});
-
-		for (const node of input.nodes) {
-			const at = positions.get(node.id) ?? { x: 0, y: 0 };
-			const data = {
-				kind: node.kind,
-				label: node.label ?? null,
-				subject: node.subject ?? null,
-				preheader: node.preheader ?? null,
-				document: (node.document ?? undefined) as object | undefined,
-				delayHours: node.delayHours ?? null,
-				condition: (node.condition ?? undefined) as object | undefined,
-				x: at.x,
-				y: at.y,
-			};
-
-			await tx.marketingCampaignNode.upsert({
-				where: { id: node.id },
-				create: { id: node.id, campaignId: input.campaignId, ...data },
-				update: data,
+			const elsewhere = await tx.marketingCampaignNode.findMany({
+				where: { id: { in: [...keep] }, campaignId: { not: input.campaignId } },
+				select: { id: true },
 			});
-		}
 
-		for (const edge of input.edges) {
-			await tx.marketingCampaignEdge.create({
-				data: {
-					campaignId: input.campaignId,
-					fromId: edge.fromId,
-					toId: edge.toId,
-					handle: edge.handle ?? "next",
-					label: edge.label ?? null,
-					weight: edge.weight ?? 100,
-				},
+			if (elsewhere.length > 0) {
+				return {
+					error:
+						"Some of those ids are nodes of another campaign. Read this campaign for its own ids, or send new ones.",
+					problems: elsewhere.map((node) => ({
+						level: "error",
+						code: "node-other-campaign",
+						nodeId: node.id,
+						message: "This node belongs to another campaign.",
+					})),
+				};
+			}
+
+			const existing = await tx.marketingCampaignNode.findMany({
+				where: { campaignId: input.campaignId },
+				select: { id: true },
 			});
-		}
-	});
+
+			const removing = existing
+				.filter((node) => !keep.has(node.id))
+				.map((node) => node.id);
+
+			const busy =
+				removing.length === 0
+					? []
+					: await tx.marketingEnrolment.groupBy({
+							by: ["currentNodeId"],
+							where: {
+								campaignId: input.campaignId,
+								status: "ACTIVE",
+								currentNodeId: { in: removing },
+							},
+							_count: { _all: true },
+						});
+
+			if (busy.length > 0) {
+				const people = busy.reduce((sum, row) => sum + row._count._all, 0);
+
+				return {
+					error: `${people} people stand on a node you are deleting. Keep those nodes, or let the campaign drain first.`,
+					problems: busy.map((row) => ({
+						level: "error",
+						code: "node-has-people",
+						nodeId: row.currentNodeId ?? undefined,
+						message: `${row._count._all} people wait on this node.`,
+					})),
+				};
+			}
+
+			await tx.marketingCampaignEdge.deleteMany({
+				where: { campaignId: input.campaignId },
+			});
+			await tx.marketingCampaignNode.deleteMany({
+				where: { campaignId: input.campaignId, id: { notIn: [...keep] } },
+			});
+
+			for (const node of input.nodes) {
+				const at = positions.get(node.id) ?? { x: 0, y: 0 };
+				const data = {
+					kind: node.kind,
+					label: node.label ?? null,
+					subject: node.subject ?? null,
+					preheader: node.preheader ?? null,
+					document: (node.document ?? undefined) as object | undefined,
+					delayHours: node.delayHours ?? null,
+					condition: (node.condition ?? undefined) as object | undefined,
+					x: at.x,
+					y: at.y,
+				};
+
+				await tx.marketingCampaignNode.upsert({
+					where: { id: node.id },
+					create: { id: node.id, campaignId: input.campaignId, ...data },
+					update: data,
+				});
+			}
+
+			for (const edge of input.edges) {
+				await tx.marketingCampaignEdge.create({
+					data: {
+						campaignId: input.campaignId,
+						fromId: edge.fromId,
+						toId: edge.toId,
+						handle: edge.handle ?? "next",
+						label: edge.label ?? null,
+						weight: edge.weight ?? 100,
+					},
+				});
+			}
+
+			return null;
+		},
+	);
+
+	if (refusal) return refusal;
 
 	return {
 		ok: true,
@@ -516,6 +648,12 @@ export async function sendDirectEmail(input: {
 	templateId: string;
 	requestedById?: string;
 }) {
+	const sendable = await assertSendable(db);
+
+	if (!sendable.ok) {
+		return { error: `${sendable.reason} Nothing was queued.` };
+	}
+
 	const [contact, template] = await Promise.all([
 		db.contact.findUnique({
 			where: { id: input.contactId },

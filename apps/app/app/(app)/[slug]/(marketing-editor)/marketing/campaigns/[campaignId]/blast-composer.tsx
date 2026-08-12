@@ -151,7 +151,11 @@ export function BlastComposer({
 					<Button
 						size="sm"
 						disabled={
-							schedule.isPending || errors.length > 0 || !segmentId || dirty
+							schedule.isPending ||
+							saveAudience.isPending ||
+							errors.length > 0 ||
+							!segmentId ||
+							dirty
 						}
 						onClick={() => schedule.mutate({ id: campaign.id, at: null })}
 					>
@@ -194,9 +198,14 @@ export function BlastComposer({
 								</Label>
 								<Select
 									value={segmentId}
+									disabled={saveAudience.isPending}
 									onValueChange={(next) => {
+										const previous = segmentId;
 										setSegmentId(next);
-										saveAudience.mutate({ id: campaign.id, segmentId: next });
+										saveAudience.mutate(
+											{ id: campaign.id, segmentId: next },
+											{ onError: () => setSegmentId(previous) },
+										);
 									}}
 								>
 									<SelectTrigger id="blast-segment">
@@ -329,6 +338,10 @@ export function BlastComposer({
 								{errors.length > 0 ? (
 									<span className="text-destructive text-xs">
 										{errors[0]?.message}
+									</span>
+								) : saveAudience.isPending ? (
+									<span className="text-muted-foreground text-xs">
+										Saving who gets this
 									</span>
 								) : dirty ? (
 									<span className="text-muted-foreground text-xs">

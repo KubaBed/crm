@@ -1,3 +1,4 @@
+import { FACET_LIMITS } from "@crm/db/marketing/facet-limits";
 import type {
 	FacetSpec,
 	RuleRow,
@@ -117,12 +118,79 @@ export const FACETS: FacetSpec[] = [
 
 type Facet = Record<string, unknown> & { facet: string };
 
+export const UNSUPPORTED_RULE = {
+	nested: "a group inside a group",
+	negated: "a not rule",
+	unreadable: "a rule it cannot read",
+} as const;
+
+const UNSUPPORTED_LABELS: string[] = Object.values(UNSUPPORTED_RULE);
+
+const WHOLE_NUMBER = /^-?\d+$/;
+
+export type RuleProblem = { ruleId: string; message: string };
+
+type RuleResult = { facet: Facet } | { message: string };
+
+function unitOf(field: FacetSpec["field"]): string {
+	return field.kind === "number" && field.suffix ? field.suffix : "";
+}
+
+function checkRule(rule: RuleRow): RuleResult {
+	const spec = FACETS.find((facet) => facet.id === rule.facet);
+
+	if (!spec) {
+		const what = UNSUPPORTED_LABELS.includes(rule.facet)
+			? rule.facet
+			: `"${rule.facet}"`;
+
+		return {
+			message: `This editor cannot show ${what}, so saving drops it. Ask the co-pilot to change these rules instead.`,
+		};
+	}
+
+	if (spec.field.kind === "none") return { facet: { facet: rule.facet } };
+
+	const raw = rule.value.trim();
+	if (raw === "") return { message: `${spec.label} needs a value.` };
+
+	if (spec.field.kind === "number") {
+		const unit = unitOf(spec.field);
+
+		if (!WHOLE_NUMBER.test(raw)) {
+			return {
+				message: `${spec.label} takes a whole number${unit ? ` of ${unit}` : ""}.`,
+			};
+		}
+
+		const days = Number(raw);
+		if (days < FACET_LIMITS.days.min || days > FACET_LIMITS.days.max) {
+			return {
+				message: `${spec.label} takes ${FACET_LIMITS.days.min} to ${FACET_LIMITS.days.max}${unit ? ` ${unit}` : ""}.`,
+			};
+		}
+
+		return { facet: { facet: rule.facet, [spec.field.key]: days } };
+	}
+
+	return { facet: { facet: rule.facet, [spec.field.key]: raw } };
+}
+
+export function ruleProblems(value: RuleTreeValue): RuleProblem[] {
+	return value.rules.flatMap((rule) => {
+		const result = checkRule(rule);
+		return "message" in result
+			? [{ ruleId: rule.id, message: result.message }]
+			: [];
+	});
+}
+
 export function toDefinition(
 	value: RuleTreeValue,
 ): Record<string, unknown> | null {
 	const facets = value.rules
-		.map((rule) => toFacet(rule))
-		.filter((facet): facet is Facet => facet !== null);
+		.map(checkRule)
+		.flatMap((result) => ("facet" in result ? [result.facet] : []));
 
 	if (facets.length === 0) return null;
 	if (facets.length === 1) return { facet: facets[0] };
@@ -132,34 +200,22 @@ export function toDefinition(
 		: { any: facets.map((facet) => ({ facet })) };
 }
 
-function toFacet(rule: RuleRow): Facet | null {
-	const spec = FACETS.find((facet) => facet.id === rule.facet);
-	if (!spec) return null;
-
-	if (spec.field.kind === "none") return { facet: rule.facet };
-
-	const raw = rule.value.trim();
-	if (raw === "") return null;
-
-	if (spec.field.kind === "number") {
-		const days = Number.parseInt(raw, 10);
-		if (Number.isNaN(days)) return null;
-		return { facet: rule.facet, [spec.field.key]: days };
+export function fromDefinition(definition: unknown): RuleTreeValue {
+	if (definition === null || definition === undefined) {
+		return { match: "all", rules: [] };
 	}
 
-	return { facet: rule.facet, [spec.field.key]: raw };
-}
-
-export function fromDefinition(definition: unknown): RuleTreeValue {
-	if (!definition || typeof definition !== "object") {
-		return { match: "all", rules: [] };
+	if (typeof definition !== "object") {
+		return {
+			match: "all",
+			rules: [placeholder(0, UNSUPPORTED_RULE.unreadable)],
+		};
 	}
 
 	const node = definition as Record<string, unknown>;
 
 	if ("facet" in node) {
-		const rule = toRule(node.facet, 0);
-		return { match: "all", rules: rule ? [rule] : [] };
+		return { match: "all", rules: [toRule(node.facet, 0)] };
 	}
 
 	for (const match of ["all", "any"] as const) {
@@ -168,23 +224,36 @@ export function fromDefinition(definition: unknown): RuleTreeValue {
 
 		return {
 			match,
-			rules: list
-				.map((entry, index) =>
-					toRule((entry as { facet?: unknown } | null)?.facet, index),
-				)
-				.filter((rule): rule is RuleRow => rule !== null),
+			rules: list.map((entry, index) =>
+				entry && typeof entry === "object" && "facet" in entry
+					? toRule((entry as { facet: unknown }).facet, index)
+					: placeholder(index, describe(entry)),
+			),
 		};
 	}
 
-	return { match: "all", rules: [] };
+	return { match: "all", rules: [placeholder(0, describe(node))] };
 }
 
-function toRule(value: unknown, index: number): RuleRow | null {
-	if (!value || typeof value !== "object") return null;
+function describe(value: unknown): string {
+	if (!value || typeof value !== "object") return UNSUPPORTED_RULE.unreadable;
+	if ("not" in value) return UNSUPPORTED_RULE.negated;
+	if ("all" in value || "any" in value) return UNSUPPORTED_RULE.nested;
+	return UNSUPPORTED_RULE.unreadable;
+}
+
+function placeholder(index: number, label: string): RuleRow {
+	return { id: `rule-${index}-unsupported`, facet: label, value: "" };
+}
+
+function toRule(value: unknown, index: number): RuleRow {
+	if (!value || typeof value !== "object") {
+		return placeholder(index, UNSUPPORTED_RULE.unreadable);
+	}
 
 	const facet = value as Record<string, unknown>;
 	const id = typeof facet.facet === "string" ? facet.facet : null;
-	if (!id) return null;
+	if (!id) return placeholder(index, UNSUPPORTED_RULE.unreadable);
 
 	const spec = FACETS.find((candidate) => candidate.id === id);
 	const raw = spec && spec.field.kind !== "none" ? facet[spec.field.key] : null;

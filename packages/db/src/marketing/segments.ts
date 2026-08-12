@@ -1,14 +1,28 @@
 import { z } from "zod";
 import type { Db } from "../client";
+import { CLOSED_DEAL_STAGES } from "../deal-stage";
 import type { Prisma } from "../generated/prisma/client";
+import { DealStage, RecordSource } from "../generated/prisma/enums";
+import { FACET_LIMITS } from "./facet-limits";
 
-const days = z.number().int().min(0).max(3650);
-const text = z.string().trim().min(1).max(200);
+const days = z
+	.number()
+	.int()
+	.min(FACET_LIMITS.days.min)
+	.max(FACET_LIMITS.days.max);
+const text = z
+	.string()
+	.trim()
+	.min(FACET_LIMITS.text.min)
+	.max(FACET_LIMITS.text.max);
 
 export const facetSchema = z.discriminatedUnion("facet", [
 	z.object({ facet: z.literal("contact.hasEmail") }),
 	z.object({ facet: z.literal("contact.owner"), userId: z.string().min(1) }),
-	z.object({ facet: z.literal("contact.source"), source: z.string().min(1) }),
+	z.object({
+		facet: z.literal("contact.source"),
+		source: z.enum(RecordSource),
+	}),
 	z.object({ facet: z.literal("contact.titleContains"), value: text }),
 	z.object({ facet: z.literal("contact.createdWithin"), days }),
 	z.object({ facet: z.literal("company.industry"), value: text }),
@@ -20,7 +34,7 @@ export const facetSchema = z.discriminatedUnion("facet", [
 	z.object({ facet: z.literal("field.equals"), key: text, value: text }),
 	z.object({ facet: z.literal("activity.within"), days }),
 	z.object({ facet: z.literal("activity.notWithin"), days }),
-	z.object({ facet: z.literal("deal.atStage"), stage: text }),
+	z.object({ facet: z.literal("deal.atStage"), stage: z.enum(DealStage) }),
 	z.object({ facet: z.literal("deal.hasNoOpen") }),
 	z.object({ facet: z.literal("deal.closedWonWithin"), days }),
 	z.object({ facet: z.literal("mailbox.repliedWithin"), days }),
@@ -76,7 +90,7 @@ function compileFacet(facet: Facet): Prisma.ContactWhereInput {
 		case "contact.owner":
 			return { ownerId: facet.userId };
 		case "contact.source":
-			return { source: facet.source as Prisma.ContactWhereInput["source"] };
+			return { source: facet.source };
 		case "contact.titleContains":
 			return { title: { contains: facet.value, mode: "insensitive" } };
 		case "contact.createdWithin":
@@ -121,7 +135,7 @@ function compileFacet(facet: Facet): Prisma.ContactWhereInput {
 		case "deal.atStage":
 			return {
 				deals: {
-					some: { deal: { is: { stage: facet.stage as never } } },
+					some: { deal: { is: { stage: facet.stage } } },
 				},
 			};
 		case "deal.hasNoOpen":
@@ -130,7 +144,7 @@ function compileFacet(facet: Facet): Prisma.ContactWhereInput {
 					none: {
 						deal: {
 							is: {
-								stage: { notIn: ["CLOSED_WON", "CLOSED_LOST"] as never[] },
+								stage: { notIn: [...CLOSED_DEAL_STAGES] },
 							},
 						},
 					},
@@ -142,8 +156,8 @@ function compileFacet(facet: Facet): Prisma.ContactWhereInput {
 					some: {
 						deal: {
 							is: {
-								stage: "CLOSED_WON" as never,
-								updatedAt: { gte: ago(facet.days) },
+								stage: DealStage.CLOSED_WON,
+								closedAt: { gte: ago(facet.days) },
 							},
 						},
 					},

@@ -2,6 +2,7 @@
 
 import Close from "@carbon/icons-react/es/Close";
 import { Button } from "@crm/ui/components/button";
+import { FieldError } from "@crm/ui/components/field";
 import { Icon } from "@crm/ui/components/icon";
 import { Input } from "@crm/ui/components/input";
 import { Label } from "@crm/ui/components/label";
@@ -10,7 +11,12 @@ import { Spinner } from "@crm/ui/components/spinner";
 import { useMutation } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
-import { FACETS, fromDefinition, toDefinition } from "@/lib/marketing-facets";
+import {
+	FACETS,
+	fromDefinition,
+	ruleProblems,
+	toDefinition,
+} from "@/lib/marketing-facets";
 import { useTRPC } from "@/lib/trpc/client";
 import type { RouterOutputs } from "@/lib/trpc/types";
 
@@ -26,6 +32,22 @@ function rate(part: number, whole: number): number {
 
 function pct(part: number, whole: number): string {
 	return whole === 0 ? "—" : `${(rate(part, whole) * 100).toFixed(1)}%`;
+}
+
+function downstream(campaign: Campaign, fromId: string): Set<string> {
+	const seen = new Set<string>();
+	const queue = [fromId];
+
+	while (queue.length > 0) {
+		const id = queue.pop();
+		if (!id || seen.has(id)) continue;
+		seen.add(id);
+		for (const edge of campaign.edges) {
+			if (edge.fromId === id) queue.push(edge.toId);
+		}
+	}
+
+	return seen;
 }
 
 export function LogicSheet({
@@ -51,9 +73,7 @@ export function LogicSheet({
 	const usesOpened = rules.rules.some(
 		(rule) => rule.facet === "marketing.openedCampaign",
 	);
-	const unknown = rules.rules.filter(
-		(rule) => !FACETS.some((facet) => facet.id === rule.facet),
-	);
+	const problems = ruleProblems(rules);
 
 	const save = useMutation(
 		trpc.marketingCampaigns.updateNode.mutationOptions({
@@ -79,23 +99,43 @@ export function LogicSheet({
 		}),
 	);
 
-	const arms = campaign.edges
+	const paths = campaign.edges
 		.filter((edge) => edge.fromId === node.id)
-		.map((edge) => {
-			const target = campaign.nodes.find(
-				(candidate: Node) => candidate.id === edge.toId,
-			);
-			const numbers = stats.get(edge.toId);
+		.map((edge) => ({ edge, path: downstream(campaign, edge.toId) }));
 
-			return {
-				edgeId: edge.id,
-				label: target?.label ?? edge.handle,
-				weight: edge.weight,
-				sent: numbers?.sent ?? 0,
-				replied: numbers?.replied ?? 0,
-				clicked: numbers?.clicked ?? 0,
-			};
-		});
+	const shared = new Set(
+		paths
+			.flatMap(({ path }) => [...path])
+			.filter((id) => paths.filter(({ path }) => path.has(id)).length > 1),
+	);
+
+	const arms = paths.map(({ edge, path }) => {
+		const target = campaign.nodes.find(
+			(candidate: Node) => candidate.id === edge.toId,
+		);
+
+		const totals = [...path]
+			.filter((id) => !shared.has(id))
+			.reduce(
+				(sum, id) => {
+					const numbers = stats.get(id);
+
+					return {
+						sent: sum.sent + (numbers?.sent ?? 0),
+						replied: sum.replied + (numbers?.replied ?? 0),
+						clicked: sum.clicked + (numbers?.clicked ?? 0),
+					};
+				},
+				{ sent: 0, replied: 0, clicked: 0 },
+			);
+
+		return {
+			edgeId: edge.id,
+			label: target?.label ?? edge.handle,
+			weight: edge.weight,
+			...totals,
+		};
+	});
 
 	const smallest = Math.min(
 		...arms.map((arm) => arm.sent),
@@ -229,9 +269,11 @@ export function LogicSheet({
 						</p>
 
 						<p className="text-muted-foreground text-xs">
-							Judged on reply rate, then clicks. Never on opens — Apple opens
-							every email before a person does, so an open-rate winner is a
-							winner on which arm reached more iPhones.
+							Every email on the arm counts, not only its first step, so an arm
+							that opens with a wait or a branch still gets a number. Judged on
+							reply rate, then clicks. Never on opens — Apple opens every email
+							before a person does, so an open-rate winner is a winner on which
+							arm reached more iPhones.
 						</p>
 					</>
 				) : null}
@@ -244,22 +286,14 @@ export function LogicSheet({
 
 						<RuleTree value={rules} facets={FACETS} onChange={setRules} />
 
-						{unknown.length > 0 ? (
-							<p className="text-destructive text-xs">
-								{unknown.length} rule{unknown.length === 1 ? "" : "s"} here
-								{unknown.length === 1 ? " is" : " are"} not something this
-								editor can show, so saving would drop
-								{unknown.length === 1 ? " it" : " them"}. Ask the co-pilot to
-								change the branch instead.
-							</p>
-						) : null}
+						<FieldError errors={problems} />
 
 						{usesOpened ? (
-							<p className="text-destructive text-xs">
+							<FieldError>
 								Apple Mail opens every email before a person does, so this
 								branch routes people on a fact about their mail client. Branch
 								on a click, a reply or something in the CRM instead.
-							</p>
+							</FieldError>
 						) : null}
 
 						<p className="text-muted-foreground text-xs">
@@ -271,7 +305,7 @@ export function LogicSheet({
 						<Button
 							className="self-start"
 							disabled={
-								save.isPending || condition === null || unknown.length > 0
+								save.isPending || condition === null || problems.length > 0
 							}
 							onClick={() => save.mutate({ nodeId: node.id, condition })}
 						>

@@ -39,6 +39,7 @@ export class MarketingComposeService {
 
 		return {
 			workspaceName: workspace?.name ?? "",
+			brandColor: settings.brandColor,
 			postalAddress: settings.postalAddress,
 			header: header ? readDocument(header.document) : null,
 			footer: footer ? readDocument(footer.document) : null,

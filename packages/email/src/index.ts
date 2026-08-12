@@ -1,5 +1,6 @@
 export {
 	type Block,
+	EMAIL_DOCUMENT_LIMITS,
 	EMPTY_DOCUMENT,
 	type EmailDocument,
 	emailDocument,

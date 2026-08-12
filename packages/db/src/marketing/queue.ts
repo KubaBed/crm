@@ -4,30 +4,18 @@ import type {
 	MarketingSendOrigin,
 	MarketingSendStatus,
 } from "../generated/prisma/enums";
-import { recipientsFor } from "./recipients";
+import { emailContent } from "./drips";
+import { recipientsFor, type SkipReason, skipFor } from "./recipients";
 import { segmentWhere } from "./segments";
 import { MARKETING } from "./settings";
 
-export type SkipReason =
-	| "no-address"
-	| "unsubscribed"
-	| "bounced"
-	| "complained"
-	| "daily-cap";
+export type { SkipReason } from "./recipients";
 
 export type MaterialiseResult = {
 	queued: number;
 	skipped: Record<string, number>;
 	total: number;
 };
-
-function skipFor(status: string): SkipReason | null {
-	if (status === "SUBSCRIBED") return null;
-	if (status === "UNSUBSCRIBED") return "unsubscribed";
-	if (status === "BOUNCED") return "bounced";
-	if (status === "COMPLAINED") return "complained";
-	return null;
-}
 
 export async function audienceFor(
 	db: Db,
@@ -68,6 +56,7 @@ export async function materialise(
 					preheader: true,
 					document: true,
 					kind: true,
+					template: { select: { subject: true, document: true } },
 				},
 			},
 		},
@@ -77,6 +66,8 @@ export async function materialise(
 
 	const node = campaign.nodes.find((candidate) => candidate.kind === "EMAIL");
 	if (!node) return { queued: 0, skipped: {}, total: 0 };
+
+	const content = emailContent(node);
 
 	const contacts = await audienceFor(db, campaign.segmentId);
 	const withEmail = contacts.filter((contact) => contact.email);
@@ -113,10 +104,8 @@ export async function materialise(
 			contactId: contact.id,
 			origin: "CAMPAIGN",
 			pass: 1,
-			subject: node.subject,
-			document: (node.document ?? undefined) as
-				| Prisma.InputJsonValue
-				| undefined,
+			subject: content.subject,
+			document: content.document,
 			replyTo: campaign.replyTo,
 			status: reason ? "SKIPPED" : "QUEUED",
 			skipReason: reason,
@@ -359,7 +348,7 @@ export async function claimDueSends(
 			document: true,
 			replyTo: true,
 			attempts: true,
-			recipient: { select: { address: true, token: true } },
+			recipient: { select: { address: true, token: true, status: true } },
 			attachments: { select: { filename: true, url: true } },
 			campaign: {
 				select: { attachments: { select: { filename: true, url: true } } },
@@ -367,22 +356,47 @@ export async function claimDueSends(
 		},
 	});
 
-	return rows.map((row) => ({
-		id: row.id,
-		recipientId: row.recipientId,
-		address: row.recipient.address,
-		token: row.recipient.token,
-		contactId: row.contactId,
-		campaignId: row.campaignId,
-		nodeId: row.nodeId,
-		subject: row.subject,
-		document: row.document,
-		replyTo: row.replyTo,
-		attempts: row.attempts,
-		hasAttachments:
-			row.attachments.length + (row.campaign?.attachments.length ?? 0) > 0,
-		attachments: [...row.attachments, ...(row.campaign?.attachments ?? [])],
-	}));
+	const sendable: ClaimedSend[] = [];
+	const blocked = new Map<SkipReason, string[]>();
+
+	for (const row of rows) {
+		const reason = skipFor(row.recipient.status);
+
+		if (reason) {
+			blocked.set(reason, [...(blocked.get(reason) ?? []), row.id]);
+			continue;
+		}
+
+		sendable.push({
+			id: row.id,
+			recipientId: row.recipientId,
+			address: row.recipient.address,
+			token: row.recipient.token,
+			contactId: row.contactId,
+			campaignId: row.campaignId,
+			nodeId: row.nodeId,
+			subject: row.subject,
+			document: row.document,
+			replyTo: row.replyTo,
+			attempts: row.attempts,
+			hasAttachments:
+				row.attachments.length + (row.campaign?.attachments.length ?? 0) > 0,
+			attachments: [...row.attachments, ...(row.campaign?.attachments ?? [])],
+		});
+	}
+
+	if (blocked.size > 0) {
+		await db.$transaction(
+			[...blocked].map(([reason, ids]) =>
+				db.marketingSend.updateMany({
+					where: { id: { in: ids } },
+					data: { status: "SKIPPED", skipReason: reason },
+				}),
+			),
+		);
+	}
+
+	return sendable;
 }
 
 export type Outcome =
@@ -423,7 +437,15 @@ export async function settle(
 		return;
 	}
 
-	const status: MarketingSendStatus = outcome.retry ? "QUEUED" : "FAILED";
+	const attempted = await db.marketingSend.findUnique({
+		where: { id: sendId },
+		select: { attempts: true },
+	});
+
+	const retry =
+		outcome.retry && (attempted?.attempts ?? 0) < MARKETING.drain.maxAttempts;
+
+	const status: MarketingSendStatus = retry ? "QUEUED" : "FAILED";
 
 	await db.marketingSend.update({
 		where: { id: sendId },
@@ -431,11 +453,13 @@ export async function settle(
 			status,
 			error: outcome.error.slice(0, 500),
 			leasedAt: null,
-			...(outcome.retry && { dueAt: new Date(Date.now() + 60_000) }),
+			...(retry && {
+				dueAt: new Date(Date.now() + MARKETING.drain.retryBackoffMs),
+			}),
 		},
 	});
 
-	if (!outcome.retry) {
+	if (!retry) {
 		await db.marketingEvent.create({ data: { sendId, type: "FAILED" } });
 	}
 }
@@ -538,7 +562,7 @@ export const EVENT_KEEP_FOREVER = [
 export async function sweepEvents(
 	db: Db,
 	before: Date,
-	limit = 10_000,
+	limit = MARKETING.retention.batch,
 ): Promise<{ removed: number; complete: boolean }> {
 	const stale = await db.marketingEvent.findMany({
 		where: {

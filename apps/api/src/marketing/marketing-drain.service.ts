@@ -26,6 +26,10 @@ import { InjectDatabase } from "../database/database.constants";
 import { MarketingComposeService } from "./marketing-compose.service";
 import { ResendService } from "./resend.service";
 
+type ComposedBody = NonNullable<
+	Awaited<ReturnType<MarketingComposeService["compose"]>>
+>;
+
 @Injectable()
 export class MarketingDrainService implements OnModuleInit, OnModuleDestroy {
 	private readonly logger = new Logger(MarketingDrainService.name);
@@ -131,21 +135,32 @@ export class MarketingDrainService implements OnModuleInit, OnModuleDestroy {
 		let sent = 0;
 		let failed = 0;
 
-		const batchable: {
-			send: ClaimedSend;
-			body: NonNullable<
-				Awaited<ReturnType<MarketingComposeService["compose"]>>
-			>;
-		}[] = [];
+		const batchable: { send: ClaimedSend; body: ComposedBody }[] = [];
 
 		for (const send of claimed) {
 			const context = await this.compose.contextFor(send.contactId);
-			const body = await this.compose.compose({
-				document: send.document,
-				subject: send.subject ?? "",
-				token: send.token,
-				context,
-			});
+
+			let body: ComposedBody | null;
+
+			try {
+				body = await this.compose.compose({
+					document: send.document,
+					subject: send.subject ?? "",
+					token: send.token,
+					context,
+				});
+			} catch (error) {
+				await settle(this.db, send.id, {
+					ok: false,
+					error:
+						error instanceof Error
+							? error.message
+							: "This email cannot be built.",
+					retry: false,
+				});
+				failed += 1;
+				continue;
+			}
 
 			if (!body) {
 				await settle(this.db, send.id, {
@@ -167,6 +182,10 @@ export class MarketingDrainService implements OnModuleInit, OnModuleDestroy {
 					replyTo: send.replyTo,
 					headers: body.headers,
 					idempotencyKey: `send/${send.id}`,
+					attachments: send.attachments.map((attachment) => ({
+						filename: attachment.filename,
+						path: attachment.url,
+					})),
 				});
 
 				await settle(this.db, send.id, outcome);

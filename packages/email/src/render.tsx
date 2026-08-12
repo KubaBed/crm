@@ -19,7 +19,7 @@ import {
 	type Block,
 	type EmailDocument,
 	type Inline,
-	readDocument,
+	parseDocument,
 } from "./document";
 import { type MergeContext, resolveMerge } from "./merge";
 import { EMAIL_THEME, EMAIL_WIDTH } from "./theme";
@@ -222,14 +222,13 @@ function renderBlock(
 	}
 }
 
-function Shell({ input }: { input: RenderInput }): JSX.Element {
+type ShellInput = Omit<RenderInput, "document"> & { document: EmailDocument };
+
+function Shell({ input }: { input: ShellInput }): JSX.Element {
 	const context = input.context ?? {};
 	const shell = input.shell;
 	const brand = shell.brandColor ?? EMAIL_THEME.brand;
-	const document = readDocument(input.document) ?? {
-		version: 1 as const,
-		blocks: [],
-	};
+	const document = input.document;
 	const header = shell.header?.blocks ?? [];
 	const footer = shell.footer?.blocks ?? [];
 
@@ -352,10 +351,16 @@ function Shell({ input }: { input: RenderInput }): JSX.Element {
 	);
 }
 
+function shellElement(input: RenderInput): JSX.Element {
+	return (
+		<Shell input={{ ...input, document: parseDocument(input.document) }} />
+	);
+}
+
 export async function renderEmail(
 	input: RenderInput,
 ): Promise<{ html: string; text: string }> {
-	const element = <Shell input={input} />;
+	const element = shellElement(input);
 
 	const [html, text] = await Promise.all([
 		render(element, { pretty: false }),
@@ -365,6 +370,6 @@ export async function renderEmail(
 	return { html, text };
 }
 
-export function renderPlainText(input: RenderInput): Promise<string> {
-	return render(<Shell input={input} />, { plainText: true });
+export async function renderPlainText(input: RenderInput): Promise<string> {
+	return render(shellElement(input), { plainText: true });
 }

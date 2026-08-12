@@ -6,6 +6,26 @@ import { compile, filterSchema, segmentWhere } from "./segments";
 
 const DAY_MS = 86_400_000;
 
+type EmailContent = {
+	subject: string | null;
+	document: Prisma.InputJsonValue | undefined;
+};
+
+export function emailContent(node: {
+	subject: string | null;
+	document: Prisma.JsonValue | null;
+	template: { subject: string; document: Prisma.JsonValue } | null;
+}): EmailContent {
+	const document = node.document ?? node.template?.document ?? undefined;
+
+	return {
+		subject: node.subject?.trim()
+			? node.subject
+			: (node.template?.subject ?? null),
+		document: (document ?? undefined) as Prisma.InputJsonValue | undefined,
+	};
+}
+
 export async function linkReplies(db: Db, since: Date): Promise<number> {
 	const inbound = await db.emailMessage.findMany({
 		where: { direction: "INBOUND", sentAt: { gte: since } },
@@ -177,9 +197,11 @@ export async function sweepEntries(
 		take: 1000,
 	});
 
-	const cooldownMs = campaign.reentryCooldownDays
-		? campaign.reentryCooldownDays * DAY_MS
-		: null;
+	const cooldownMs =
+		campaign.reentryCooldownDays === null ||
+		campaign.reentryCooldownDays === undefined
+			? null
+			: campaign.reentryCooldownDays * DAY_MS;
 
 	let enrolled = 0;
 
@@ -326,6 +348,7 @@ export async function advance(db: Db, enrolmentId: string): Promise<void> {
 							document: true,
 							delayHours: true,
 							condition: true,
+							template: { select: { subject: true, document: true } },
 						},
 					},
 					edges: {
@@ -368,6 +391,8 @@ export async function advance(db: Db, enrolmentId: string): Promise<void> {
 		}
 
 		if (node.kind === "EMAIL") {
+			const content = emailContent(node);
+
 			await db.marketingSend.upsert({
 				where: {
 					nodeId_recipientId_pass: {
@@ -384,10 +409,8 @@ export async function advance(db: Db, enrolmentId: string): Promise<void> {
 					contactId: enrolment.contactId,
 					origin: "DRIP",
 					pass: enrolment.pass,
-					subject: node.subject,
-					document: (node.document ?? undefined) as
-						| Prisma.InputJsonValue
-						| undefined,
+					subject: content.subject,
+					document: content.document,
 					replyTo: enrolment.campaign.replyTo,
 					dueAt: new Date(),
 				},

@@ -1,8 +1,7 @@
-import { db } from "@crm/db";
 import { defineTool } from "eve/tools";
 import { z } from "zod";
 import { isAutomated } from "../lib/approval";
-import { writeCampaignGraph } from "../lib/marketing";
+import { graphEditNeedsPerson, writeCampaignGraph } from "../lib/marketing";
 
 const node = z.object({
 	id: z
@@ -52,18 +51,13 @@ export default defineTool({
 		const id = (toolInput as { campaignId?: string } | undefined)?.campaignId;
 		if (!id) return "not-applicable";
 
-		const campaign = await db.marketingCampaign.findUnique({
-			where: { id },
-			select: { status: true },
-		});
-
-		if (campaign?.status !== "ACTIVE") return "not-applicable";
+		if (!(await graphEditNeedsPerson(id))) return "not-applicable";
 
 		return isAutomated(session)
 			? {
 					type: "denied" as const,
 					reason:
-						"This drip is live and people are walking it. Only a person edits a running campaign.",
+						"This campaign has left draft and people are walking it. Only a person edits it.",
 				}
 			: "user-approval";
 	},

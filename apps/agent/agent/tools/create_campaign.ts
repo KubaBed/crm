@@ -5,7 +5,7 @@ import { z } from "zod";
 
 export default defineTool({
 	description:
-		"Create a marketing campaign as a draft, and return its id so you can write its graph. A blast goes to a segment once; a drip follows up over weeks and can branch. Nothing sends until a person activates it.",
+		"Create a marketing campaign as a draft, and return its id so you can write its graph. A blast goes to a segment once; a drip follows up over weeks and can branch. Nothing sends until a person schedules the blast or activates the drip.",
 	inputSchema: z.object({
 		name: z.string().min(1).max(160),
 		kind: z.enum(["BLAST", "DRIP"]),
@@ -34,7 +34,10 @@ export default defineTool({
 			campaignId: campaign.id,
 			firstNodeId: campaign.nodes[0]?.id,
 			status: "DRAFT",
-			next: "Write the graph with write_campaign_graph, then tell the rep to open it and activate it.",
+			next:
+				input.kind === "BLAST"
+					? "Write the one email with write_campaign_graph, then tell the rep to open it and schedule it. A blast is scheduled, not activated."
+					: "Write the graph with write_campaign_graph, then tell the rep to open it and activate it.",
 		};
 	},
 });

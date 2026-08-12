@@ -1,5 +1,6 @@
 import { db } from "@crm/db";
 import { mirror } from "@crm/db/blob";
+import { writeMarketingSettings } from "@crm/db/marketing";
 import { readWorkspaceIdentity } from "@crm/db/workspace";
 import { darkenUntilReadable, EMAIL_THEME } from "@crm/email/theme";
 import { brandToUpdate, type CompanySnapshot } from "./brand-mapping";
@@ -117,6 +118,10 @@ export async function runMarketingBrand(): Promise<BrandPass> {
 			},
 		],
 	};
+
+	if (colour) {
+		await writeMarketingSettings(db, { brandColor: colour });
+	}
 
 	await db.$transaction([
 		db.marketingPartial.create({

@@ -1,6 +1,17 @@
 "use client";
 
+import Renew from "@carbon/icons-react/es/Renew";
+import Warning from "@carbon/icons-react/es/Warning";
 import { Button } from "@crm/ui/components/button";
+import {
+	Empty,
+	EmptyContent,
+	EmptyDescription,
+	EmptyHeader,
+	EmptyMedia,
+	EmptyTitle,
+} from "@crm/ui/components/empty";
+import { Icon } from "@crm/ui/components/icon";
 import { Spinner } from "@crm/ui/components/spinner";
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
@@ -13,9 +24,12 @@ const STEP_LABEL: Record<string, string> = {
 	connect: "connect Resend",
 	identity: "set the from address and postal address",
 	domain: "verify a sending domain",
-	branding: "build the header and footer",
-	test: "send yourself a test",
 };
+
+const ERROR_TITLE = "We could not load your marketing numbers";
+const ERROR_BODY =
+	"Your campaigns keep running. Try again in a moment, before you change anything.";
+const RETRY = "Try again";
 
 function Stat({
 	label,
@@ -45,7 +59,32 @@ export function MarketingOverview() {
 	if (overview.isPending) return <Spinner />;
 
 	const data = overview.data;
-	if (!data) return null;
+
+	if (overview.isError || !data) {
+		return (
+			<Empty>
+				<EmptyHeader>
+					<EmptyMedia variant="icon">
+						<Icon icon={Warning} />
+					</EmptyMedia>
+					<EmptyTitle>{ERROR_TITLE}</EmptyTitle>
+					<EmptyDescription>
+						{overview.error?.message ?? ERROR_BODY}
+					</EmptyDescription>
+				</EmptyHeader>
+				<EmptyContent>
+					<Button
+						variant="outline"
+						disabled={overview.isFetching}
+						onClick={() => overview.refetch()}
+					>
+						<Icon icon={Renew} data-icon="inline-start" />
+						{RETRY}
+					</Button>
+				</EmptyContent>
+			</Empty>
+		);
+	}
 
 	const days = data.thirtyDays;
 

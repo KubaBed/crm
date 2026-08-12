@@ -15,6 +15,7 @@
 		"check-types": "tsc --noEmit",
 		"ui:add": "shadcn add",
 		"lint": "biome check .",
+		"test": "bun test",
 		"clean": "rm -rf .turbo node_modules"
 	},
 	"dependencies": {

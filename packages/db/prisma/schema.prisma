@@ -1314,6 +1314,7 @@ model AppSetting {
   marketingTimeZone       String?
   marketingDailyCap       Int?
   marketingOnboardedAt    DateTime?
+  marketingBrandColor     String?
 
   updatedAt DateTime @updatedAt
 
@@ -1734,6 +1735,7 @@ model MarketingSegment {
   description String?
   kind        MarketingSegmentKind @default(DYNAMIC)
   definition  Json?
+  isDefault   Boolean              @default(false)
 
   lastCount     Int?
   lastCountedAt DateTime?

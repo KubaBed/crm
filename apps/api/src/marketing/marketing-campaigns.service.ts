@@ -6,6 +6,7 @@ import {
 	type GraphEdge,
 	type GraphNode,
 	graphErrors,
+	MARKETING,
 	materialise,
 	queueDirect,
 	readMarketingSettings,
@@ -26,6 +27,9 @@ import { MarketingTemplatesService } from "./marketing-templates.service";
 import { ResendService } from "./resend.service";
 
 type Json = Record<string, unknown> | null;
+
+const PAUSED_SKIP_REASON = "the campaign is paused";
+const MANUAL_EXIT_REASON = "a rep removed them";
 
 export type NodeStats = {
 	nodeId: string;
@@ -153,11 +157,13 @@ export class MarketingCampaignsService {
 	}
 
 	async overview() {
+		const since = new Date(Date.now() - MARKETING.overview.windowMs);
+
 		const [settings, live, recent, health, enrolments, unsubscribed] =
 			await Promise.all([
 				assertSendable(this.db),
 				this.db.marketingCampaign.count({
-					where: { status: { in: ["ACTIVE", "SENDING", "SCHEDULED"] } },
+					where: { status: { in: ["ACTIVE", "SENDING"] } },
 				}),
 				this.db.marketingCampaign.findMany({
 					where: { status: { not: "ARCHIVED" } },
@@ -173,17 +179,12 @@ export class MarketingCampaignsService {
 				}),
 				this.db.marketingSend.groupBy({
 					by: ["status"],
-					where: {
-						createdAt: { gte: new Date(Date.now() - 30 * 86_400_000) },
-					},
+					where: { sentAt: { gte: since } },
 					_count: { _all: true },
 				}),
 				this.db.marketingEnrolment.count({ where: { status: "ACTIVE" } }),
 				this.db.marketingEvent.count({
-					where: {
-						type: "UNSUBSCRIBED",
-						at: { gte: new Date(Date.now() - 30 * 86_400_000) },
-					},
+					where: { type: "UNSUBSCRIBED", at: { gte: since } },
 				}),
 			]);
 
@@ -538,6 +539,20 @@ export class MarketingCampaignsService {
 		const positions = autoLayout(input.nodes, input.edges);
 
 		await this.db.$transaction(async (tx) => {
+			const stray = await tx.marketingCampaignNode.findMany({
+				where: {
+					id: { in: input.nodes.map((node) => node.id) },
+					campaignId: { not: input.campaignId },
+				},
+				select: { id: true },
+			});
+
+			if (stray.length > 0) {
+				throw new ConflictException(
+					`${stray.length} of these nodes belong to another campaign. Reload the graph and save it again.`,
+				);
+			}
+
 			const existing = await tx.marketingCampaignNode.findMany({
 				where: { campaignId: input.campaignId },
 				select: { id: true, x: true, y: true },
@@ -895,10 +910,18 @@ export class MarketingCampaignsService {
 	}
 
 	async pause(id: string, reason?: string) {
-		await this.db.marketingCampaign.update({
-			where: { id },
-			data: { status: "PAUSED", pausedReason: reason ?? null },
+		await this.db.$transaction(async (tx) => {
+			await tx.marketingCampaign.update({
+				where: { id },
+				data: { status: "PAUSED", pausedReason: reason ?? null },
+			});
+
+			await tx.marketingSend.updateMany({
+				where: { campaignId: id, status: "QUEUED" },
+				data: { status: "SKIPPED", skipReason: PAUSED_SKIP_REASON },
+			});
 		});
+
 		return { status: "PAUSED" };
 	}
 
@@ -925,6 +948,20 @@ export class MarketingCampaignsService {
 				data: { nextDueAt: new Date() },
 			});
 		}
+
+		await this.db.marketingSend.updateMany({
+			where: {
+				campaignId: id,
+				status: "SKIPPED",
+				skipReason: PAUSED_SKIP_REASON,
+				OR: [{ enrolmentId: null }, { enrolment: { status: "ACTIVE" } }],
+			},
+			data: {
+				status: "QUEUED",
+				skipReason: null,
+				...(clocks === "restart" && { dueAt: new Date() }),
+			},
+		});
 
 		await this.db.marketingCampaign.update({
 			where: { id },
@@ -1062,15 +1099,23 @@ export class MarketingCampaignsService {
 	}
 
 	async unenrol(enrolmentId: string) {
-		await this.db.marketingEnrolment.update({
-			where: { id: enrolmentId },
-			data: {
-				status: "EXITED",
-				exitKind: "MANUAL",
-				exitReason: "a rep removed them",
-				exitedAt: new Date(),
-			},
+		await this.db.$transaction(async (tx) => {
+			await tx.marketingEnrolment.update({
+				where: { id: enrolmentId },
+				data: {
+					status: "EXITED",
+					exitKind: "MANUAL",
+					exitReason: MANUAL_EXIT_REASON,
+					exitedAt: new Date(),
+				},
+			});
+
+			await tx.marketingSend.updateMany({
+				where: { enrolmentId, status: "QUEUED" },
+				data: { status: "SKIPPED", skipReason: MANUAL_EXIT_REASON },
+			});
 		});
+
 		return { ok: true };
 	}
 

@@ -118,10 +118,9 @@ export function SaveAsSegment({ filters }: { filters: Filters }) {
 							onClick={() =>
 								create.mutate({
 									name: name.trim(),
-									definition:
-										rules.length === 1
-											? rules[0]?.facet
-											: { all: rules.map((rule) => ({ facet: rule.facet })) },
+									definition: {
+										all: rules.map((rule) => ({ facet: rule.facet })),
+									},
 								})
 							}
 						>

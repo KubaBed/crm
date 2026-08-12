@@ -6,7 +6,9 @@ import ChevronUp from "@carbon/icons-react/es/ChevronUp";
 import Close from "@carbon/icons-react/es/Close";
 import Draggable from "@carbon/icons-react/es/Draggable";
 import Locked from "@carbon/icons-react/es/Locked";
+import { useId } from "react";
 import { Button } from "./button";
+import { Field, FieldLabel } from "./field";
 import { Icon } from "./icon";
 import { Input } from "./input";
 import {
@@ -43,12 +45,35 @@ export const BLOCK_LABEL: Record<string, string> = {
 const ADDABLE: { type: EmailBlock["type"]; label: string; make: () => EmailBlock }[] = [
 	{ type: "heading", label: "Heading", make: () => ({ type: "heading", level: 2, text: [{ text: "" }] }) },
 	{ type: "text", label: "Text", make: () => ({ type: "text", text: [{ text: "" }] }) },
-	{ type: "button", label: "Button", make: () => ({ type: "button", label: "Read more", href: "https://" }) },
-	{ type: "image", label: "Image", make: () => ({ type: "image", src: "https://", alt: "" }) },
+	{ type: "button", label: "Button", make: () => ({
+			type: "button",
+			label: "Read more",
+			href: "https://example.com",
+		}),
+	},
+	{
+		type: "image",
+		label: "Image",
+		make: () => ({
+			type: "image",
+			src: "https://placehold.co/600x200/png",
+			alt: "",
+		}),
+	},
 	{ type: "quote", label: "Quote", make: () => ({ type: "quote", text: [{ text: "" }] }) },
 	{ type: "divider", label: "Divider", make: () => ({ type: "divider" }) },
 	{ type: "spacer", label: "Spacer", make: () => ({ type: "spacer", size: "md" }) },
 ];
+
+function runLabel(run: EmailInline): string {
+	const marks = [
+		run.bold ? "Bold" : null,
+		run.italic ? "Italic" : null,
+		run.href ? "Link" : null,
+	].filter((mark) => mark !== null);
+
+	return marks.length > 0 ? marks.join(" · ") : "Plain";
+}
 
 export function textOf(block: EmailBlock): string {
 	if ("text" in block) return block.text.map((run) => run.text).join("");
@@ -90,8 +115,23 @@ export function EmailBlockEditor({
 	onChange: (blocks: EmailBlock[]) => void;
 	shell?: { header: string; footer: string };
 }) {
+	const fieldId = useId();
+
 	const replace = (index: number, block: EmailBlock) =>
 		onChange(blocks.map((current, at) => (at === index ? block : current)));
+
+	const editRun = (
+		index: number,
+		block: Extract<EmailBlock, { text: EmailInline[] }>,
+		runIndex: number,
+		value: string,
+	) =>
+		replace(index, {
+			...block,
+			text: block.text.map((run, at) =>
+				at === runIndex ? { ...run, text: value } : run,
+			),
+		});
 
 	const move = (index: number, by: number) => {
 		const target = index + by;
@@ -136,14 +176,32 @@ export function EmailBlockEditor({
 
 						{open ? (
 							<div className="flex flex-col gap-2 px-2.5 pb-3">
-								{"text" in block ? (
+								{"text" in block && block.text.length > 1
+									? block.text.map((run, runIndex) => (
+											<Field key={`${index}-${runIndex}`}>
+												<FieldLabel htmlFor={`${fieldId}-${index}-${runIndex}`}>
+													{runLabel(run)}
+												</FieldLabel>
+												<Textarea
+													id={`${fieldId}-${index}-${runIndex}`}
+													value={run.text}
+													rows={2}
+													onChange={(event) =>
+														editRun(index, block, runIndex, event.target.value)
+													}
+												/>
+											</Field>
+										))
+									: null}
+
+								{"text" in block && block.text.length <= 1 ? (
 									<Textarea
-										value={block.text.map((run) => run.text).join("")}
+										value={block.text[0]?.text ?? ""}
 										rows={block.type === "heading" ? 2 : 4}
 										onChange={(event) =>
 											replace(index, {
 												...block,
-												text: [{ text: event.target.value }],
+												text: [{ ...block.text[0], text: event.target.value }],
 											} as EmailBlock)
 										}
 									/>

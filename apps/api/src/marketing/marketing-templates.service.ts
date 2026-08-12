@@ -18,6 +18,12 @@ import { MarketingComposeService } from "./marketing-compose.service";
 
 const GLYPH_LINES = 4;
 
+const UNREADABLE_EMAIL =
+	"That email content cannot be read, so nothing can be previewed or sent. Undo the last change, or start the body again.";
+
+const UNREADABLE_SHELL =
+	"That shell content cannot be read, so nothing can be previewed. Undo the last change, or start the header or footer again.";
+
 const SHELL_PREVIEW_BODY = {
 	version: 1,
 	blocks: [
@@ -214,6 +220,13 @@ export class MarketingTemplatesService {
 		const name = blankToNull(input.name);
 		if (!name) throw new BadRequestException("Give the template a name.");
 
+		if (input.document !== undefined) {
+			const parsed = emailDocument.safeParse(input.document);
+			if (!parsed.success) {
+				throw new BadRequestException("That email content cannot be read.");
+			}
+		}
+
 		return this.db.marketingTemplate.create({
 			data: {
 				name,
@@ -287,6 +300,21 @@ export class MarketingTemplatesService {
 		preheader?: string | null;
 		contactId?: string | null;
 	}) {
+		const lint = lintEmail({
+			document: input.document,
+			subject: input.subject,
+			preheader: input.preheader,
+		});
+
+		if (!readDocument(input.document)) {
+			return {
+				html: null,
+				text: null,
+				lint,
+				blocked: UNREADABLE_EMAIL,
+			};
+		}
+
 		const context = await this.compose.contextFor(input.contactId ?? null);
 
 		const composed = await this.compose.compose({
@@ -295,12 +323,6 @@ export class MarketingTemplatesService {
 			preheader: input.preheader,
 			token: "preview",
 			context,
-		});
-
-		const lint = lintEmail({
-			document: input.document,
-			subject: input.subject,
-			preheader: input.preheader,
 		});
 
 		if (!composed) {
@@ -344,6 +366,11 @@ export class MarketingTemplatesService {
 		if (!partial) throw new NotFoundException("No such shell.");
 
 		const document = input.document ?? partial.document;
+
+		if (!readDocument(document)) {
+			return { html: null, text: null, blocked: UNREADABLE_SHELL };
+		}
+
 		const context = await this.compose.contextFor(null);
 
 		const composed = await this.compose.compose({

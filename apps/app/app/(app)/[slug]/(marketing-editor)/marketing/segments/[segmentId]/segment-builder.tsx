@@ -10,6 +10,7 @@ import {
 	DropdownMenuItem,
 	DropdownMenuTrigger,
 } from "@crm/ui/components/dropdown-menu";
+import { FieldError } from "@crm/ui/components/field";
 import { Icon } from "@crm/ui/components/icon";
 import { RuleTree, type RuleTreeValue } from "@crm/ui/components/rule-tree";
 import { Spinner } from "@crm/ui/components/spinner";
@@ -25,7 +26,12 @@ import {
 } from "@/components/marketing/editor-shell";
 import { useTRPC } from "@/lib/trpc/client";
 import { useWorkspaceUrl } from "@/lib/use-workspace-url";
-import { facetsWithOwners, fromDefinition, toDefinition } from "./facets";
+import {
+	facetsWithOwners,
+	fromDefinition,
+	ruleProblems,
+	toDefinition,
+} from "./facets";
 
 export function SegmentBuilder({ segmentId }: { segmentId: string }) {
 	const trpc = useTRPC();
@@ -55,6 +61,7 @@ export function SegmentBuilder({ segmentId }: { segmentId: string }) {
 	}, [data, dirty]);
 
 	const definition = useMemo(() => toDefinition(rules), [rules]);
+	const problems = useMemo(() => ruleProblems(rules), [rules]);
 
 	const users = useQuery(trpc.users.list.queryOptions());
 	const facets = useMemo(
@@ -190,7 +197,7 @@ export function SegmentBuilder({ segmentId }: { segmentId: string }) {
 					</DropdownMenu>
 					<Button
 						size="sm"
-						disabled={save.isPending || !dirty}
+						disabled={save.isPending || !dirty || problems.length > 0}
 						onClick={() => save.mutate({ id: segmentId, name, definition })}
 					>
 						{save.isPending ? <Spinner /> : null}
@@ -236,6 +243,8 @@ export function SegmentBuilder({ segmentId }: { segmentId: string }) {
 							setDirty(true);
 						}}
 					/>
+
+					<FieldError errors={problems} />
 
 					<div className="flex flex-col gap-3 overflow-clip rounded-lg border">
 						<div className="flex items-center justify-between border-b bg-muted px-4 py-2.5">

@@ -5,6 +5,13 @@ import type {
 } from "../generated/prisma/enums";
 import { normalizeEmail } from "../values";
 
+export type SkipReason =
+	| "no-address"
+	| "unsubscribed"
+	| "bounced"
+	| "complained"
+	| "daily-cap";
+
 export type RecipientRef = {
 	id: string;
 	address: string;
@@ -73,6 +80,25 @@ export async function recipientsFor(
 	return new Map(found.map((row) => [row.address, row]));
 }
 
+export function skipFor(status: MarketingStatus): SkipReason | null {
+	if (status === "SUBSCRIBED") return null;
+	if (status === "UNSUBSCRIBED") return "unsubscribed";
+	if (status === "BOUNCED") return "bounced";
+	if (status === "COMPLAINED") return "complained";
+	return null;
+}
+
+async function cancelQueued(
+	db: Db,
+	recipientId: string,
+	reason: SkipReason,
+): Promise<void> {
+	await db.marketingSend.updateMany({
+		where: { recipientId, status: "QUEUED" },
+		data: { status: "SKIPPED", skipReason: reason },
+	});
+}
+
 export async function suppress(
 	db: Db,
 	address: string,
@@ -82,10 +108,20 @@ export async function suppress(
 	const normalized = normalizeEmail(address);
 	if (!normalized) return;
 
-	await db.marketingRecipient.updateMany({
+	const row = await db.marketingRecipient.findUnique({
 		where: { address: normalized },
+		select: { id: true },
+	});
+
+	if (!row) return;
+
+	await db.marketingRecipient.update({
+		where: { id: row.id },
 		data: { status, statusReason: reason ?? null, statusAt: new Date() },
 	});
+
+	const skip = skipFor(status);
+	if (skip) await cancelQueued(db, row.id, skip);
 }
 
 export async function unsubscribeByToken(
@@ -107,6 +143,8 @@ export async function unsubscribeByToken(
 			statusAt: new Date(),
 		},
 	});
+
+	await cancelQueued(db, row.id, "unsubscribed");
 
 	return { address: row.address };
 }

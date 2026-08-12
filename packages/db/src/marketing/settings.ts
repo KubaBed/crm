@@ -1,15 +1,19 @@
 import type { Db } from "../client";
 import { SETTINGS_ID } from "../settings";
 
+const DAY_MS = 24 * 60 * 60_000;
+
 export const MARKETING = {
 	send: { perMinute: 300, dailyCap: 0, batchSize: 100 },
 	quiet: { start: 8, end: 20, timeZone: "UTC" },
-	cap: { windowMs: 24 * 60 * 60_000 },
+	cap: { windowMs: DAY_MS },
+	overview: { windowMs: 30 * DAY_MS },
 	drain: {
 		tickMs: 30_000,
 		leaseMs: 5 * 60_000,
 		maxAttempts: 3,
 		claimLimit: 200,
+		retryBackoffMs: 60_000,
 	},
 	deliverability: {
 		bounceWarn: 0.02,
@@ -21,6 +25,7 @@ export const MARKETING = {
 	attachments: { totalBytes: 40 * 1024 * 1024 },
 	defer: { maxHours: 48 },
 	split: { minPerArm: 100 },
+	retention: { batch: 10_000, maxPasses: 50 },
 } as const;
 
 export type MarketingSettings = {
@@ -36,6 +41,7 @@ export type MarketingSettings = {
 	quietEnd: number | null;
 	timeZone: string;
 	dailyCap: number | null;
+	brandColor: string | null;
 	onboardedAt: Date | null;
 };
 
@@ -52,6 +58,7 @@ const SELECT = {
 	marketingQuietEnd: true,
 	marketingTimeZone: true,
 	marketingDailyCap: true,
+	marketingBrandColor: true,
 	marketingOnboardedAt: true,
 } as const;
 
@@ -76,6 +83,7 @@ export async function readMarketingSettings(
 		quietEnd: row?.marketingQuietEnd ?? null,
 		timeZone: row?.marketingTimeZone ?? MARKETING.quiet.timeZone,
 		dailyCap: row?.marketingDailyCap ?? null,
+		brandColor: row?.marketingBrandColor ?? null,
 		onboardedAt: row?.marketingOnboardedAt ?? null,
 	};
 }
@@ -95,6 +103,7 @@ export async function writeMarketingSettings(
 		quietEnd: number | null;
 		timeZone: string | null;
 		dailyCap: number | null;
+		brandColor: string | null;
 		onboardedAt: Date | null;
 	}>,
 ): Promise<void> {
@@ -125,6 +134,9 @@ export async function writeMarketingSettings(
 		...(patch.quietEnd !== undefined && { marketingQuietEnd: patch.quietEnd }),
 		...(patch.timeZone !== undefined && { marketingTimeZone: patch.timeZone }),
 		...(patch.dailyCap !== undefined && { marketingDailyCap: patch.dailyCap }),
+		...(patch.brandColor !== undefined && {
+			marketingBrandColor: patch.brandColor,
+		}),
 		...(patch.onboardedAt !== undefined && {
 			marketingOnboardedAt: patch.onboardedAt,
 		}),

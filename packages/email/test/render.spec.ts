@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { EMAIL_DOCUMENT_LIMITS, readDocument } from "../src/document";
 import { lintEmail } from "../src/lint";
 import { renderEmail } from "../src/render";
 
@@ -42,6 +43,73 @@ describe("renderEmail", () => {
 	test("falls back when the field is empty", async () => {
 		const { html } = await renderEmail({ document, shell, context: {} });
 		expect(html).toContain("Hi there.");
+	});
+
+	test("refuses a document it cannot read", async () => {
+		await expect(
+			renderEmail({
+				document: { version: 1, blocks: [{ type: "nope" }] },
+				shell,
+			}),
+		).rejects.toThrow("cannot be read");
+	});
+
+	test("renders an empty body without the shell", async () => {
+		const { html } = await renderEmail({
+			document: { version: 1, blocks: [] },
+			shell,
+		});
+		expect(html).toContain("https://app.example.com/u/token");
+	});
+});
+
+function nestColumns(depth: number): unknown {
+	if (depth === 0) return { type: "text", text: [{ text: "deep" }] };
+	return {
+		type: "columns",
+		columns: [[nestColumns(depth - 1)], [nestColumns(depth - 1)]],
+	};
+}
+
+function repeatBlocks(count: number): unknown[] {
+	return Array.from({ length: count }, () => ({
+		type: "text",
+		text: [{ text: "x" }],
+	}));
+}
+
+describe("emailDocument", () => {
+	test("accepts columns up to the nesting limit", () => {
+		const parsed = readDocument({
+			version: 1,
+			blocks: [nestColumns(EMAIL_DOCUMENT_LIMITS.columns.nesting)],
+		});
+		expect(parsed).not.toBeNull();
+	});
+
+	test("refuses columns past the nesting limit", () => {
+		const parsed = readDocument({
+			version: 1,
+			blocks: [nestColumns(EMAIL_DOCUMENT_LIMITS.columns.nesting + 1)],
+		});
+		expect(parsed).toBeNull();
+	});
+
+	test("refuses more blocks than the total limit, however they nest", () => {
+		const perColumn = EMAIL_DOCUMENT_LIMITS.columns.perColumn;
+		const rows = Math.ceil(
+			EMAIL_DOCUMENT_LIMITS.blocks.total / (perColumn * 2 + 1),
+		);
+
+		const parsed = readDocument({
+			version: 1,
+			blocks: Array.from({ length: rows + 1 }, () => ({
+				type: "columns",
+				columns: [repeatBlocks(perColumn), repeatBlocks(perColumn)],
+			})),
+		});
+
+		expect(parsed).toBeNull();
 	});
 });
 

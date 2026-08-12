@@ -1,10 +1,18 @@
 import { z } from "zod";
 
+export const EMAIL_DOCUMENT_LIMITS = {
+	inline: { runLength: 5000, url: 2000 },
+	label: { button: 120, alt: 300 },
+	image: { minWidth: 16, maxWidth: 1200 },
+	columns: { min: 2, max: 3, perColumn: 20, nesting: 2 },
+	blocks: { perDocument: 200, total: 400 },
+} as const;
+
 export const inline = z.object({
-	text: z.string().max(5000),
+	text: z.string().max(EMAIL_DOCUMENT_LIMITS.inline.runLength),
 	bold: z.boolean().optional(),
 	italic: z.boolean().optional(),
-	href: z.string().url().max(2000).optional(),
+	href: z.string().url().max(EMAIL_DOCUMENT_LIMITS.inline.url).optional(),
 });
 
 export type Inline = z.infer<typeof inline>;
@@ -26,17 +34,22 @@ const text = z.object({
 
 const button = z.object({
 	type: z.literal("button"),
-	label: z.string().trim().min(1).max(120),
-	href: z.string().url().max(2000),
+	label: z.string().trim().min(1).max(EMAIL_DOCUMENT_LIMITS.label.button),
+	href: z.string().url().max(EMAIL_DOCUMENT_LIMITS.inline.url),
 	align: align.optional(),
 });
 
 const image = z.object({
 	type: z.literal("image"),
-	src: z.string().url().max(2000),
-	alt: z.string().max(300),
-	width: z.number().int().min(16).max(1200).optional(),
-	href: z.string().url().max(2000).optional(),
+	src: z.string().url().max(EMAIL_DOCUMENT_LIMITS.inline.url),
+	alt: z.string().max(EMAIL_DOCUMENT_LIMITS.label.alt),
+	width: z
+		.number()
+		.int()
+		.min(EMAIL_DOCUMENT_LIMITS.image.minWidth)
+		.max(EMAIL_DOCUMENT_LIMITS.image.maxWidth)
+		.optional(),
+	href: z.string().url().max(EMAIL_DOCUMENT_LIMITS.inline.url).optional(),
 });
 
 const quote = z.object({
@@ -61,26 +74,58 @@ export type Block =
 	| z.infer<typeof spacer>
 	| { type: "columns"; columns: Block[][] };
 
-export const block: z.ZodType<Block> = z.lazy(() =>
-	z.union([
-		heading,
-		text,
-		button,
-		image,
-		quote,
-		divider,
-		spacer,
+const leafBlock = z.union([
+	heading,
+	text,
+	button,
+	image,
+	quote,
+	divider,
+	spacer,
+]);
+
+function blockWithin(nesting: number): z.ZodType<Block> {
+	if (nesting <= 0) return leafBlock;
+
+	return z.union([
+		leafBlock,
 		z.object({
 			type: z.literal("columns"),
-			columns: z.array(z.array(block).max(20)).min(2).max(3),
+			columns: z
+				.array(
+					z
+						.array(blockWithin(nesting - 1))
+						.max(EMAIL_DOCUMENT_LIMITS.columns.perColumn),
+				)
+				.min(EMAIL_DOCUMENT_LIMITS.columns.min)
+				.max(EMAIL_DOCUMENT_LIMITS.columns.max),
 		}),
-	]),
+	]);
+}
+
+export const block: z.ZodType<Block> = blockWithin(
+	EMAIL_DOCUMENT_LIMITS.columns.nesting,
 );
 
-export const emailDocument = z.object({
-	version: z.literal(1),
-	blocks: z.array(block).max(200),
-});
+export const emailDocument = z
+	.object({
+		version: z.literal(1),
+		blocks: z.array(block).max(EMAIL_DOCUMENT_LIMITS.blocks.perDocument),
+	})
+	.superRefine((value, context) => {
+		let total = 0;
+		walkBlocks(value.blocks, () => {
+			total += 1;
+		});
+
+		if (total > EMAIL_DOCUMENT_LIMITS.blocks.total) {
+			context.addIssue({
+				code: "custom",
+				path: ["blocks"],
+				message: `This email holds ${total} blocks. The limit is ${EMAIL_DOCUMENT_LIMITS.blocks.total}.`,
+			});
+		}
+	});
 
 export type EmailDocument = z.infer<typeof emailDocument>;
 
