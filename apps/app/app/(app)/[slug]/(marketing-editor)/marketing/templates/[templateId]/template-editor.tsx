@@ -16,9 +16,9 @@ import { Icon } from "@crm/ui/components/icon";
 import { Input } from "@crm/ui/components/input";
 import { Label } from "@crm/ui/components/label";
 import { Spinner } from "@crm/ui/components/spinner";
+import { useAutosave } from "@crm/ui/hooks/use-autosave";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
-import { useAutosave } from "@crm/ui/hooks/use-autosave";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { CopilotRail } from "@/components/marketing/copilot-rail";
@@ -193,22 +193,9 @@ export function TemplateEditor({ templateId }: { templateId: string }) {
 							</DropdownMenuItem>
 						</DropdownMenuContent>
 					</DropdownMenu>
-					<Button
-						size="sm"
-						disabled={save.isPending || !dirty}
-						onClick={() =>
-							save.mutate({
-								id: templateId,
-								name,
-								subject,
-								preheader: preheader || null,
-								document: document as unknown as Record<string, unknown>,
-							})
-						}
-					>
-						{save.isPending ? <Spinner /> : null}
-						Save
-					</Button>
+					<span className="text-muted-foreground text-xs">
+						{save.isPending ? "Saving…" : dirty ? "Unsaved" : "Saved"}
+					</span>
 				</>
 			}
 			meta={

@@ -66,9 +66,7 @@ function CampaignButton() {
 	return (
 		<Button
 			disabled={create.isPending}
-			onClick={() =>
-				create.mutate({ name: "Untitled campaign", kind: "BLAST" })
-			}
+			onClick={() => create.mutate({ name: "Untitled campaign", kind: "DRIP" })}
 		>
 			{create.isPending ? (
 				<Spinner />

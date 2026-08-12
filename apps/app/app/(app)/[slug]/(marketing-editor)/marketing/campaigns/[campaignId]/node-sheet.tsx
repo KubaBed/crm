@@ -24,8 +24,6 @@ type Campaign = RouterOutputs["marketingCampaigns"]["byId"];
 type Node = Campaign["nodes"][number];
 type Stats = Campaign["stats"][number];
 
-type Block = { type: string; text?: { text: string }[]; label?: string };
-
 function blocksOf(document: unknown): EmailBlock[] {
 	if (!document || typeof document !== "object") return [];
 	const blocks = (document as { blocks?: unknown }).blocks;

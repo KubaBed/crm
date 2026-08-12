@@ -6,8 +6,8 @@ import {
 	EmailBlockEditor,
 } from "@crm/ui/components/email-blocks";
 import { Spinner } from "@crm/ui/components/spinner";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAutosave } from "@crm/ui/hooks/use-autosave";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { CopilotRail } from "@/components/marketing/copilot-rail";
@@ -117,23 +117,9 @@ export function ShellEditor({ shellId }: { shellId: string }) {
 				</span>
 			}
 			actions={
-				<Button
-					size="sm"
-					disabled={save.isPending || !dirty}
-					onClick={() =>
-						save.mutate({
-							id: shellId,
-							name,
-							document: { version: 1, blocks } as unknown as Record<
-								string,
-								unknown
-							>,
-						})
-					}
-				>
-					{save.isPending ? <Spinner /> : null}
-					Save
-				</Button>
+				<span className="text-muted-foreground text-xs">
+					{save.isPending ? "Saving…" : dirty ? "Unsaved" : "Saved"}
+				</span>
 			}
 			meta={
 				<MarketingEditorMeta

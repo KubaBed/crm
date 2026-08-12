@@ -52,8 +52,8 @@ export function CampaignKind({
 				setKind.mutate({ id: campaignId, kind: next });
 			}}
 		>
-			<ToggleGroupItem value="BLAST">Blast</ToggleGroupItem>
 			<ToggleGroupItem value="DRIP">Drip</ToggleGroupItem>
+			<ToggleGroupItem value="BLAST">Blast</ToggleGroupItem>
 		</ToggleGroup>
 	);
 }
