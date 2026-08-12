@@ -25,6 +25,7 @@ import { useTRPC } from "@/lib/trpc/client";
 import type { RouterOutputs } from "@/lib/trpc/types";
 import { useWorkspaceUrl } from "@/lib/use-workspace-url";
 import { CampaignStatus } from "../../../../(marketing)/marketing/campaign-status";
+import { AttachmentsPanel } from "./attachments-panel";
 import { CampaignResults } from "./campaign-results";
 
 type Campaign = RouterOutputs["marketingCampaigns"]["byId"];
@@ -240,6 +241,11 @@ export function BlastComposer({
 								}}
 							/>
 						</div>
+
+						<AttachmentsPanel
+							campaignId={campaign.id}
+							recipients={campaign.audience.sendable}
+						/>
 
 						<Button
 							variant="outline"

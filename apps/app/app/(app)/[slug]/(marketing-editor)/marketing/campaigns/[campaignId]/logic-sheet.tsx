@@ -5,10 +5,12 @@ import { Button } from "@crm/ui/components/button";
 import { Icon } from "@crm/ui/components/icon";
 import { Input } from "@crm/ui/components/input";
 import { Label } from "@crm/ui/components/label";
+import { RuleTree, type RuleTreeValue } from "@crm/ui/components/rule-tree";
 import { Spinner } from "@crm/ui/components/spinner";
 import { useMutation } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
+import { FACETS, fromDefinition, toDefinition } from "@/lib/marketing-facets";
 import { useTRPC } from "@/lib/trpc/client";
 import type { RouterOutputs } from "@/lib/trpc/types";
 
@@ -41,6 +43,9 @@ export function LogicSheet({
 }) {
 	const trpc = useTRPC();
 	const [hours, setHours] = useState(String(node.delayHours ?? 0));
+	const [rules, setRules] = useState<RuleTreeValue>(
+		fromDefinition(node.condition),
+	);
 
 	const save = useMutation(
 		trpc.marketingCampaigns.updateNode.mutationOptions({
