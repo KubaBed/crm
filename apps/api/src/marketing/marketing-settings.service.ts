@@ -202,6 +202,29 @@ export class MarketingSettingsService {
 		}));
 	}
 
+	async setDomain(
+		name: string,
+	): Promise<{ status: string; name: string; exists: boolean }> {
+		const host = blankToNull(name)
+			?.toLowerCase()
+			.replace(/^https?:\/\//, "");
+		if (!host) throw new BadRequestException("Enter a domain to send from.");
+
+		const known = await this.resend.listDomains();
+		const match = known.find((row) => row.name.toLowerCase() === host);
+
+		if (match) {
+			await writeMarketingSettings(this.db, {
+				resendDomainId: match.id,
+				sendingDomain: match.name,
+			});
+
+			return { status: match.status, name: match.name, exists: true };
+		}
+
+		return { status: "not_in_resend", name: host, exists: false };
+	}
+
 	async useDomain(id: string): Promise<{ status: string; name: string }> {
 		const domain = await this.resend.readDomain(id);
 		if (!domain) {

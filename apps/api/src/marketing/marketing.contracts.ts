@@ -26,7 +26,11 @@ export const saveSendingInput = z.object({
 	timeZone: z.string().min(1).max(60).default("UTC"),
 });
 
-export const createDomainInput = z.object({ name: z.string().min(3).max(253) });
+export const createDomainInput = z.object({
+	name: z.string().min(3).max(253),
+});
+
+export const setDomainInput = z.object({ name: z.string().min(3).max(253) });
 
 export const campaignListInput = listInput.extend({
 	kind: z.string().default(""),

@@ -8,13 +8,6 @@ import { Field, FieldGroup, FieldLabel } from "@crm/ui/components/field";
 import { Icon } from "@crm/ui/components/icon";
 import { Input } from "@crm/ui/components/input";
 import Logo from "@crm/ui/components/logo";
-import {
-	Select,
-	SelectContent,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
-} from "@crm/ui/components/select";
 import { Spinner } from "@crm/ui/components/spinner";
 import { cn } from "@crm/ui/lib/utils";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -41,13 +34,13 @@ export function SetupWizard({ step }: { step: string }) {
 	const [postalAddress, setPostalAddress] = useState("");
 	const [host, setHost] = useState("");
 	const [tested, setTested] = useState(false);
+	const [missing, setMissing] = useState<string | null>(null);
 
 	const keyId = useId();
 	const fromNameId = useId();
 	const fromAddressId = useId();
 	const postalId = useId();
 	const hostId = useId();
-	const pickId = useId();
 
 	const data = settings.data;
 	const domainStatus = domain.data?.status ?? "not_started";
@@ -102,6 +95,24 @@ export function SetupWizard({ step }: { step: string }) {
 		enabled: step === "domain",
 	});
 
+	const setDomain = useMutation(
+		trpc.marketing.setDomain.mutationOptions({
+			onSuccess: async (result) => {
+				setMissing(result.exists ? null : result.name);
+				await Promise.all([
+					queryClient.invalidateQueries({
+						queryKey: trpc.marketing.domain.queryKey(),
+					}),
+					queryClient.invalidateQueries({
+						queryKey: trpc.marketing.settings.queryKey(),
+					}),
+				]);
+				if (result.exists) toast.success(`Sending from ${result.name}.`);
+			},
+			onError: (error) => toast.error(error.message),
+		}),
+	);
+
 	const useDomain = useMutation(
 		trpc.marketing.useDomain.mutationOptions({
 			onSuccess: async (result) => {
@@ -141,6 +152,7 @@ export function SetupWizard({ step }: { step: string }) {
 	const createDomain = useMutation(
 		trpc.marketing.createDomain.mutationOptions({
 			onSuccess: async () => {
+				setMissing(null);
 				await Promise.all([
 					queryClient.invalidateQueries({
 						queryKey: trpc.marketing.domain.queryKey(),
@@ -341,95 +353,104 @@ export function SetupWizard({ step }: { step: string }) {
 					{step === "domain" ? (
 						<Step
 							title="Your sending domain"
-							blurb="Pick one you have already verified in Resend, or add a new subdomain. A subdomain keeps these records away from the MX that carries your own mail."
+							blurb="Type the domain you send from. If Resend already has it, we use it. If not, we can add it."
 						>
-							{(domains.data ?? []).length > 0 ? (
-								<Field>
-									<FieldLabel htmlFor={pickId}>Domains in Resend</FieldLabel>
-									<Select
-										value={
-											(domains.data ?? []).find((row) => row.selected)?.id ?? ""
-										}
-										onValueChange={(id) => useDomain.mutate({ id })}
-									>
-										<SelectTrigger id={pickId}>
-											<SelectValue placeholder="Choose a domain" />
-										</SelectTrigger>
-										<SelectContent>
-											{(domains.data ?? []).map((row) => (
-												<SelectItem key={row.id} value={row.id}>
-													{row.name} — {row.status.replace(/_/g, " ")}
-												</SelectItem>
-											))}
-										</SelectContent>
-									</Select>
-								</Field>
-							) : null}
-
-							{domainStatus === "verified" ? (
-								<p className="text-muted-foreground text-xs">
-									{domain.data?.name} is verified. Nothing else to do here.
-								</p>
-							) : domain.data?.name ? (
-								<div className="flex flex-col gap-3">
-									<p className="text-muted-foreground text-xs">
-										{domain.data.name} is{" "}
-										{(domain.data.status ?? "pending").replace(/_/g, " ")}. Add
-										these records at your DNS provider, then check again. DNS
-										can take a few hours.
-									</p>
-
+							<Field>
+								<FieldLabel htmlFor={hostId}>Domain</FieldLabel>
+								<div className="flex items-center gap-2">
+									<Input
+										id={hostId}
+										value={host}
+										onChange={(event) => setHost(event.target.value)}
+										placeholder="send.example.com"
+									/>
 									<Button
 										variant="outline"
-										className="self-start"
-										disabled={recheck.isPending}
-										onClick={() => recheck.mutate()}
+										disabled={!host.trim() || setDomain.isPending}
+										onClick={() => setDomain.mutate({ name: host })}
 									>
-										{recheck.isPending ? <Spinner /> : null}
-										Check again
+										{setDomain.isPending ? <Spinner /> : null}
+										Use it
 									</Button>
+								</div>
+							</Field>
 
-									{(domain.data.records ?? []).map((record) => (
-										<div
-											key={`${record.type}-${record.name}`}
-											className="flex flex-col gap-1 rounded-md border p-3 text-xs"
+							{(domains.data ?? []).length > 0 ? (
+								<div className="flex flex-wrap items-center gap-1.5">
+									<span className="text-muted-foreground text-xs">
+										In Resend:
+									</span>
+									{(domains.data ?? []).map((row) => (
+										<Button
+											key={row.id}
+											variant="outline"
+											size="sm"
+											className="h-7 font-normal text-xs"
+											onClick={() => {
+												setHost(row.name);
+												useDomain.mutate({ id: row.id });
+											}}
 										>
-											<span className="font-medium">
-												{record.type} · {record.name}
-											</span>
-											<span className="break-all text-muted-foreground">
-												{record.value}
-											</span>
-										</div>
+											{row.name}
+										</Button>
 									))}
 								</div>
 							) : null}
 
-							<details className="text-xs">
-								<summary className="cursor-pointer text-muted-foreground">
-									Add a new subdomain instead
-								</summary>
-								<div className="flex flex-col gap-3 pt-3">
-									<Field>
-										<FieldLabel htmlFor={hostId}>Subdomain</FieldLabel>
-										<Input
-											id={hostId}
-											value={host}
-											onChange={(event) => setHost(event.target.value)}
-											placeholder="send.example.com"
-										/>
-									</Field>
+							{missing ? (
+								<div className="flex flex-col gap-3 rounded-md border p-3">
+									<p className="text-xs">
+										Resend does not have <b>{missing}</b> yet. Adding it gives
+										you the DNS records to paste.
+									</p>
 									<Button
 										variant="outline"
 										className="self-start"
-										disabled={!host.trim() || createDomain.isPending}
-										onClick={() => createDomain.mutate({ name: host })}
+										disabled={createDomain.isPending}
+										onClick={() => createDomain.mutate({ name: missing })}
 									>
 										{createDomain.isPending ? <Spinner /> : null}
-										Add it
+										Add it to Resend
 									</Button>
 								</div>
-							</details>
+							) : null}
+
+							{domain.data?.name ? (
+								<div className="flex flex-col gap-3">
+									<p className="text-muted-foreground text-xs">
+										Sending from <b>{domain.data.name}</b> —{" "}
+										{(domain.data.status ?? "pending").replace(/_/g, " ")}.
+									</p>
+
+									{domainStatus === "verified" ? null : (
+										<>
+											<Button
+												variant="outline"
+												className="self-start"
+												disabled={recheck.isPending}
+												onClick={() => recheck.mutate()}
+											>
+												{recheck.isPending ? <Spinner /> : null}
+												Check again
+											</Button>
+
+											{(domain.data.records ?? []).map((record) => (
+												<div
+													key={`${record.type}-${record.name}`}
+													className="flex flex-col gap-1 rounded-md border p-3 text-xs"
+												>
+													<span className="font-medium">
+														{record.type} · {record.name}
+													</span>
+													<span className="break-all text-muted-foreground">
+														{record.value}
+													</span>
+												</div>
+											))}
+										</>
+									)}
+								</div>
+							) : null}
 						</Step>
 					) : null}
 

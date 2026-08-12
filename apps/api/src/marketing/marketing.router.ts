@@ -32,6 +32,7 @@ import {
 	saveSendingInput,
 	scheduleInput,
 	sendDirectInput,
+	setDomainInput,
 	updateCampaignInput,
 	updateNodeInput,
 	updateSegmentInput,
@@ -75,6 +76,11 @@ export class MarketingRouter {
 	@Mutation({ input: idInput })
 	async useDomain(@Input() input: z.infer<typeof idInput>) {
 		return this.settingsService.useDomain(input.id);
+	}
+
+	@Mutation({ input: setDomainInput })
+	async setDomain(@Input() input: z.infer<typeof setDomainInput>) {
+		return this.settingsService.setDomain(input.name);
 	}
 
 	@Mutation({ input: saveKeyInput })
