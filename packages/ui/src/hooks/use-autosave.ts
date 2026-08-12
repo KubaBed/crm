@@ -11,36 +11,42 @@ export function useAutosave<TValue>(
 ) {
 	const { enabled = true, delayMs = 800 } = options;
 
+	const key = JSON.stringify(value ?? null);
+
 	const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 	const latest = useRef(save);
-	const pending = useRef<TValue | null>(null);
+	const draft = useRef(value);
+	const written = useRef<string | null>(null);
 
 	latest.current = save;
+	draft.current = value;
 
 	useEffect(() => {
 		if (!enabled) return;
+		if (written.current === null) {
+			written.current = key;
+			return;
+		}
+		if (written.current === key) return;
 
 		if (timer.current) clearTimeout(timer.current);
-		pending.current = value;
 
 		timer.current = setTimeout(() => {
 			timer.current = null;
-			const next = pending.current;
-			pending.current = null;
-			if (next !== null) latest.current(next);
+			written.current = key;
+			latest.current(draft.current);
 		}, delayMs);
 
 		return () => {
 			if (timer.current) clearTimeout(timer.current);
 		};
-	}, [value, enabled, delayMs]);
+	}, [key, enabled, delayMs]);
 
 	useEffect(
 		() => () => {
 			if (!timer.current) return;
 			clearTimeout(timer.current);
-			const next = pending.current;
-			if (next !== null) latest.current(next);
+			latest.current(draft.current);
 		},
 		[],
 	);

@@ -69,7 +69,6 @@ export function ShellEditor({ shellId }: { shellId: string }) {
 		trpc.marketingTemplates.savePartial.mutationOptions({
 			onSuccess: async () => {
 				setDirty(false);
-				toast.success("Saved. Every template wears this from the next send.");
 				await queryClient.invalidateQueries({
 					queryKey: trpc.marketingTemplates.shellById.queryKey({ id: shellId }),
 				});

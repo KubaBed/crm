@@ -102,7 +102,6 @@ export function NodeSheet({
 	const save = useMutation(
 		trpc.marketingCampaigns.updateNode.mutationOptions({
 			onSuccess: () => {
-				toast.success("Saved.");
 				onSaved();
 			},
 			onError: (error) => toast.error(error.message),

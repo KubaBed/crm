@@ -87,7 +87,6 @@ export function TemplateEditor({ templateId }: { templateId: string }) {
 		trpc.marketingTemplates.update.mutationOptions({
 			onSuccess: async () => {
 				setDirty(false);
-				toast.success("Saved.");
 				await queryClient.invalidateQueries({
 					queryKey: trpc.marketingTemplates.byId.queryKey({ id: templateId }),
 				});
