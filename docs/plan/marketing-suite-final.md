@@ -36,6 +36,39 @@ every payload it receives.
 
 ---
 
+## Found while using it
+
+Reported 12 August 2026 from a real session with the co-pilot.
+
+### 1. The co-pilot does not know how to build a segment
+
+It took several turns to work out the tool sequence. The facets, the operator
+names and the rule shape are all in the code and none of it is in the agent's
+context.
+Fix: add a segment skill under `.agents/skills/`, and name it from the
+marketing tools the way the other tool groups do.
+
+### 2. The co-pilot forgets the conversation on refresh
+
+Reload the campaign page and the thread is empty. The chat product already
+stores every message and replays it. Marketing must do the same.
+Fix: persist the thread and load it on mount, the way `/chat` does.
+
+### 3. The canvas does not repaint after the agent writes the graph
+
+The agent reported twelve nodes. React Flow kept the old ones. The rows are in
+the database, so this is a stale client cache, not a lost write.
+Fix: invalidate the campaign query when a tool run finishes writing.
+
+### 4. The React Flow controls were invisible
+
+Every `var(--color-*)` in `flow-tokens.css` named a variable that Tailwind
+never emits, because `@theme inline` inlines those values instead. The zoom
+buttons fell back to the library's light theme, so white icons sat on a white
+button in dark mode, and the nodes had the library's 3px corners.
+Fix: done. The file now names the base tokens (`--foreground`, `--card`), and
+`--radius-sm/lg/xl` are real variables.
+
 ## Settings that lie
 
 Three columns are stored, returned in the settings payload, and never read by

@@ -4,6 +4,7 @@ import { SETTINGS_ID } from "../settings";
 export const MARKETING = {
 	send: { perMinute: 300, dailyCap: 0, batchSize: 100 },
 	quiet: { start: 8, end: 20, timeZone: "UTC" },
+	cap: { windowMs: 24 * 60 * 60_000 },
 	drain: {
 		tickMs: 30_000,
 		leaseMs: 5 * 60_000,
@@ -18,6 +19,7 @@ export const MARKETING = {
 		floor: 50,
 	},
 	attachments: { totalBytes: 40 * 1024 * 1024 },
+	defer: { maxHours: 48 },
 	split: { minPerArm: 100 },
 } as const;
 

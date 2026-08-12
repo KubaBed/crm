@@ -4,12 +4,14 @@ import {
 	archiveDrained,
 	type ClaimedSend,
 	claimDueSends,
+	deferQuiet,
 	finishCampaigns,
 	linkReplies,
 	MARKETING,
 	pauseUnhealthy,
 	readMarketingSettings,
 	settle,
+	skipOverCap,
 	startDueCampaigns,
 	sweepEntries,
 	sweepExits,
@@ -107,8 +109,23 @@ export class MarketingDrainService implements OnModuleInit, OnModuleDestroy {
 			Math.round((settings.sendsPerMinute * MARKETING.drain.tickMs) / 60_000),
 		);
 
+		const now = new Date();
+
+		await deferQuiet(this.db, {
+			start: settings.quietStart,
+			end: settings.quietEnd,
+			timeZone: settings.timeZone,
+			now,
+		});
+
 		const limit: number = Math.min(perTick, MARKETING.drain.claimLimit);
-		const claimed = await claimDueSends(this.db, limit);
+		const claimed = await skipOverCap(
+			this.db,
+			await claimDueSends(this.db, limit),
+			settings.dailyCap ?? 0,
+			now,
+		);
+
 		if (claimed.length === 0) return { sent: 0, failed: 0 };
 
 		let sent = 0;

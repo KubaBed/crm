@@ -1,5 +1,7 @@
 "use client";
 
+import "../styles/flow-tokens.css";
+
 import {
 	Background,
 	BackgroundVariant,

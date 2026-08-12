@@ -1,7 +1,14 @@
 "use client";
 
 import ArrowLeft from "@carbon/icons-react/es/ArrowLeft";
+import OverflowMenuVertical from "@carbon/icons-react/es/OverflowMenuVertical";
 import { Button } from "@crm/ui/components/button";
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuTrigger,
+} from "@crm/ui/components/dropdown-menu";
 import {
 	type EmailBlock,
 	EmailBlockEditor,
@@ -12,8 +19,10 @@ import { Label } from "@crm/ui/components/label";
 import { Spinner } from "@crm/ui/components/spinner";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
+import { CopilotRail } from "@/components/marketing/copilot-rail";
 import { useTRPC } from "@/lib/trpc/client";
 import { useWorkspaceUrl } from "@/lib/use-workspace-url";
 
@@ -27,6 +36,7 @@ export function TemplateEditor({ templateId }: { templateId: string }) {
 	const trpc = useTRPC();
 	const queryClient = useQueryClient();
 	const workspaceUrl = useWorkspaceUrl();
+	const router = useRouter();
 
 	const template = useQuery(
 		trpc.marketingTemplates.byId.queryOptions({ id: templateId }),
@@ -79,6 +89,33 @@ export function TemplateEditor({ templateId }: { templateId: string }) {
 		}),
 	);
 
+	const duplicate = useMutation(
+		trpc.marketingTemplates.duplicate.mutationOptions({
+			onSuccess: (result) => {
+				toast.success("Copied.");
+				router.push(workspaceUrl(`/marketing/templates/${result.id}`));
+			},
+			onError: (error) => toast.error(error.message),
+		}),
+	);
+
+	const archive = useMutation(
+		trpc.marketingTemplates.archive.mutationOptions({
+			onSuccess: () => {
+				toast.success("Archived.");
+				router.push(workspaceUrl("/marketing/templates"));
+			},
+			onError: (error) => toast.error(error.message),
+		}),
+	);
+
+	const sendTest = useMutation(
+		trpc.marketing.sendTest.mutationOptions({
+			onSuccess: (result) => toast.success(`Sent to ${result.to}.`),
+			onError: (error) => toast.error(error.message),
+		}),
+	);
+
 	if (template.isPending) {
 		return (
 			<div className="flex min-h-0 flex-1 items-center justify-center">
@@ -124,9 +161,37 @@ export function TemplateEditor({ templateId }: { templateId: string }) {
 				<span className="flex-1" />
 				<span className="text-muted-foreground text-xs">
 					{data.usedBy === 0
-						? "Not used yet"
-						: `Used by ${data.usedBy} node${data.usedBy === 1 ? "" : "s"}`}
+						? "Never used"
+						: `Used by ${data.usedBy} campaign${data.usedBy === 1 ? "" : "s"}`}
 				</span>
+				<DropdownMenu>
+					<DropdownMenuTrigger asChild>
+						<Button variant="ghost" size="icon" aria-label="More">
+							<Icon icon={OverflowMenuVertical} />
+						</Button>
+					</DropdownMenuTrigger>
+					<DropdownMenuContent align="end">
+						<DropdownMenuItem
+							disabled={sendTest.isPending}
+							onSelect={() => sendTest.mutate()}
+						>
+							Send me a test
+						</DropdownMenuItem>
+						<DropdownMenuItem
+							disabled={duplicate.isPending}
+							onSelect={() => duplicate.mutate({ id: templateId })}
+						>
+							Duplicate
+						</DropdownMenuItem>
+						<DropdownMenuItem
+							variant="destructive"
+							disabled={archive.isPending}
+							onSelect={() => archive.mutate({ id: templateId })}
+						>
+							Archive
+						</DropdownMenuItem>
+					</DropdownMenuContent>
+				</DropdownMenu>
 				<Button
 					disabled={save.isPending || !dirty}
 					onClick={() =>
@@ -288,6 +353,17 @@ export function TemplateEditor({ templateId }: { templateId: string }) {
 						</div>
 					) : null}
 				</div>
+
+				<CopilotRail
+					record={{ kind: "template", id: templateId }}
+					onFinish={() =>
+						queryClient.invalidateQueries({
+							queryKey: trpc.marketingTemplates.byId.queryKey({
+								id: templateId,
+							}),
+						})
+					}
+				/>
 			</div>
 		</div>
 	);

@@ -89,37 +89,20 @@ export class ResendService {
 		if (!client) return [];
 
 		const result = await client.domains.list();
-		if (result.error || !result.data) return [];
+
+		if (result.error || !result.data) {
+			this.logger.warn({
+				message: "Resend would not list the sending domains",
+				reason: result.error?.message,
+			});
+			return [];
+		}
 
 		const rows = (result.data as unknown as { data?: unknown[] }).data ?? [];
 
 		return (rows as { id: string; name: string; status: string }[]).map(
 			(row) => ({ id: row.id, name: row.name, status: row.status }),
 		);
-	}
-
-	async createDomain(name: string): Promise<DomainState | null> {
-		const client = await this.client();
-		if (!client) return null;
-
-		const result = await client.domains.create({ name });
-
-		if (result.error || !result.data) {
-			this.logger.warn({
-				message: "Resend refused to create the sending domain",
-				reason: result.error?.message,
-			});
-			return null;
-		}
-
-		return {
-			id: result.data.id,
-			name: result.data.name,
-			status: result.data.status,
-			records: (result.data.records ?? []) as DnsRecord[],
-			openTracking: false,
-			clickTracking: false,
-		};
 	}
 
 	async readDomain(id: string): Promise<DomainState | null> {

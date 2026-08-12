@@ -242,25 +242,6 @@ export class MarketingSettingsService {
 		return { status: domain.status, name: domain.name };
 	}
 
-	async createDomain(
-		name: string,
-	): Promise<{ records: DnsRecord[]; status: string }> {
-		const host = blankToNull(name)?.toLowerCase();
-		if (!host) throw new BadRequestException("Enter a subdomain to send from.");
-
-		const created = await this.resend.createDomain(host);
-		if (!created) {
-			throw new BadRequestException("Resend would not create that domain.");
-		}
-
-		await writeMarketingSettings(this.db, {
-			resendDomainId: created.id,
-			sendingDomain: created.name,
-		});
-
-		return { records: created.records, status: created.status };
-	}
-
 	async verifyDomain(): Promise<{ status: string }> {
 		const settings = await readMarketingSettings(this.db);
 		if (!settings.resendDomainId) {

@@ -9,9 +9,13 @@ import {
 } from "../src/marketing/drips";
 import {
 	claimDueSends,
+	deferQuiet,
+	isQuiet,
 	materialise,
+	nextOpen,
 	pauseUnhealthy,
 	settle,
+	skipOverCap,
 	sweepEvents,
 } from "../src/marketing/queue";
 
@@ -563,8 +567,162 @@ describe("retention", () => {
 
 		await sweepEvents(db, new Date(Date.now() - 90 * 86_400_000));
 
-		expect(
-			await db.marketingEvent.count({ where: { sendId: send.id } }),
-		).toBe(1);
+		expect(await db.marketingEvent.count({ where: { sendId: send.id } })).toBe(
+			1,
+		);
+	});
+});
+
+describe("quiet hours", () => {
+	test("reads a window that wraps midnight", () => {
+		expect(isQuiet(3, 20, 8)).toBe(true);
+		expect(isQuiet(21, 20, 8)).toBe(true);
+		expect(isQuiet(12, 20, 8)).toBe(false);
+		expect(isQuiet(9, 9, 9)).toBe(false);
+	});
+
+	test("finds the next open hour in the given zone", () => {
+		const at = new Date("2026-08-12T02:00:00Z");
+		const open = nextOpen(at, "UTC", 20, 8);
+
+		expect(open.getUTCHours()).toBe(8);
+		expect(open.getUTCDate()).toBe(12);
+	});
+
+	test("pushes a due campaign send forward and leaves a test alone", async () => {
+		const drip = await seedDrip();
+
+		const recipient = await db.marketingRecipient.create({
+			data: { address: `quiet.${TAG}@example.test` },
+			select: { id: true },
+		});
+
+		const now = new Date("2026-08-12T02:00:00Z");
+
+		const campaignSend = await db.marketingSend.create({
+			data: {
+				campaignId: drip.campaignId,
+				recipientId: recipient.id,
+				origin: "CAMPAIGN",
+				status: "QUEUED",
+				dueAt: new Date(now.getTime() - 60_000),
+			},
+			select: { id: true },
+		});
+
+		const testSend = await db.marketingSend.create({
+			data: {
+				campaignId: drip.campaignId,
+				recipientId: recipient.id,
+				origin: "TEST",
+				status: "QUEUED",
+				dueAt: new Date(now.getTime() - 60_000),
+			},
+			select: { id: true },
+		});
+
+		const result = await deferQuiet(db, {
+			start: 20,
+			end: 8,
+			timeZone: "UTC",
+			now,
+		});
+
+		expect(result.until?.getUTCHours()).toBe(8);
+
+		const pushed = await db.marketingSend.findUniqueOrThrow({
+			where: { id: campaignSend.id },
+			select: { dueAt: true },
+		});
+		const untouched = await db.marketingSend.findUniqueOrThrow({
+			where: { id: testSend.id },
+			select: { dueAt: true },
+		});
+
+		expect(pushed.dueAt.getTime()).toBe(result.until?.getTime());
+		expect(untouched.dueAt.getTime()).toBe(now.getTime() - 60_000);
+	});
+
+	test("does nothing outside the window", async () => {
+		const result = await deferQuiet(db, {
+			start: 20,
+			end: 8,
+			timeZone: "UTC",
+			now: new Date("2026-08-12T12:00:00Z"),
+		});
+
+		expect(result.deferred).toBe(0);
+		expect(result.until).toBeNull();
+	});
+});
+
+describe("the daily cap", () => {
+	test("skips a recipient who is already at the cap, with the reason on the row", async () => {
+		const drip = await seedDrip();
+
+		const recipient = await db.marketingRecipient.create({
+			data: { address: `cap.${TAG}@example.test` },
+			select: { id: true },
+		});
+
+		const now = new Date();
+
+		await db.marketingSend.create({
+			data: {
+				campaignId: drip.campaignId,
+				recipientId: recipient.id,
+				status: "SENT",
+				dueAt: now,
+				sentAt: now,
+			},
+		});
+
+		const queued = await db.marketingSend.create({
+			data: {
+				campaignId: drip.campaignId,
+				recipientId: recipient.id,
+				status: "SENDING",
+				dueAt: now,
+			},
+			select: { id: true },
+		});
+
+		const allowed = await skipOverCap(
+			db,
+			[
+				{
+					id: queued.id,
+					recipientId: recipient.id,
+					address: `cap.${TAG}@example.test`,
+					token: "t",
+					contactId: null,
+					campaignId: drip.campaignId,
+					nodeId: null,
+					subject: null,
+					document: null,
+					replyTo: null,
+					attempts: 1,
+					hasAttachments: false,
+					attachments: [],
+				},
+			],
+			1,
+			now,
+		);
+
+		expect(allowed).toHaveLength(0);
+
+		const row = await db.marketingSend.findUniqueOrThrow({
+			where: { id: queued.id },
+			select: { status: true, skipReason: true },
+		});
+
+		expect(row.status).toBe("SKIPPED");
+		expect(row.skipReason).toBe("daily-cap");
+	});
+
+	test("lets everybody through when the cap is zero", async () => {
+		const allowed = await skipOverCap(db, [], 0, new Date());
+		expect(allowed).toHaveLength(0);
 	});
 });

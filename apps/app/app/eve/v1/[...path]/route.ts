@@ -46,6 +46,9 @@ async function handler(request: Request): Promise<Response> {
 	const contactId = request.headers.get("x-crm-contact");
 	const companyId = request.headers.get("x-crm-company");
 	const dealId = request.headers.get("x-crm-deal");
+	const campaignId = request.headers.get("x-crm-campaign");
+	const segmentId = request.headers.get("x-crm-segment");
+	const templateId = request.headers.get("x-crm-template");
 	const builderConversationId = request.headers.get(
 		"x-crm-builder-conversation",
 	);
@@ -53,6 +56,9 @@ async function handler(request: Request): Promise<Response> {
 	headers.delete("x-crm-contact");
 	headers.delete("x-crm-company");
 	headers.delete("x-crm-deal");
+	headers.delete("x-crm-campaign");
+	headers.delete("x-crm-segment");
+	headers.delete("x-crm-template");
 	headers.delete("x-crm-builder-conversation");
 
 	if (requestedSession) {
@@ -100,6 +106,9 @@ async function handler(request: Request): Promise<Response> {
 				contactId: cuid(contactId),
 				companyId: cuid(companyId),
 				dealId: cuid(dealId),
+				campaignId: cuid(campaignId),
+				segmentId: cuid(segmentId),
+				templateId: cuid(templateId),
 			},
 		)}`,
 	);

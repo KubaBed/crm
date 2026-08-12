@@ -17,7 +17,6 @@ import {
 	campaignListInput,
 	campaignPageInput,
 	createCampaignInput,
-	createDomainInput,
 	createSegmentInput,
 	createTemplateInput,
 	enrolInput,
@@ -109,11 +108,6 @@ export class MarketingRouter {
 			quietEnd: input.quietEnd ?? null,
 			timeZone: input.timeZone,
 		});
-	}
-
-	@Mutation({ input: createDomainInput })
-	async createDomain(@Input() input: z.infer<typeof createDomainInput>) {
-		return this.settingsService.createDomain(input.name);
 	}
 
 	@Mutation()

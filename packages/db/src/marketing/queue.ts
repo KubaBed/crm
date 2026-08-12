@@ -185,6 +185,122 @@ export async function queueDirect(
 	return { ok: true, sendId: send.id };
 }
 
+export function hourIn(timeZone: string, at: Date): number {
+	const formatter = new Intl.DateTimeFormat("en-GB", {
+		timeZone,
+		hour: "2-digit",
+		hour12: false,
+	});
+
+	return Number.parseInt(formatter.format(at), 10) % 24;
+}
+
+export function isQuiet(hour: number, start: number, end: number): boolean {
+	if (start === end) return false;
+	return start < end
+		? hour >= start && hour < end
+		: hour >= start || hour < end;
+}
+
+export function nextOpen(
+	at: Date,
+	timeZone: string,
+	start: number,
+	end: number,
+): Date {
+	const step = new Date(at);
+	step.setUTCMinutes(0, 0, 0);
+
+	for (let hop = 0; hop < MARKETING.defer.maxHours; hop += 1) {
+		step.setUTCHours(step.getUTCHours() + 1);
+		if (!isQuiet(hourIn(timeZone, step), start, end)) return new Date(step);
+	}
+
+	return at;
+}
+
+export type QuietWindow = {
+	start: number | null;
+	end: number | null;
+	timeZone: string;
+	now?: Date;
+};
+
+export async function deferQuiet(
+	db: Db,
+	window: QuietWindow,
+): Promise<{ deferred: number; until: Date | null }> {
+	const { start, end } = window;
+	if (start === null || end === null || start === end) {
+		return { deferred: 0, until: null };
+	}
+
+	const now = window.now ?? new Date();
+	if (!isQuiet(hourIn(window.timeZone, now), start, end)) {
+		return { deferred: 0, until: null };
+	}
+
+	const until = nextOpen(now, window.timeZone, start, end);
+
+	const result = await db.marketingSend.updateMany({
+		where: {
+			status: "QUEUED",
+			dueAt: { lte: now },
+			origin: { in: ["CAMPAIGN", "DRIP"] },
+		},
+		data: { dueAt: until },
+	});
+
+	return { deferred: result.count, until };
+}
+
+export async function skipOverCap(
+	db: Db,
+	claimed: ClaimedSend[],
+	cap: number,
+	now: Date = new Date(),
+): Promise<ClaimedSend[]> {
+	if (cap <= 0 || claimed.length === 0) return claimed;
+
+	const since = new Date(now.getTime() - MARKETING.cap.windowMs);
+
+	const counts = await db.marketingSend.groupBy({
+		by: ["recipientId"],
+		where: {
+			recipientId: { in: claimed.map((send) => send.recipientId) },
+			sentAt: { gte: since },
+		},
+		_count: { _all: true },
+	});
+
+	const sent = new Map(
+		counts.map((row) => [row.recipientId, row._count._all] as const),
+	);
+
+	const allowed: ClaimedSend[] = [];
+	const over: string[] = [];
+
+	for (const send of claimed) {
+		const already = sent.get(send.recipientId) ?? 0;
+		if (already >= cap) {
+			over.push(send.id);
+			continue;
+		}
+
+		sent.set(send.recipientId, already + 1);
+		allowed.push(send);
+	}
+
+	if (over.length > 0) {
+		await db.marketingSend.updateMany({
+			where: { id: { in: over } },
+			data: { status: "SKIPPED", skipReason: "daily-cap" },
+		});
+	}
+
+	return allowed;
+}
+
 export type ClaimedSend = {
 	id: string;
 	recipientId: string;

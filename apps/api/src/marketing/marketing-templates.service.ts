@@ -4,6 +4,7 @@ import {
 	emailDocument,
 	lintEmail,
 	readDocument,
+	walkBlocks,
 } from "@crm/email";
 import {
 	BadRequestException,
@@ -14,6 +15,25 @@ import { blankToNull } from "../crm/values";
 import { InjectDatabase } from "../database/database.constants";
 import { type ListInput, paginate, resolveOrderBy } from "../trpc/list-input";
 import { MarketingComposeService } from "./marketing-compose.service";
+
+const GLYPH_LINES = 4;
+
+export type TemplateGlyph = { accent: boolean; lines: number };
+
+function glyphOf(document: unknown): TemplateGlyph {
+	const parsed = readDocument(document);
+	if (!parsed) return { accent: false, lines: 1 };
+
+	let accent = false;
+	let lines = 0;
+
+	walkBlocks(parsed.blocks, (block) => {
+		if (block.type === "button" || block.type === "image") accent = true;
+		if (block.type === "heading" || block.type === "text") lines += 1;
+	});
+
+	return { accent, lines: Math.max(1, Math.min(GLYPH_LINES, lines)) };
+}
 
 @Injectable()
 export class MarketingTemplatesService {
@@ -47,6 +67,8 @@ export class MarketingTemplatesService {
 					id: true,
 					name: true,
 					subject: true,
+					preheader: true,
+					document: true,
 					updatedAt: true,
 					_count: { select: { nodes: true } },
 				},
@@ -55,13 +77,26 @@ export class MarketingTemplatesService {
 		]);
 
 		return {
-			rows: rows.map((row) => ({
-				id: row.id,
-				name: row.name,
-				subject: row.subject,
-				usedBy: row._count.nodes,
-				updatedAt: row.updatedAt,
-			})),
+			rows: rows.map((row) => {
+				const findings = lintEmail({
+					document: row.document,
+					subject: row.subject,
+					preheader: row.preheader,
+				});
+
+				return {
+					id: row.id,
+					name: row.name,
+					subject: row.subject,
+					usedBy: row._count.nodes,
+					updatedAt: row.updatedAt,
+					glyph: glyphOf(row.document),
+					errors: findings.filter((finding) => finding.level === "error")
+						.length,
+					warnings: findings.filter((finding) => finding.level === "warning")
+						.length,
+				};
+			}),
 			total,
 			facetCounts: {},
 		};

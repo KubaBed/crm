@@ -43,13 +43,9 @@ const COLUMNS: DataTableColumn<SegmentRow>[] = [
 		header: "People",
 		width: "w-[17%]",
 		cell: (row) => (
-			<span className="flex min-w-0 flex-col gap-0.5">
-				<span>{row.people.toLocaleString()}</span>
-				{row.type === "both" ? (
-					<span className="truncate text-muted-foreground text-xs">
-						{row.byRule.toLocaleString()} by rule · {row.byHand} by hand
-					</span>
-				) : null}
+			<span className="truncate">
+				{row.people.toLocaleString()}
+				{row.type === "both" ? ` · ${row.byHand.toLocaleString()} by hand` : ""}
 			</span>
 		),
 	},
@@ -62,17 +58,10 @@ const COLUMNS: DataTableColumn<SegmentRow>[] = [
 			row.usedBy.length === 0 ? (
 				<EmptyCellValue />
 			) : (
-				<span className="flex min-w-0 flex-col gap-0.5">
-					<span className="truncate">
-						{row.usedBy.length === 1
-							? row.usedBy[0]?.name
-							: `${row.usedBy.length} campaigns`}
-					</span>
-					{row.usedBy.length === 1 ? (
-						<span className="truncate text-muted-foreground text-xs">
-							{row.usedBy[0]?.role}
-						</span>
-					) : null}
+				<span className="truncate">
+					{row.usedBy.length === 1
+						? row.usedBy[0]?.name
+						: `${row.usedBy.length} campaigns`}
 				</span>
 			),
 	},

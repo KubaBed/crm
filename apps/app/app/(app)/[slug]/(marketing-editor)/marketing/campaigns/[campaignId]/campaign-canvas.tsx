@@ -1,7 +1,5 @@
 "use client";
 
-import "@crm/ui/flow-tokens.css";
-
 import ArrowLeft from "@carbon/icons-react/es/ArrowLeft";
 import { Button } from "@crm/ui/components/button";
 import {
@@ -15,13 +13,13 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
+import { CopilotRail } from "@/components/marketing/copilot-rail";
 import { useTRPC } from "@/lib/trpc/client";
 import type { RouterOutputs } from "@/lib/trpc/types";
 import { useWorkspaceUrl } from "@/lib/use-workspace-url";
 import { CampaignStatus } from "../../../../(marketing)/marketing/campaign-status";
 import { BlastComposer } from "./blast-composer";
 import { CampaignActions } from "./campaign-actions";
-import { CopilotRail } from "./copilot-rail";
 import { DripSettings } from "./drip-settings";
 import { LogicSheet } from "./logic-sheet";
 import { NodeSheet } from "./node-sheet";
@@ -282,7 +280,21 @@ export function CampaignCanvas({ campaignId }: { campaignId: string }) {
 						onSaved={() => invalidate()}
 					/>
 				) : (
-					<CopilotRail campaignId={campaignId} />
+					<CopilotRail
+						record={{ kind: "campaign", id: campaignId }}
+						onFinish={() => {
+							void queryClient.invalidateQueries({
+								queryKey: trpc.marketingCampaigns.byId.queryKey({
+									id: campaignId,
+								}),
+							});
+							void queryClient.invalidateQueries({
+								queryKey: trpc.marketingCampaigns.nodeStats.queryKey({
+									id: campaignId,
+								}),
+							});
+						}}
+					/>
 				)}
 			</div>
 		</div>

@@ -55,6 +55,7 @@ import {
 } from "@/components/crm/agent-conversations";
 import {
 	type AgentRecord,
+	type AgentRecordFilter,
 	recordCopy,
 	recordFilter,
 	recordHeader,
@@ -78,7 +79,13 @@ import {
 import { useTRPC } from "@/lib/trpc/client";
 import { useRecordSheetView } from "./record-sheet/record-stack";
 
-export function AgentPanel({ record }: { record: AgentRecord }) {
+export function AgentPanel({
+	record,
+	onFinish,
+}: {
+	record: AgentRecord;
+	onFinish?: () => void;
+}) {
 	const conversations = useConversations(recordFilter(record));
 	const { thread, setThread } = useRecordSheetView("overview");
 
@@ -92,6 +99,7 @@ export function AgentPanel({ record }: { record: AgentRecord }) {
 			history={history}
 			thread={thread}
 			setThread={setThread}
+			onFinish={onFinish}
 		/>
 	);
 }
@@ -101,11 +109,13 @@ function LoadedAgentPanel({
 	history,
 	thread,
 	setThread,
+	onFinish,
 }: {
 	record: AgentRecord;
 	history: Conversation[];
 	thread: string | null;
 	setThread: (thread: string) => void;
+	onFinish?: () => void;
 }) {
 	const [landedOn] = useState(() => history[0]?.id ?? NEW_THREAD);
 	const { openId, current } = resolveThread({
@@ -129,6 +139,7 @@ function LoadedAgentPanel({
 				record={record}
 				conversation={current}
 				onNewThread={() => setThread(NEW_THREAD)}
+				onFinish={onFinish}
 			/>
 		</div>
 	);
@@ -141,10 +152,12 @@ function ThreadWithHistory({
 	record,
 	conversation,
 	onNewThread,
+	onFinish,
 }: {
 	record: AgentRecord;
 	conversation: Conversation | null;
 	onNewThread: () => void;
+	onFinish?: () => void;
 }) {
 	const trpc = useTRPC();
 
@@ -179,6 +192,7 @@ function ThreadWithHistory({
 				offline ? offlineThread((archive.data ?? []) as never) : thread.data
 			}
 			onNewThread={onNewThread}
+			onFinish={onFinish}
 		/>
 	);
 }
@@ -196,15 +210,18 @@ function Thread({
 	conversation,
 	thread,
 	onNewThread,
+	onFinish,
 }: {
 	record: AgentRecord;
 	conversation: Conversation | null;
 	thread: ThreadState | undefined;
 	onNewThread: () => void;
+	onFinish?: () => void;
 }) {
 	const copy = recordCopy(record.kind);
 	const agent = useEveAgent({
 		headers: recordHeader(record),
+		onFinish,
 		...(thread && "session" in thread
 			? { initialSession: thread.session, initialEvents: eventsOf(thread) }
 			: { initialEvents: eventsOf(thread) }),
@@ -478,7 +495,7 @@ function useSavedConversation({
 	session,
 	messages,
 }: {
-	record: { contactId?: string; companyId?: string; dealId?: string };
+	record: AgentRecordFilter;
 	conversation: Conversation | null;
 	opening: React.RefObject<string | null>;
 	session: {
@@ -495,7 +512,8 @@ function useSavedConversation({
 	const sessionId = session?.sessionId ?? null;
 	const token = session?.continuationToken ?? null;
 	const streamIndex = session?.streamIndex ?? 0;
-	const { contactId, companyId, dealId } = record;
+	const { contactId, companyId, dealId, campaignId, segmentId, templateId } =
+		record;
 
 	const isNew = conversation === null || conversation.sessionId !== sessionId;
 
@@ -506,6 +524,9 @@ function useSavedConversation({
 				...(contactId ? { contactId } : {}),
 				...(companyId ? { companyId } : {}),
 				...(dealId ? { dealId } : {}),
+				...(campaignId ? { campaignId } : {}),
+				...(segmentId ? { segmentId } : {}),
+				...(templateId ? { templateId } : {}),
 				sessionId: sessionId ?? "",
 				continuationToken: token,
 				streamIndex,

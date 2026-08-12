@@ -5,8 +5,15 @@ import { Button } from "@crm/ui/components/button";
 import { Icon } from "@crm/ui/components/icon";
 import { useState } from "react";
 import { AgentPanel } from "@/components/crm/agent-panel";
+import type { AgentRecord } from "@/lib/agent-record";
 
-export function CopilotRail({ campaignId }: { campaignId: string }) {
+export function CopilotRail({
+	record,
+	onFinish,
+}: {
+	record: AgentRecord;
+	onFinish?: () => void;
+}) {
 	const [open, setOpen] = useState(true);
 
 	if (!open) {
@@ -41,7 +48,7 @@ export function CopilotRail({ campaignId }: { campaignId: string }) {
 			</header>
 
 			<div className="flex min-h-0 flex-1 flex-col">
-				<AgentPanel record={{ kind: "campaign", id: campaignId }} />
+				<AgentPanel record={record} onFinish={onFinish} />
 			</div>
 		</aside>
 	);

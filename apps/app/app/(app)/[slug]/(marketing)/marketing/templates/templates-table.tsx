@@ -1,6 +1,7 @@
 "use client";
 
 import { DataTable, type DataTableColumn } from "@crm/ui/components/data-table";
+import { EmailGlyph } from "@crm/ui/components/email-glyph";
 import { EmptyCellValue } from "@crm/ui/components/empty-cell";
 import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
@@ -14,19 +15,44 @@ import { templatesSearchParams } from "./templates-search-params";
 
 type TemplateRow = RouterOutputs["marketingTemplates"]["list"]["rows"][number];
 
+function Checks({ row }: { row: TemplateRow }) {
+	if (row.errors > 0) {
+		return (
+			<span className="text-destructive">
+				{row.errors} error{row.errors === 1 ? "" : "s"}
+			</span>
+		);
+	}
+
+	if (row.warnings > 0) {
+		return (
+			<span className="text-muted-foreground">
+				{row.warnings} warning{row.warnings === 1 ? "" : "s"}
+			</span>
+		);
+	}
+
+	return <span className="text-muted-foreground">Clean</span>;
+}
+
 const COLUMNS: DataTableColumn<TemplateRow>[] = [
 	{
 		id: "name",
 		header: "Template",
 		sortable: true,
 		hideable: false,
-		width: "w-[32%]",
-		cell: (row) => <span className="truncate font-medium">{row.name}</span>,
+		width: "w-[30%]",
+		cell: (row) => (
+			<span className="flex min-w-0 items-center gap-2.5">
+				<EmailGlyph glyph={row.glyph} />
+				<span className="truncate font-medium">{row.name}</span>
+			</span>
+		),
 	},
 	{
 		id: "subject",
 		header: "Subject",
-		width: "w-[38%]",
+		width: "w-[32%]",
 		hideBelow: "md",
 		cell: (row) =>
 			row.subject ? (
@@ -38,28 +64,33 @@ const COLUMNS: DataTableColumn<TemplateRow>[] = [
 	{
 		id: "usedBy",
 		header: "Used by",
-		align: "right",
 		width: "w-[14%]",
 		cell: (row) => (
-			<span className="text-muted-foreground">
+			<span className="truncate text-muted-foreground">
 				{row.usedBy === 0
-					? "—"
-					: `${row.usedBy} node${row.usedBy === 1 ? "" : "s"}`}
+					? "Never used"
+					: `${row.usedBy} campaign${row.usedBy === 1 ? "" : "s"}`}
 			</span>
 		),
 	},
 	{
 		id: "updatedAt",
-		header: "Edited",
+		header: "Last edited",
 		sortable: true,
-		align: "right",
-		width: "w-[16%]",
+		width: "w-[14%]",
 		hideBelow: "sm",
 		cell: (row) => (
-			<span className="text-muted-foreground">
+			<span className="truncate text-muted-foreground">
 				<LocalRelativeDate date={row.updatedAt} />
 			</span>
 		),
+	},
+	{
+		id: "checks",
+		header: "Checks",
+		width: "w-[10%]",
+		hideBelow: "lg",
+		cell: (row) => <Checks row={row} />,
 	},
 ];
 

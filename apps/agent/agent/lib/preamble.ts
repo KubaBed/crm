@@ -20,6 +20,9 @@ export async function sessionPreamble(
 		contactId?: string | null;
 		companyId?: string | null;
 		dealId?: string | null;
+		campaignId?: string | null;
+		segmentId?: string | null;
+		templateId?: string | null;
 	},
 	opened: Opened,
 ): Promise<Preamble> {
@@ -27,6 +30,9 @@ export async function sessionPreamble(
 	if (record.contactId) return contactPreamble(record.contactId, opened);
 	if (record.companyId) return companyPreamble(record.companyId, opened);
 	if (record.dealId) return dealPreamble(record.dealId, opened);
+	if (record.campaignId) return campaignPreamble(record.campaignId);
+	if (record.segmentId) return segmentPreamble(record.segmentId);
+	if (record.templateId) return templatePreamble(record.templateId);
 	return noRecordPreamble();
 }
 
@@ -299,6 +305,127 @@ export async function dealPreamble(
 	].join("\n");
 
 	return { markdown, focus: { companyId: deal.company?.id ?? null } };
+}
+
+export async function campaignPreamble(campaignId: string): Promise<Preamble> {
+	const campaign = await db.marketingCampaign.findUnique({
+		where: { id: campaignId },
+		select: {
+			name: true,
+			kind: true,
+			status: true,
+			segment: { select: { id: true, name: true } },
+			_count: { select: { nodes: true } },
+		},
+	});
+
+	if (!campaign) return { markdown: await closing(), focus: {} };
+
+	const markdown = [
+		"## This session",
+		"",
+		`A rep has the campaign **${campaign.name}** open and is talking to you.`,
+		`It is a **${campaign.kind}**, status **${campaign.status}**, with ${campaign._count.nodes} node(s).`,
+		campaign.segment
+			? `Its audience is the segment **${campaign.segment.name}** (\`${campaign.segment.id}\`).`
+			: "It has no segment yet, so it cannot send.",
+		"",
+		editThisOne("campaign", campaignId, "write_campaign_graph", "campaignId"),
+		"",
+		"Start with `read_campaign` on that id. Preview with `campaign_stats` when",
+		"they ask how it is doing. Read the `building-a-drip` skill before you",
+		"write a graph.",
+		"",
+		"**You cannot activate a campaign and there is no tool that does.** Write",
+		"the graph, say what you changed, and let the rep click Activate.",
+		"",
+		await closing(),
+	].join("\n");
+
+	return { markdown, focus: {} };
+}
+
+export async function segmentPreamble(segmentId: string): Promise<Preamble> {
+	const segment = await db.marketingSegment.findUnique({
+		where: { id: segmentId },
+		select: {
+			name: true,
+			description: true,
+			_count: { select: { members: true, campaigns: true } },
+		},
+	});
+
+	if (!segment) return { markdown: await closing(), focus: {} };
+
+	const markdown = [
+		"## This session",
+		"",
+		`A rep has the segment **${segment.name}** open and is talking to you.`,
+		segment.description
+			? `Their description of it: "${segment.description}"`
+			: "",
+		`${segment._count.members} person(s) added by hand. Used by ${segment._count.campaigns} campaign(s).`,
+		"",
+		editThisOne("segment", segmentId, "write_segment", "segmentId"),
+		"",
+		"Start with `read_segment` on that id, then `preview_segment` before you",
+		"save. Read the `building-a-segment` skill for every facet that exists and",
+		"the shape of the tree.",
+		"",
+		await closing(),
+	]
+		.filter(Boolean)
+		.join("\n");
+
+	return { markdown, focus: {} };
+}
+
+export async function templatePreamble(templateId: string): Promise<Preamble> {
+	const template = await db.marketingTemplate.findUnique({
+		where: { id: templateId },
+		select: {
+			name: true,
+			subject: true,
+			_count: { select: { nodes: true } },
+		},
+	});
+
+	if (!template) return { markdown: await closing(), focus: {} };
+
+	const markdown = [
+		"## This session",
+		"",
+		`A rep has the template **${template.name}** open and is talking to you.`,
+		template.subject
+			? `Its subject is "${template.subject}".`
+			: "It has no subject yet, which the linter refuses.",
+		`Used by ${template._count.nodes} node(s).`,
+		"",
+		editThisOne("template", templateId, "write_template", "templateId"),
+		"",
+		"Start with `read_template` on that id. You write body copy only — the",
+		"header, the footer, the postal address and the unsubscribe link come from",
+		"the shell and are not yours to set.",
+		"",
+		await closing(),
+	].join("\n");
+
+	return { markdown, focus: {} };
+}
+
+function editThisOne(
+	kind: string,
+	id: string,
+	tool: string,
+	field: string,
+): string {
+	return [
+		`**Edit this ${kind}, do not make a second one.** Its id is \`${id}\`.`,
+		`Pass it to \`${tool}\` as \`${field}\` every time you save.`,
+		`Leaving that out creates a new ${kind}, and the rep keeps looking at the`,
+		"old one wondering why nothing changed. Create a new one only when they ask",
+		"for one in so many words.",
+	].join(" ");
 }
 
 export async function noRecordPreamble(): Promise<Preamble> {

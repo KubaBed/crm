@@ -15,6 +15,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useId, useState } from "react";
 import { toast } from "sonner";
+import { SendingDomains } from "@/components/marketing/sending-domains";
 import { useTRPC } from "@/lib/trpc/client";
 import { useWorkspaceUrl } from "@/lib/use-workspace-url";
 import { STEPS } from "./steps";
@@ -32,15 +33,12 @@ export function SetupWizard({ step }: { step: string }) {
 	const [fromName, setFromName] = useState("");
 	const [fromAddress, setFromAddress] = useState("");
 	const [postalAddress, setPostalAddress] = useState("");
-	const [host, setHost] = useState("");
 	const [tested, setTested] = useState(false);
-	const [missing, setMissing] = useState<string | null>(null);
 
 	const keyId = useId();
 	const fromNameId = useId();
 	const fromAddressId = useId();
 	const postalId = useId();
-	const hostId = useId();
 
 	const data = settings.data;
 	const domainStatus = domain.data?.status ?? "not_started";
@@ -90,49 +88,6 @@ export function SetupWizard({ step }: { step: string }) {
 		}),
 	);
 
-	const domains = useQuery({
-		...trpc.marketing.domains.queryOptions(),
-		enabled: step === "domain",
-	});
-
-	const setDomain = useMutation(
-		trpc.marketing.setDomain.mutationOptions({
-			onSuccess: async (result) => {
-				setMissing(result.exists ? null : result.name);
-				await Promise.all([
-					queryClient.invalidateQueries({
-						queryKey: trpc.marketing.domain.queryKey(),
-					}),
-					queryClient.invalidateQueries({
-						queryKey: trpc.marketing.settings.queryKey(),
-					}),
-				]);
-				if (result.exists) toast.success(`Sending from ${result.name}.`);
-			},
-			onError: (error) => toast.error(error.message),
-		}),
-	);
-
-	const useDomain = useMutation(
-		trpc.marketing.useDomain.mutationOptions({
-			onSuccess: async (result) => {
-				await Promise.all([
-					queryClient.invalidateQueries({
-						queryKey: trpc.marketing.domain.queryKey(),
-					}),
-					queryClient.invalidateQueries({
-						queryKey: trpc.marketing.settings.queryKey(),
-					}),
-					queryClient.invalidateQueries({
-						queryKey: trpc.marketing.domains.queryKey(),
-					}),
-				]);
-				toast.success(`Sending from ${result.name}.`);
-			},
-			onError: (error) => toast.error(error.message),
-		}),
-	);
-
 	const recheck = useMutation(
 		trpc.marketing.verifyDomain.mutationOptions({
 			onSuccess: async (result) => {
@@ -142,28 +97,8 @@ export function SetupWizard({ step }: { step: string }) {
 				toast.success(
 					result.status === "verified"
 						? "Verified. You can send from it."
-						: `Still ${result.status.replace(/_/g, " ")}. DNS can take a few hours.`,
+						: `Still ${result.status.replace(/_/g, " ")}. Finish it in Resend.`,
 				);
-			},
-			onError: (error) => toast.error(error.message),
-		}),
-	);
-
-	const createDomain = useMutation(
-		trpc.marketing.createDomain.mutationOptions({
-			onSuccess: async () => {
-				setMissing(null);
-				await Promise.all([
-					queryClient.invalidateQueries({
-						queryKey: trpc.marketing.domain.queryKey(),
-					}),
-					queryClient.invalidateQueries({
-						queryKey: trpc.marketing.settings.queryKey(),
-					}),
-					queryClient.invalidateQueries({
-						queryKey: trpc.marketing.domains.queryKey(),
-					}),
-				]);
 			},
 			onError: (error) => toast.error(error.message),
 		}),
@@ -353,67 +288,9 @@ export function SetupWizard({ step }: { step: string }) {
 					{step === "domain" ? (
 						<Step
 							title="Your sending domain"
-							blurb="Type the domain you send from. If Resend already has it, we use it. If not, we can add it."
+							blurb="Pick a domain you have already verified in Resend. Resend owns the DNS, so there is nothing to paste here."
 						>
-							<Field>
-								<FieldLabel htmlFor={hostId}>Domain</FieldLabel>
-								<div className="flex items-center gap-2">
-									<Input
-										id={hostId}
-										value={host}
-										onChange={(event) => setHost(event.target.value)}
-										placeholder="send.example.com"
-									/>
-									<Button
-										variant="outline"
-										disabled={!host.trim() || setDomain.isPending}
-										onClick={() => setDomain.mutate({ name: host })}
-									>
-										{setDomain.isPending ? <Spinner /> : null}
-										Use it
-									</Button>
-								</div>
-							</Field>
-
-							{(domains.data ?? []).length > 0 ? (
-								<div className="flex flex-wrap items-center gap-1.5">
-									<span className="text-muted-foreground text-xs">
-										In Resend:
-									</span>
-									{(domains.data ?? []).map((row) => (
-										<Button
-											key={row.id}
-											variant="outline"
-											size="sm"
-											className="h-7 font-normal text-xs"
-											onClick={() => {
-												setHost(row.name);
-												useDomain.mutate({ id: row.id });
-											}}
-										>
-											{row.name}
-										</Button>
-									))}
-								</div>
-							) : null}
-
-							{missing ? (
-								<div className="flex flex-col gap-3 rounded-md border p-3">
-									<p className="text-xs">
-										Resend does not have <b>{missing}</b> yet. Adding it gives
-										you the DNS records to paste.
-									</p>
-									<Button
-										variant="outline"
-										className="self-start"
-										disabled={createDomain.isPending}
-										onClick={() => createDomain.mutate({ name: missing })}
-									>
-										{createDomain.isPending ? <Spinner /> : null}
-										Add it to Resend
-									</Button>
-								</div>
-							) : null}
+							<SendingDomains enabled />
 
 							{domain.data?.name ? (
 								<div className="flex flex-col gap-3">
@@ -423,31 +300,15 @@ export function SetupWizard({ step }: { step: string }) {
 									</p>
 
 									{domainStatus === "verified" ? null : (
-										<>
-											<Button
-												variant="outline"
-												className="self-start"
-												disabled={recheck.isPending}
-												onClick={() => recheck.mutate()}
-											>
-												{recheck.isPending ? <Spinner /> : null}
-												Check again
-											</Button>
-
-											{(domain.data.records ?? []).map((record) => (
-												<div
-													key={`${record.type}-${record.name}`}
-													className="flex flex-col gap-1 rounded-md border p-3 text-xs"
-												>
-													<span className="font-medium">
-														{record.type} · {record.name}
-													</span>
-													<span className="break-all text-muted-foreground">
-														{record.value}
-													</span>
-												</div>
-											))}
-										</>
+										<Button
+											variant="outline"
+											className="self-start"
+											disabled={recheck.isPending}
+											onClick={() => recheck.mutate()}
+										>
+											{recheck.isPending ? <Spinner /> : null}
+											Check again
+										</Button>
 									)}
 								</div>
 							) : null}

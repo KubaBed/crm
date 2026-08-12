@@ -8,13 +8,34 @@ import {
 	CardHeader,
 	CardTitle,
 } from "@crm/ui/components/card";
+import { Combobox } from "@crm/ui/components/combobox";
 import { Field, FieldGroup, FieldLabel } from "@crm/ui/components/field";
 import { Input } from "@crm/ui/components/input";
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "@crm/ui/components/select";
 import { Spinner } from "@crm/ui/components/spinner";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useId, useState } from "react";
 import { toast } from "sonner";
+import { SendingDomains } from "@/components/marketing/sending-domains";
 import { useTRPC } from "@/lib/trpc/client";
+
+const NO_QUIET = "none";
+
+const HOURS = Array.from({ length: 24 }, (_, hour) => ({
+	value: String(hour),
+	label: `${String(hour).padStart(2, "0")}:00`,
+}));
+
+const ZONES = Intl.supportedValuesOf("timeZone").map((zone) => ({
+	value: zone,
+	label: zone.replace(/_/g, " "),
+}));
 
 const STEP_LABEL: Record<string, string> = {
 	connect: "connect Resend",
@@ -36,12 +57,19 @@ export function MarketingSettingsForm() {
 	const [replyTo, setReplyTo] = useState("");
 	const [postalAddress, setPostalAddress] = useState("");
 	const [key, setKey] = useState("");
+	const [sendsPerMinute, setSendsPerMinute] = useState("300");
+	const [dailyCap, setDailyCap] = useState("0");
+	const [quietStart, setQuietStart] = useState(NO_QUIET);
+	const [quietEnd, setQuietEnd] = useState(NO_QUIET);
+	const [timeZone, setTimeZone] = useState("UTC");
 
 	const fromNameId = useId();
 	const fromAddressId = useId();
 	const replyToId = useId();
 	const postalId = useId();
 	const keyId = useId();
+	const rateId = useId();
+	const capId = useId();
 
 	const data = settings.data;
 
@@ -51,6 +79,13 @@ export function MarketingSettingsForm() {
 		setFromAddress(data.fromAddress ?? "");
 		setReplyTo(data.replyTo ?? "");
 		setPostalAddress(data.postalAddress ?? "");
+		setSendsPerMinute(String(data.sendsPerMinute));
+		setDailyCap(String(data.dailyCap ?? 0));
+		setQuietStart(
+			data.quietStart === null ? NO_QUIET : String(data.quietStart),
+		);
+		setQuietEnd(data.quietEnd === null ? NO_QUIET : String(data.quietEnd));
+		setTimeZone(data.timeZone);
 	}, [data]);
 
 	const invalidate = () =>
@@ -67,6 +102,16 @@ export function MarketingSettingsForm() {
 						? "Resend is connected."
 						: "Saved. Resend did not confirm the key, so watch the first send.",
 				);
+				void invalidate();
+			},
+			onError: (error) => toast.error(error.message),
+		}),
+	);
+
+	const saveSending = useMutation(
+		trpc.marketing.saveSending.mutationOptions({
+			onSuccess: () => {
+				toast.success("Saved.");
 				void invalidate();
 			},
 			onError: (error) => toast.error(error.message),
@@ -138,9 +183,8 @@ export function MarketingSettingsForm() {
 				<CardHeader>
 					<CardTitle>Who it comes from</CardTitle>
 					<CardDescription>
-						The reply-to defaults to whoever sent it. A postal address is
-						required by law on marketing email, and the compiler adds it to
-						every send.
+						Replies go to whoever sent it. The law wants a postal address on
+						marketing email, so we put yours in the footer.
 					</CardDescription>
 				</CardHeader>
 				<CardContent>
@@ -202,32 +246,115 @@ export function MarketingSettingsForm() {
 				<CardHeader>
 					<CardTitle>Sending domain</CardTitle>
 					<CardDescription>
-						Resend issues the DNS records and tells us when each one resolves.
-						We render what it says rather than composing records ourselves.
+						Pick a domain Resend has verified. Resend owns the DNS, so we do not
+						ask you for records here.
 					</CardDescription>
 				</CardHeader>
-				<CardContent className="flex flex-col gap-3">
-					<p className="text-muted-foreground text-xs">
-						{domain.data?.name
-							? `${domain.data.name} — ${domain.data.status.replace(/_/g, " ")}`
-							: "No sending domain yet."}
-					</p>
-					{(domain.data?.records ?? []).map((record) => (
-						<div
-							key={`${record.type}-${record.name}`}
-							className="flex flex-col gap-1 rounded-md border p-3 text-xs"
-						>
-							<span className="font-medium">
-								{record.type} · {record.name}
-							</span>
-							<span className="break-all text-muted-foreground">
-								{record.value}
-							</span>
-							{record.status ? (
-								<span className="text-muted-foreground">{record.status}</span>
-							) : null}
+				<CardContent>
+					<SendingDomains />
+				</CardContent>
+			</Card>
+
+			<Card>
+				<CardHeader>
+					<CardTitle>How fast it leaves</CardTitle>
+					<CardDescription>
+						Quiet hours hold a campaign until the window opens. They never hold
+						a test or a one-off you send by hand.
+					</CardDescription>
+				</CardHeader>
+				<CardContent>
+					<FieldGroup>
+						<Field>
+							<FieldLabel htmlFor={rateId}>Sends a minute</FieldLabel>
+							<Input
+								id={rateId}
+								type="number"
+								min={1}
+								max={6000}
+								value={sendsPerMinute}
+								onChange={(event) => setSendsPerMinute(event.target.value)}
+							/>
+						</Field>
+
+						<Field>
+							<FieldLabel htmlFor={capId}>
+								Most emails per person a day
+							</FieldLabel>
+							<Input
+								id={capId}
+								type="number"
+								min={0}
+								max={50}
+								value={dailyCap}
+								onChange={(event) => setDailyCap(event.target.value)}
+							/>
+						</Field>
+
+						<div className="grid grid-cols-2 gap-4">
+							<Field>
+								<FieldLabel>Quiet from</FieldLabel>
+								<Select value={quietStart} onValueChange={setQuietStart}>
+									<SelectTrigger>
+										<SelectValue />
+									</SelectTrigger>
+									<SelectContent>
+										<SelectItem value={NO_QUIET}>No quiet hours</SelectItem>
+										{HOURS.map((hour) => (
+											<SelectItem key={hour.value} value={hour.value}>
+												{hour.label}
+											</SelectItem>
+										))}
+									</SelectContent>
+								</Select>
+							</Field>
+
+							<Field>
+								<FieldLabel>Quiet until</FieldLabel>
+								<Select value={quietEnd} onValueChange={setQuietEnd}>
+									<SelectTrigger>
+										<SelectValue />
+									</SelectTrigger>
+									<SelectContent>
+										<SelectItem value={NO_QUIET}>No quiet hours</SelectItem>
+										{HOURS.map((hour) => (
+											<SelectItem key={hour.value} value={hour.value}>
+												{hour.label}
+											</SelectItem>
+										))}
+									</SelectContent>
+								</Select>
+							</Field>
 						</div>
-					))}
+
+						<Field>
+							<FieldLabel>Time zone</FieldLabel>
+							<Combobox
+								options={ZONES}
+								value={timeZone}
+								onValueChange={setTimeZone}
+								placeholder="Pick a time zone"
+							/>
+						</Field>
+
+						<Button
+							className="self-start"
+							disabled={saveSending.isPending}
+							onClick={() =>
+								saveSending.mutate({
+									sendsPerMinute: Number(sendsPerMinute) || 1,
+									dailyCap: Number(dailyCap) || null,
+									quietStart:
+										quietStart === NO_QUIET ? null : Number(quietStart),
+									quietEnd: quietEnd === NO_QUIET ? null : Number(quietEnd),
+									timeZone,
+								})
+							}
+						>
+							{saveSending.isPending ? <Spinner /> : null}
+							Save
+						</Button>
+					</FieldGroup>
 				</CardContent>
 			</Card>
 
@@ -235,11 +362,8 @@ export function MarketingSettingsForm() {
 				<CardHeader>
 					<CardTitle>Open and click tracking</CardTitle>
 					<CardDescription>
-						These live on the Resend domain, not here. Apple Mail opens every
-						email before a person does, so the open rate reads high whether or
-						not anybody looked. Click tracking rewrites every link in the body,
-						including an in-body unsubscribe link — the List-Unsubscribe header
-						is untouched.
+						Set both on the Resend domain. Apple Mail opens every email, so the
+						open rate reads high whether or not a person looked.
 					</CardDescription>
 				</CardHeader>
 				<CardContent>
