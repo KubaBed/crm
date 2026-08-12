@@ -1456,7 +1456,7 @@ open rate is still an Apple-inflated open rate, and a branch **on** open is
 inflated in the same direction — see §13.1's two rules about that condition,
 which are a lint warning and a hard error respectively.
 
-## 13.8 Re-entry
+### 13.8 Re-entry
 
 Somebody who walked a drip in March and matches the segment again in September
 is a real person with a real second intent. Refusing them forever is wrong;
@@ -1516,7 +1516,7 @@ every pass, which is what *how did touch 2 perform* means. The pipeline —
 enrolments by `currentNodeId` — counts only `ACTIVE` ones, so a person on their
 second walk appears once, where they are now.
 
-## 13.9 Pausing, draining, archiving
+### 13.9 Pausing, draining, archiving
 
 A drip that has been running for three months has people standing inside it.
 Every way of stopping it has to answer *what happens to them*, and the earlier
