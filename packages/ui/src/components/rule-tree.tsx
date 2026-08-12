@@ -85,7 +85,7 @@ export function RuleTree({
 	return (
 		<div className="flex flex-col rounded-lg border">
 			{value.rules.length === 0 ? (
-				<p className="px-4 py-6 text-center text-muted-foreground text-sm">
+				<p className="px-4 py-6 text-center text-muted-foreground text-xs">
 					No rules yet. Everybody is out until you add one.
 				</p>
 			) : null}
@@ -151,7 +151,7 @@ export function RuleTree({
 									}
 								/>
 								{field.suffix ? (
-									<span className="text-muted-foreground text-sm">
+									<span className="text-muted-foreground text-xs">
 										{field.suffix}
 									</span>
 								) : null}
@@ -179,7 +179,7 @@ export function RuleTree({
 						<span className="flex-1" />
 
 						{counts?.[rule.id] === undefined ? null : (
-							<span className="text-muted-foreground text-sm tabular-nums">
+							<span className="text-muted-foreground text-xs tabular-nums">
 								{counts[rule.id]?.toLocaleString()}
 							</span>
 						)}

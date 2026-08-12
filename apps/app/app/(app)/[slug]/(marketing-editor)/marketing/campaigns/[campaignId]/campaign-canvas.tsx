@@ -167,7 +167,7 @@ export function CampaignCanvas({ campaignId }: { campaignId: string }) {
 
 	if (!data) {
 		return (
-			<div className="flex min-h-0 flex-1 items-center justify-center text-muted-foreground text-sm">
+			<div className="flex min-h-0 flex-1 items-center justify-center text-muted-foreground text-xs">
 				That campaign is gone.
 			</div>
 		);
@@ -192,7 +192,7 @@ export function CampaignCanvas({ campaignId }: { campaignId: string }) {
 						</Link>
 					</Button>
 					<span className="h-3.5 w-px bg-border" />
-					<h1 className="truncate font-medium text-sm">{data.name}</h1>
+					<h1 className="truncate font-medium text-xs">{data.name}</h1>
 					<span className="shrink-0 rounded-sm border px-1.5 py-px text-xs text-muted-foreground">
 						{data.kind === "DRIP" ? "Drip" : "Blast"}
 					</span>

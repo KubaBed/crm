@@ -48,7 +48,7 @@ function Stat({ label, value }: { label: string; value: string }) {
 	return (
 		<div className="flex w-[104px] shrink-0 flex-col gap-0.5">
 			<span className="text-xs text-muted-foreground">{label}</span>
-			<span className="font-medium text-sm">{value}</span>
+			<span className="font-medium text-xs">{value}</span>
 		</div>
 	);
 }
@@ -120,7 +120,7 @@ export function NodeSheet({
 					icon={Email}
 					className="size-3.5 shrink-0 text-muted-foreground"
 				/>
-				<span className="font-medium text-sm">{node.label ?? "Email"}</span>
+				<span className="font-medium text-xs">{node.label ?? "Email"}</span>
 				<span className="rounded-sm border px-1.5 py-px text-xs text-muted-foreground">
 					Email
 				</span>
@@ -274,7 +274,7 @@ export function NodeSheet({
 						{preview.isPending ? (
 							<Spinner />
 						) : preview.data?.blocked ? (
-							<p className="max-w-sm text-center text-muted-foreground text-sm">
+							<p className="max-w-sm text-center text-muted-foreground text-xs">
 								{preview.data.blocked}
 							</p>
 						) : device === "text" ? (

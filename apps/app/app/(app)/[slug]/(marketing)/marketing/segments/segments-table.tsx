@@ -7,8 +7,8 @@ import { useRouter } from "next/navigation";
 import { ListSearch } from "@/components/data-table/list-search";
 import { useTableQuery } from "@/components/data-table/use-table-query";
 import { useTRPC } from "@/lib/trpc/client";
-import { useWorkspaceUrl } from "@/lib/use-workspace-url";
 import type { RouterOutputs } from "@/lib/trpc/types";
+import { useWorkspaceUrl } from "@/lib/use-workspace-url";
 import { segmentsSearchParams } from "./segments-search-params";
 
 type SegmentRow = RouterOutputs["marketingSegments"]["list"]["rows"][number];

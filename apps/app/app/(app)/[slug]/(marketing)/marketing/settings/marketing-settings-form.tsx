@@ -207,7 +207,7 @@ export function MarketingSettingsForm() {
 					</CardDescription>
 				</CardHeader>
 				<CardContent className="flex flex-col gap-3">
-					<p className="text-muted-foreground text-sm">
+					<p className="text-muted-foreground text-xs">
 						{domain.data?.name
 							? `${domain.data.name} — ${domain.data.status.replace(/_/g, " ")}`
 							: "No sending domain yet."}
@@ -243,7 +243,7 @@ export function MarketingSettingsForm() {
 					</CardDescription>
 				</CardHeader>
 				<CardContent>
-					<p className="text-muted-foreground text-sm">
+					<p className="text-muted-foreground text-xs">
 						Opens {domain.data?.openTracking ? "on" : "off"} · Clicks{" "}
 						{domain.data?.clickTracking ? "on" : "off"}
 					</p>

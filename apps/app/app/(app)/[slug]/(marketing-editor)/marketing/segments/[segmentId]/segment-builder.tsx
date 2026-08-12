@@ -77,7 +77,7 @@ export function SegmentBuilder({ segmentId }: { segmentId: string }) {
 
 	if (!data) {
 		return (
-			<div className="flex min-h-0 flex-1 items-center justify-center text-muted-foreground text-sm">
+			<div className="flex min-h-0 flex-1 items-center justify-center text-muted-foreground text-xs">
 				That segment is gone.
 			</div>
 		);
@@ -119,7 +119,7 @@ export function SegmentBuilder({ segmentId }: { segmentId: string }) {
 					className="h-auto border-0 px-0 font-medium text-2xl tracking-tight shadow-none focus-visible:ring-0 md:text-3xl"
 				/>
 
-				<p className="text-muted-foreground text-sm">
+				<p className="text-muted-foreground text-xs">
 					{data.counts.byHand > 0
 						? `${data.counts.byRule.toLocaleString()} by rule · ${data.counts.byHand} added by hand`
 						: "Rules only. Anybody matching them is in, from now on."}
@@ -155,7 +155,7 @@ export function SegmentBuilder({ segmentId }: { segmentId: string }) {
 						{(preview.data?.sample ?? []).map((person) => (
 							<div
 								key={person.id}
-								className="flex items-center gap-3 border-b px-4 py-2.5 text-sm last:border-b-0"
+								className="flex items-center gap-3 border-b px-4 py-2.5 text-xs last:border-b-0"
 							>
 								<span className="min-w-0 flex-1 truncate">{person.name}</span>
 								<span className="min-w-0 flex-1 truncate text-muted-foreground">
@@ -165,7 +165,7 @@ export function SegmentBuilder({ segmentId }: { segmentId: string }) {
 						))}
 
 						{definition === null ? (
-							<p className="px-4 py-8 text-center text-muted-foreground text-sm">
+							<p className="px-4 py-8 text-center text-muted-foreground text-xs">
 								Add a rule and this fills in.
 							</p>
 						) : null}
@@ -176,7 +176,7 @@ export function SegmentBuilder({ segmentId }: { segmentId: string }) {
 							<span className="font-medium text-2xl tabular-nums">
 								{total?.toLocaleString() ?? "—"}
 							</span>
-							<span className="text-muted-foreground text-sm">
+							<span className="text-muted-foreground text-xs">
 								match these rules
 							</span>
 						</div>
@@ -184,7 +184,7 @@ export function SegmentBuilder({ segmentId }: { segmentId: string }) {
 							<span className="font-medium text-2xl tabular-nums">
 								{data.counts.sendable.toLocaleString()}
 							</span>
-							<span className="text-muted-foreground text-sm">
+							<span className="text-muted-foreground text-xs">
 								can be emailed today
 							</span>
 						</div>

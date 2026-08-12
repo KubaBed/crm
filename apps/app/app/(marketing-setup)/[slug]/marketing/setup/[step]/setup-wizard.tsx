@@ -156,7 +156,7 @@ export function SetupWizard({ step }: { step: string }) {
 
 					<nav
 						aria-label="Setup steps"
-						className="flex min-w-0 flex-1 items-center gap-2 text-sm"
+						className="flex min-w-0 flex-1 items-center gap-2 text-xs"
 					>
 						{STEPS.map((candidate, position) => (
 							<span key={candidate.id} className="flex items-center gap-2">
@@ -319,14 +319,14 @@ export function SetupWizard({ step }: { step: string }) {
 										{tested ? "Send another" : "Send me a test"}
 									</Button>
 									{tested ? (
-										<p className="text-muted-foreground text-sm">
+										<p className="text-muted-foreground text-xs">
 											It went through the same path a campaign takes. If it is
 											not there in a minute, check the sending domain.
 										</p>
 									) : null}
 								</>
 							) : (
-								<p className="text-muted-foreground text-sm">
+								<p className="text-muted-foreground text-xs">
 									Still to do: {data.sendable.missing.join(", ")}. Go back and
 									finish those, and this step can prove the rest works.
 								</p>
@@ -375,9 +375,7 @@ function Step({
 	return (
 		<div className="flex flex-col gap-6">
 			<div className="flex flex-col gap-2">
-				<h1 className="font-medium text-2xl tracking-tight md:text-3xl">
-					{title}
-				</h1>
+				<h1 className="font-medium text-2xl tracking-tight">{title}</h1>
 				<p className="text-muted-foreground">{blurb}</p>
 			</div>
 			<FieldGroup>{children}</FieldGroup>
