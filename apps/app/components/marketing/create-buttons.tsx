@@ -13,11 +13,51 @@ import { Icon } from "@crm/ui/components/icon";
 import { Spinner } from "@crm/ui/components/spinner";
 import { useMutation } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
+import { type ReactNode, Suspense } from "react";
 import { toast } from "sonner";
 import { useTRPC } from "@/lib/trpc/client";
 import { useWorkspaceUrl } from "@/lib/use-workspace-url";
 
+function Placeholder({ label }: { label: string }) {
+	return (
+		<Button disabled>
+			<Icon icon={Add} data-icon="inline-start" />
+			{label}
+		</Button>
+	);
+}
+
+function Deferred({ label, children }: { label: string; children: ReactNode }) {
+	return (
+		<Suspense fallback={<Placeholder label={label} />}>{children}</Suspense>
+	);
+}
+
 export function CreateCampaignButton() {
+	return (
+		<Deferred label="New campaign">
+			<CampaignMenu />
+		</Deferred>
+	);
+}
+
+export function CreateSegmentButton() {
+	return (
+		<Deferred label="New segment">
+			<SegmentButton />
+		</Deferred>
+	);
+}
+
+export function CreateTemplateButton() {
+	return (
+		<Deferred label="New template">
+			<TemplateButton />
+		</Deferred>
+	);
+}
+
+function CampaignMenu() {
 	const trpc = useTRPC();
 	const router = useRouter();
 	const workspaceUrl = useWorkspaceUrl();
@@ -63,7 +103,7 @@ export function CreateCampaignButton() {
 	);
 }
 
-export function CreateSegmentButton() {
+function SegmentButton() {
 	const trpc = useTRPC();
 	const router = useRouter();
 	const workspaceUrl = useWorkspaceUrl();
@@ -91,7 +131,7 @@ export function CreateSegmentButton() {
 	);
 }
 
-export function CreateTemplateButton() {
+function TemplateButton() {
 	const trpc = useTRPC();
 	const router = useRouter();
 	const workspaceUrl = useWorkspaceUrl();

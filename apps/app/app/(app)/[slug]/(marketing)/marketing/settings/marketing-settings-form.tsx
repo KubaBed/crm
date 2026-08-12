@@ -168,7 +168,7 @@ export function MarketingSettingsForm() {
 				<CardHeader>
 					<CardTitle>Resend</CardTitle>
 					<CardDescription>
-						Resend carries the mail, signs it, and reports what happened to it.
+						Resend carries the mail and reports what happened to it.
 					</CardDescription>
 					<CardAction>
 						<Button
@@ -198,8 +198,7 @@ export function MarketingSettingsForm() {
 				<CardHeader>
 					<CardTitle>Who it comes from</CardTitle>
 					<CardDescription>
-						Replies go to whoever sent it. The law wants a postal address on
-						marketing email, so we put yours in the footer.
+						Replies go to the sender. Your postal address goes in the footer.
 					</CardDescription>
 					<CardAction>
 						<Button
@@ -262,8 +261,7 @@ export function MarketingSettingsForm() {
 				<CardHeader>
 					<CardTitle>Sending domain</CardTitle>
 					<CardDescription>
-						Pick a domain Resend has verified. Resend owns the DNS, so we do not
-						ask you for records here.
+						Pick a domain Resend has verified. Resend owns the DNS.
 					</CardDescription>
 				</CardHeader>
 				<CardContent>
@@ -275,8 +273,7 @@ export function MarketingSettingsForm() {
 				<CardHeader>
 					<CardTitle>How fast it leaves</CardTitle>
 					<CardDescription>
-						Quiet hours hold a campaign until the window opens. They never hold
-						a test or a one-off you send by hand.
+						Quiet hours hold campaigns. A test or a one-off always goes.
 					</CardDescription>
 					<CardAction>
 						<Button
@@ -378,9 +375,7 @@ export function MarketingSettingsForm() {
 				<CardHeader>
 					<CardTitle>Open and click tracking</CardTitle>
 					<CardDescription>
-						Both live on the Resend domain, and these switches change them
-						there. Apple Mail opens every email, so the open rate reads high
-						whether or not a person looked.
+						These switch the Resend domain. Apple Mail inflates every open rate.
 					</CardDescription>
 				</CardHeader>
 				<CardContent>
