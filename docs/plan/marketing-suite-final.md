@@ -39,6 +39,15 @@ a worse state than it is now.
   template, and `first_campaign_sent` as the ninth funnel step.
 - **A `building-a-segment` skill** gives the agent every facet and the tool
   order.
+- **The unattended lane is whole.** `schedule_campaign` stages a draft as
+  `PENDING_APPROVAL` with a note, **Waiting for you** on the overview lists what
+  is staged, and Approve or Send back to draft finishes it. `update_node`
+  changes one node without rewriting the graph.
+- **The shell editor** at `/marketing/templates/shell` edits the header and the
+  footer, so the locked rows point at a real door.
+- **Add step** on the canvas appends an Email, a Wait or an Exit through the
+  same validator the co-pilot uses.
+- **Hold out** sits beside Add on a segment, so `excludeMember` has a button.
 - **Every Paper comment on `/marketing` is resolved** — eleven of them, listed
   under "What the comments asked for" below. The page has none open.
 
@@ -120,41 +129,13 @@ Fix: done. The key is the index and the class together.
 
 ---
 
-## The unattended half of the agent
+## What is left
 
-Twelve of the fourteen tools in §18 exist and work. The two that are missing are
-the two that make an autonomous run useful.
-
-- **`schedule_campaign`** — the tool that writes `PENDING_APPROVAL`.
-- **`update_node`** — the narrow tool for *"make touch three shorter"*. Today the
-  co-pilot must rewrite the whole graph to change one line, which is slow and
-  loses hand-placed positions.
-- **The review screen.** `PENDING_APPROVAL` is currently a label in a switch
-  statement. Nothing sets it, nothing lists what is waiting, and there is
-  nowhere for an overnight run to leave work. §18's whole two-lane design — a rep
-  sends, an autonomous run stages — is half-built.
-
----
-
-## Surfaces where the API is done and nothing calls it
-
-### Templates
-
-- **No shell editor.** The locked rows say "edit it once in Templates" and
-  Templates has no partial editor. The rows point at a door that is not there —
-  either build it or change the copy.
-
-### Segments
-
-- **`excludeMember` has no button.** Adding and removing by hand both work; the
-  hold-out mode is API only.
-
-### Elsewhere
-
-- **`EXIT` nodes** cannot be added from the canvas. Only the co-pilot or a seed
-  can create one.
-- **The campaigns board in Paper still has two-line name cells.** The app is
-  single-line. Paper is behind the code on that one board.
+- **A `BRANCH` cannot be added from the canvas.** *Add step* offers Email, Wait
+  and Exit. A branch needs a condition and both arms before `validateGraph` will
+  take it, so it stays with the co-pilot and the logic sheet.
+- **The 7 `tracking-ingest` specs and the `create-app.ts` lint error** above.
+- **Paper has no board for the shell editor.** Every other surface has one.
 
 ---
 

@@ -12,7 +12,6 @@
 		"dev": {
 			"dependsOn": ["$TURBO_EXTENDS$"],
 			"cache": false,
-			"interactive": true,
 			"persistent": true,
 			"passThroughEnv": [
 				"AGENT_BRIDGE_SECRET",
@@ -24,9 +23,10 @@
 				"RAPIDAPI_KEY"
 			]
 		},
-		"dev:headless": {
+		"dev:ui": {
 			"dependsOn": ["$TURBO_EXTENDS$"],
 			"cache": false,
+			"interactive": true,
 			"persistent": true,
 			"passThroughEnv": [
 				"AGENT_BRIDGE_SECRET",

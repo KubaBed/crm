@@ -103,7 +103,7 @@
 			"cache": false,
 			"persistent": true
 		},
-		"dev:headless": {
+		"dev:ui": {
 			"dependsOn": ["^dev:prepare"],
 			"cache": false,
 			"persistent": true
