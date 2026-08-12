@@ -57,6 +57,8 @@
         "context.dev": "^2.7.0",
         "helmet": "^8.3.0",
         "nestjs-trpc": "^2.13.0",
+        "react": "19.2.4",
+        "react-dom": "19.2.4",
         "reflect-metadata": "^0.2.2",
         "resend": "^6.19.0",
         "rxjs": "^7.8.1",
@@ -163,15 +165,19 @@
       "version": "0.0.0",
       "dependencies": {
         "@react-email/components": "^1.0.12",
-        "react": "19.2.4",
-        "react-dom": "19.2.4",
         "zod": "^4.4.3",
       },
       "devDependencies": {
         "@crm/typescript-config": "workspace:*",
         "@types/node": "^24.10.1",
         "@types/react": "^19.2.7",
+        "react": "19.2.4",
+        "react-dom": "19.2.4",
         "typescript": "5.9.2",
+      },
+      "peerDependencies": {
+        "react": "^19.2.0",
+        "react-dom": "^19.2.0",
       },
     },
     "packages/env": {
@@ -2832,6 +2838,8 @@
     "@visx/vendor/d3-array": ["d3-array@3.2.1", "", { "dependencies": { "internmap": "1 - 2" } }, "sha512-gUY/qeHq/yNqqoCKNq4vtpFLdoCdvyNpWoC/KNjhGbhDuQpAM9sIQQKkXSNpXa9h5KySs/gzm7R88WkUutgwWQ=="],
 
     "agent/typescript": ["typescript@5.9.3", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-jl1vZzPDinLr9eUt3J/t7V6FgNEw9QjvBPdysz9KfQDD41fQrC2Y4vKQdiaUpFT4bXlb1RHhLpp8wtm6M5TgSw=="],
+
+    "api/react": ["react@19.2.4", "", {}, "sha512-9nfp2hYpCwOjAN+8TZFGhtWEwgvWHXqESH8qT89AT/lWklpLON22Lc8pEtnpsZz7VmawabSU0gCjnj8aC0euHQ=="],
 
     "api/typescript": ["typescript@5.9.3", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-jl1vZzPDinLr9eUt3J/t7V6FgNEw9QjvBPdysz9KfQDD41fQrC2Y4vKQdiaUpFT4bXlb1RHhLpp8wtm6M5TgSw=="],
 
