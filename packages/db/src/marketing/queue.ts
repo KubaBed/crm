@@ -204,13 +204,14 @@ export async function claimDueSends(
 	db: Db,
 	limit: number = MARKETING.drain.claimLimit,
 ): Promise<ClaimedSend[]> {
-	const leaseCutoff = new Date(Date.now() - MARKETING.drain.leaseMs);
+	const now = new Date();
+	const leaseCutoff = new Date(now.getTime() - MARKETING.drain.leaseMs);
 
 	const claimed = await db.$queryRaw<{ id: string }[]>`
 		WITH due AS (
 			SELECT s.id
 			FROM "marketingSend" s
-			WHERE s."dueAt" <= now()
+			WHERE s."dueAt" <= ${now}
 				AND s.attempts < ${MARKETING.drain.maxAttempts}
 				AND (
 					s.status = 'QUEUED'
@@ -221,7 +222,7 @@ export async function claimDueSends(
 			FOR UPDATE SKIP LOCKED
 		)
 		UPDATE "marketingSend" s
-		SET status = 'SENDING', "leasedAt" = now(), attempts = s.attempts + 1
+		SET status = 'SENDING', "leasedAt" = ${now}, attempts = s.attempts + 1
 		FROM due
 		WHERE s.id = due.id
 		RETURNING s.id
