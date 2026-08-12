@@ -1315,6 +1315,7 @@ model AppSetting {
   marketingDailyCap       Int?
   marketingOnboardedAt    DateTime?
   marketingBrandColor     String?
+  marketingLogoUrl        String?
 
   updatedAt DateTime @updatedAt
 

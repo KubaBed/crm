@@ -87,33 +87,11 @@ export async function runMarketingBrand(): Promise<BrandPass> {
 		}
 	}
 
-	const header = {
-		version: 1,
-		blocks: logoUrl
-			? [
-					{
-						type: "image",
-						src: logoUrl,
-						alt: name || "Our logo",
-						width: 160,
-						...(domain ? { href: siteUrl(domain) } : {}),
-					},
-					{ type: "divider" },
-				]
-			: [
-					{
-						type: "heading",
-						level: 3,
-						text: [{ text: name || "Our team" }],
-					},
-					{ type: "divider" },
-				],
-	};
+	const header = { version: 1, blocks: [] };
 
 	const footer = {
 		version: 1,
 		blocks: [
-			{ type: "divider" },
 			{
 				type: "text",
 				text: [
@@ -125,8 +103,11 @@ export async function runMarketingBrand(): Promise<BrandPass> {
 		],
 	};
 
-	if (colour) {
-		await writeMarketingSettings(db, { brandColor: colour });
+	if (colour || logoUrl) {
+		await writeMarketingSettings(db, {
+			...(colour ? { brandColor: colour } : {}),
+			...(logoUrl ? { logoUrl } : {}),
+		});
 	}
 
 	await db.$transaction([

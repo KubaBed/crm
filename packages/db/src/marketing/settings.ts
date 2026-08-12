@@ -42,6 +42,7 @@ export type MarketingSettings = {
 	timeZone: string;
 	dailyCap: number | null;
 	brandColor: string | null;
+	logoUrl: string | null;
 	onboardedAt: Date | null;
 };
 
@@ -59,6 +60,7 @@ const SELECT = {
 	marketingTimeZone: true,
 	marketingDailyCap: true,
 	marketingBrandColor: true,
+	marketingLogoUrl: true,
 	marketingOnboardedAt: true,
 } as const;
 
@@ -84,6 +86,7 @@ export async function readMarketingSettings(
 		timeZone: row?.marketingTimeZone ?? MARKETING.quiet.timeZone,
 		dailyCap: row?.marketingDailyCap ?? null,
 		brandColor: row?.marketingBrandColor ?? null,
+		logoUrl: row?.marketingLogoUrl ?? null,
 		onboardedAt: row?.marketingOnboardedAt ?? null,
 	};
 }
@@ -104,6 +107,7 @@ export async function writeMarketingSettings(
 		timeZone: string | null;
 		dailyCap: number | null;
 		brandColor: string | null;
+		logoUrl: string | null;
 		onboardedAt: Date | null;
 	}>,
 ): Promise<void> {
@@ -137,6 +141,7 @@ export async function writeMarketingSettings(
 		...(patch.brandColor !== undefined && {
 			marketingBrandColor: patch.brandColor,
 		}),
+		...(patch.logoUrl !== undefined && { marketingLogoUrl: patch.logoUrl }),
 		...(patch.onboardedAt !== undefined && {
 			marketingOnboardedAt: patch.onboardedAt,
 		}),
