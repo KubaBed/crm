@@ -1,10 +1,13 @@
 "use client";
 
 import Close from "@carbon/icons-react/es/Close";
-import Draggable from "@carbon/icons-react/es/Draggable";
 import Email from "@carbon/icons-react/es/Email";
 import Locked from "@carbon/icons-react/es/Locked";
 import { Button } from "@crm/ui/components/button";
+import {
+	type EmailBlock,
+	EmailBlockEditor,
+} from "@crm/ui/components/email-blocks";
 import { Icon } from "@crm/ui/components/icon";
 import { Input } from "@crm/ui/components/input";
 import { Label } from "@crm/ui/components/label";
@@ -22,27 +25,10 @@ type Stats = Campaign["stats"][number];
 
 type Block = { type: string; text?: { text: string }[]; label?: string };
 
-const BLOCK_LABEL: Record<string, string> = {
-	heading: "Heading",
-	text: "Text",
-	button: "Button",
-	image: "Image",
-	quote: "Quote",
-	divider: "Divider",
-	spacer: "Spacer",
-	columns: "Columns",
-};
-
-function blocksOf(document: unknown): Block[] {
+function blocksOf(document: unknown): EmailBlock[] {
 	if (!document || typeof document !== "object") return [];
 	const blocks = (document as { blocks?: unknown }).blocks;
-	return Array.isArray(blocks) ? (blocks as Block[]) : [];
-}
-
-function blockSummary(block: Block): string {
-	if (block.type === "button") return block.label ?? "";
-	if (block.text) return block.text.map((run) => run.text).join("");
-	return "";
+	return Array.isArray(blocks) ? (blocks as EmailBlock[]) : [];
 }
 
 function Stat({ label, value }: { label: string; value: string }) {
@@ -113,7 +99,10 @@ export function NodeSheet({
 		}),
 	);
 
-	const blocks = blocksOf(node.document);
+	const [blocks, setBlocks] = useState<EmailBlock[]>(() =>
+		blocksOf(node.document),
+	);
+	const [selected, setSelected] = useState<number | null>(null);
 
 	const percent = (part: number, whole: number) =>
 		whole === 0 ? "—" : `${Math.round((part / whole) * 100)}%`;
@@ -191,34 +180,18 @@ export function NodeSheet({
 					</div>
 
 					<div className="flex flex-col gap-2">
-						<span className="text-xs text-muted-foreground">Body</span>
-						<div className="overflow-clip rounded-lg border">
-							<ShellRow kind="Header" detail="Default shell · workspace logo" />
-							{blocks.map((block, index) => (
-								<div
-									key={`${block.type}-${index}`}
-									className="flex h-9 items-center gap-2 border-b px-2.5 last:border-b-0"
-								>
-									<Icon
-										icon={Draggable}
-										className="size-3 shrink-0 text-border"
-									/>
-									<span className="shrink-0 rounded-sm bg-muted px-1.5 py-px text-xs text-muted-foreground">
-										{BLOCK_LABEL[block.type] ?? block.type}
-									</span>
-									<span className="min-w-0 flex-1 truncate text-xs">
-										{blockSummary(block)}
-									</span>
-								</div>
-							))}
-							<div className="flex h-9 items-center px-2.5 text-muted-foreground text-xs">
-								+ Add block
-							</div>
-							<ShellRow
-								kind="Footer"
-								detail="Default shell · address + unsubscribe"
-							/>
-						</div>
+						<span className="text-muted-foreground text-xs">Body</span>
+						<ShellRow kind="Header" detail="Default shell · workspace logo" />
+						<EmailBlockEditor
+							blocks={blocks}
+							selected={selected}
+							onSelect={setSelected}
+							onChange={setBlocks}
+						/>
+						<ShellRow
+							kind="Footer"
+							detail="Default shell · address + unsubscribe"
+						/>
 					</div>
 
 					<AttachmentsPanel campaignId={campaignId} recipients={recipients} />
@@ -248,6 +221,10 @@ export function NodeSheet({
 									nodeId: node.id,
 									subject,
 									preheader: preheader || null,
+									document: { version: 1, blocks } as unknown as Record<
+										string,
+										unknown
+									>,
 								})
 							}
 						>

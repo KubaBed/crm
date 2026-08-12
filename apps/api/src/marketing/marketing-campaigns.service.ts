@@ -714,6 +714,49 @@ export class MarketingCampaignsService {
 		return { scheduledAt: at, ...result };
 	}
 
+	async setKind(id: string, kind: "BLAST" | "DRIP") {
+		const campaign = await this.db.marketingCampaign.findUnique({
+			where: { id },
+			select: {
+				kind: true,
+				status: true,
+				_count: { select: { nodes: true, sends: true, enrolments: true } },
+			},
+		});
+
+		if (!campaign) throw new NotFoundException("No such campaign.");
+		if (campaign.kind === kind) return { kind };
+
+		if (campaign.status !== "DRAFT") {
+			throw new BadRequestException(
+				"Only a draft can change between a blast and a drip.",
+			);
+		}
+
+		if (campaign._count.sends > 0 || campaign._count.enrolments > 0) {
+			throw new BadRequestException(
+				"People have already been queued or enrolled, so this cannot change shape.",
+			);
+		}
+
+		if (kind === "BLAST" && campaign._count.nodes > 1) {
+			throw new BadRequestException(
+				"A blast is one email. Delete the extra steps first, or leave it a drip.",
+			);
+		}
+
+		await this.db.marketingCampaign.update({
+			where: { id },
+			data: {
+				kind,
+				entryMode: kind === "DRIP" ? "CONTINUOUS" : "MANUAL",
+				scheduledAt: null,
+			},
+		});
+
+		return { kind };
+	}
+
 	async pending() {
 		const rows = await this.db.marketingCampaign.findMany({
 			where: { status: "PENDING_APPROVAL" },

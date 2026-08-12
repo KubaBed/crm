@@ -99,6 +99,8 @@ export class TrackingIngestService {
 		if (accepted.length === 0) return;
 		if (!(await this.withinRate(accepted.length))) return;
 
+		await this.seen(visitorId);
+
 		const pageViews = accepted.filter(
 			({ event }) => event.type === "page_view" || event.type === "click",
 		);
@@ -111,6 +113,14 @@ export class TrackingIngestService {
 		for (const form of forms) {
 			await this.submission(visitorId, form);
 		}
+	}
+
+	private async seen(visitorId: string): Promise<void> {
+		await this.db.trackedVisitor.upsert({
+			where: { id: visitorId },
+			create: { id: visitorId },
+			update: { lastSeen: new Date() },
+		});
 	}
 
 	private async events(

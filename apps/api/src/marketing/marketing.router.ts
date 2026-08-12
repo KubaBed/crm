@@ -27,16 +27,17 @@ import {
 	previewNodeInput,
 	previewSegmentInput,
 	previewTemplateInput,
-	savePartialInput,
 	rejectInput,
 	resumeInput,
 	saveIdentityInput,
 	saveKeyInput,
+	savePartialInput,
 	saveSendingInput,
 	scheduleInput,
 	sendCompanyInput,
 	sendDirectInput,
 	setDomainInput,
+	setKindInput,
 	setTrackingInput,
 	updateCampaignInput,
 	updateNodeInput,
@@ -215,6 +216,11 @@ export class MarketingCampaignsRouter {
 	@Mutation({ input: scheduleInput })
 	async schedule(@Input() input: z.infer<typeof scheduleInput>) {
 		return this.campaigns.schedule({ id: input.id, at: input.at ?? null });
+	}
+
+	@Mutation({ input: setKindInput })
+	async setKind(@Input() input: z.infer<typeof setKindInput>) {
+		return this.campaigns.setKind(input.id, input.kind);
 	}
 
 	@Query()
@@ -411,6 +417,11 @@ export class MarketingTemplatesRouter {
 	@Query()
 	async options() {
 		return this.templates.options();
+	}
+
+	@Query({ input: idInput })
+	async shellById(@Input() input: z.infer<typeof idInput>) {
+		return this.templates.shellById(input.id);
 	}
 
 	@Query()

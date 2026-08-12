@@ -1,6 +1,8 @@
 import { Spinner } from "@crm/ui/components/spinner";
 import type { Metadata } from "next";
 import { Suspense } from "react";
+import { getServerQueryClient, getServerTrpc } from "@/lib/trpc/server";
+import { ShellEditor } from "./shell-editor";
 import { TemplateEditor } from "./template-editor";
 
 export const metadata: Metadata = { title: "Template" };
@@ -28,5 +30,15 @@ async function Editor({
 }: Pick<PageProps<"/[slug]/marketing/templates/[templateId]">, "params">) {
 	const { templateId } = await params;
 
-	return <TemplateEditor templateId={templateId} />;
+	const shell = await getServerQueryClient().fetchQuery(
+		getServerTrpc().marketingTemplates.shellById.queryOptions({
+			id: templateId,
+		}),
+	);
+
+	return shell ? (
+		<ShellEditor shellId={templateId} />
+	) : (
+		<TemplateEditor templateId={templateId} />
+	);
 }

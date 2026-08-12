@@ -17,11 +17,13 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useQueryState } from "nuqs";
 import { useMemo } from "react";
 import { toast } from "sonner";
+import { CampaignKind } from "@/components/marketing/campaign-kind";
 import { CopilotRail } from "@/components/marketing/copilot-rail";
 import {
 	MarketingEditorMeta,
 	MarketingEditorShell,
 } from "@/components/marketing/editor-shell";
+import { NEW_LABEL, withNode } from "@/lib/campaign-graph";
 import { useTRPC } from "@/lib/trpc/client";
 import type { RouterOutputs } from "@/lib/trpc/types";
 import { useWorkspaceUrl } from "@/lib/use-workspace-url";
@@ -116,70 +118,6 @@ function toFlow(
 			label: [named, inFlight].filter(Boolean).join(" · ") || undefined,
 		};
 	});
-
-	return { nodes, edges };
-}
-
-type NewKind = "EMAIL" | "WAIT" | "EXIT";
-
-const NEW_NODE: Record<NewKind, Record<string, unknown>> = {
-	EMAIL: {
-		kind: "EMAIL",
-		label: "New touch",
-		subject: "",
-		document: { version: 1, blocks: [] },
-	},
-	WAIT: { kind: "WAIT", label: "Wait", delayHours: 72 },
-	EXIT: { kind: "EXIT", label: "Stop here" },
-};
-
-function withNode(campaign: Campaign, kind: NewKind, afterId: string | null) {
-	const nodes = campaign.nodes.map((node) => ({
-		id: node.id,
-		kind: node.kind,
-		label: node.label,
-		templateId: node.templateId,
-		subject: node.subject,
-		preheader: node.preheader,
-		document: node.document,
-		delayHours: node.delayHours,
-		condition: node.condition,
-		x: node.x,
-		y: node.y,
-	}));
-
-	const edges = campaign.edges.map((edge) => ({
-		fromId: edge.fromId,
-		toId: edge.toId,
-		handle: edge.handle,
-		label: edge.label,
-		weight: edge.weight,
-	}));
-
-	const outgoing = new Set(edges.map((edge) => edge.fromId));
-	const anchor =
-		afterId ??
-		campaign.nodes.findLast((node) => !outgoing.has(node.id))?.id ??
-		campaign.nodes[campaign.nodes.length - 1]?.id ??
-		null;
-
-	const id = `node_${Math.random().toString(36).slice(2, 12)}`;
-	nodes.push({ id, ...NEW_NODE[kind] } as (typeof nodes)[number]);
-
-	if (anchor) {
-		const following = edges.find(
-			(edge) => edge.fromId === anchor && edge.handle === "next",
-		);
-
-		if (following) following.fromId = id;
-		edges.push({
-			fromId: anchor,
-			toId: id,
-			handle: "next",
-			label: null,
-			weight: 100,
-		});
-	}
 
 	return { nodes, edges };
 }
@@ -284,9 +222,12 @@ export function CampaignCanvas({ campaignId }: { campaignId: string }) {
 			onNameChange={(next) => rename.mutate({ id: campaignId, name: next })}
 			badges={
 				<>
-					<span className="shrink-0 rounded-sm border px-1.5 py-px text-muted-foreground text-xs">
-						{data.kind === "DRIP" ? "Drip" : "Blast"}
-					</span>
+					<CampaignKind
+						campaignId={campaignId}
+						kind={data.kind === "DRIP" ? "DRIP" : "BLAST"}
+						editable={data.status === "DRAFT"}
+						onChanged={() => void invalidate()}
+					/>
 					<span className="shrink-0 text-xs">
 						<CampaignStatus status={data.status} />
 					</span>
@@ -302,7 +243,7 @@ export function CampaignCanvas({ campaignId }: { campaignId: string }) {
 							</Button>
 						</DropdownMenuTrigger>
 						<DropdownMenuContent align="end">
-							{(["EMAIL", "WAIT", "EXIT"] as const).map((kind) => (
+							{(["EMAIL", "WAIT", "BRANCH", "EXIT"] as const).map((kind) => (
 								<DropdownMenuItem
 									key={kind}
 									onSelect={() =>
@@ -312,11 +253,7 @@ export function CampaignCanvas({ campaignId }: { campaignId: string }) {
 										})
 									}
 								>
-									{kind === "EMAIL"
-										? "Email"
-										: kind === "WAIT"
-											? "Wait"
-											: "Exit"}
+									{NEW_LABEL[kind]}
 								</DropdownMenuItem>
 							))}
 						</DropdownMenuContent>

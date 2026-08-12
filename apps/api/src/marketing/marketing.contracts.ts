@@ -115,6 +115,11 @@ export const enrolInput = z.object({
 	contactId: z.string().min(1),
 });
 
+export const setKindInput = z.object({
+	id: z.string().min(1),
+	kind: z.enum(["BLAST", "DRIP"]),
+});
+
 export const enrolCompanyInput = z.object({
 	campaignId: z.string().min(1),
 	companyId: z.string().min(1),

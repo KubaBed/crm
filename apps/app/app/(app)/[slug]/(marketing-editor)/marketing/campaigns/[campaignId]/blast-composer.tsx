@@ -18,6 +18,8 @@ import { Spinner } from "@crm/ui/components/spinner";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
+import { CampaignKind } from "@/components/marketing/campaign-kind";
+import { CopilotRail } from "@/components/marketing/copilot-rail";
 import {
 	MarketingEditorMeta,
 	MarketingEditorShell,
@@ -132,9 +134,12 @@ export function BlastComposer({
 			onNameChange={(next) => rename.mutate({ id: campaign.id, name: next })}
 			badges={
 				<>
-					<span className="shrink-0 rounded-sm border px-1.5 py-px text-muted-foreground text-xs">
-						Blast
-					</span>
+					<CampaignKind
+						campaignId={campaign.id}
+						kind="BLAST"
+						editable={campaign.status === "DRAFT"}
+						onChanged={onChanged}
+					/>
 					<span className="shrink-0 text-xs">
 						<CampaignStatus status={campaign.status} />
 					</span>
@@ -164,6 +169,12 @@ export function BlastComposer({
 							? `${errors.length} error${errors.length === 1 ? "" : "s"} to fix`
 							: "Checks clean",
 					]}
+				/>
+			}
+			rail={
+				<CopilotRail
+					record={{ kind: "campaign", id: campaign.id }}
+					onFinish={onChanged}
 				/>
 			}
 		>

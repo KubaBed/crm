@@ -7,16 +7,17 @@ import { Input } from "@crm/ui/components/input";
 import Link from "next/link";
 import type { ReactNode } from "react";
 
-export function MarketingEditorMeta({ parts }: { parts: ReactNode[] }) {
-	const shown = parts.filter(Boolean);
+export function MarketingEditorMeta({
+	parts,
+}: {
+	parts: (string | null | false | undefined)[];
+}) {
+	const shown = parts.filter((part): part is string => Boolean(part));
 
 	return (
 		<div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-muted-foreground text-xs">
 			{shown.map((part, index) => (
-				<span
-					key={`${index}-meta`}
-					className="flex items-center gap-x-2 empty:hidden"
-				>
+				<span key={part} className="flex items-center gap-x-2">
 					{index > 0 ? (
 						<span className="size-[3px] rounded-sm bg-border" />
 					) : null}

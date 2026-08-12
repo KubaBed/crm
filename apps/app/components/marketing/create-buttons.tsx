@@ -1,18 +1,10 @@
 "use client";
 
 import Add from "@carbon/icons-react/es/Add";
-import ChevronDown from "@carbon/icons-react/es/ChevronDown";
 import { Button } from "@crm/ui/components/button";
-import {
-	DropdownMenu,
-	DropdownMenuContent,
-	DropdownMenuItem,
-	DropdownMenuTrigger,
-} from "@crm/ui/components/dropdown-menu";
 import { Icon } from "@crm/ui/components/icon";
 import { Spinner } from "@crm/ui/components/spinner";
 import { useMutation } from "@tanstack/react-query";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { type ReactNode, Suspense } from "react";
 import { toast } from "sonner";
@@ -37,7 +29,7 @@ function Deferred({ label, children }: { label: string; children: ReactNode }) {
 export function CreateCampaignButton() {
 	return (
 		<Deferred label="New campaign">
-			<CampaignMenu />
+			<CampaignButton />
 		</Deferred>
 	);
 }
@@ -58,33 +50,7 @@ export function CreateTemplateButton() {
 	);
 }
 
-export function EditShellButton() {
-	return (
-		<Suspense
-			fallback={
-				<Button variant="outline" disabled>
-					Edit the shell
-				</Button>
-			}
-		>
-			<ShellLink />
-		</Suspense>
-	);
-}
-
-function ShellLink() {
-	const workspaceUrl = useWorkspaceUrl();
-
-	return (
-		<Button asChild variant="outline">
-			<Link href={workspaceUrl("/marketing/templates/shell")} prefetch>
-				Edit the shell
-			</Link>
-		</Button>
-	);
-}
-
-function CampaignMenu() {
+function CampaignButton() {
 	const trpc = useTRPC();
 	const router = useRouter();
 	const workspaceUrl = useWorkspaceUrl();
@@ -98,35 +64,19 @@ function CampaignMenu() {
 	);
 
 	return (
-		<DropdownMenu>
-			<DropdownMenuTrigger asChild>
-				<Button disabled={create.isPending}>
-					{create.isPending ? (
-						<Spinner />
-					) : (
-						<Icon icon={Add} data-icon="inline-start" />
-					)}
-					New campaign
-					<Icon icon={ChevronDown} data-icon="inline-end" />
-				</Button>
-			</DropdownMenuTrigger>
-			<DropdownMenuContent align="end">
-				<DropdownMenuItem
-					onSelect={() =>
-						create.mutate({ name: "Untitled blast", kind: "BLAST" })
-					}
-				>
-					Blast — one email, once
-				</DropdownMenuItem>
-				<DropdownMenuItem
-					onSelect={() =>
-						create.mutate({ name: "Untitled drip", kind: "DRIP" })
-					}
-				>
-					Drip — several touches over time
-				</DropdownMenuItem>
-			</DropdownMenuContent>
-		</DropdownMenu>
+		<Button
+			disabled={create.isPending}
+			onClick={() =>
+				create.mutate({ name: "Untitled campaign", kind: "BLAST" })
+			}
+		>
+			{create.isPending ? (
+				<Spinner />
+			) : (
+				<Icon icon={Add} data-icon="inline-start" />
+			)}
+			New campaign
+		</Button>
 	);
 }
 

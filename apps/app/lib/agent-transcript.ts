@@ -56,6 +56,8 @@ const VERBS: Record<string, string> = {
 	create_campaign: "Created a campaign as a draft",
 	read_campaign: "Read the campaign and how each touch is doing",
 	write_campaign_graph: "Built the campaign's flow",
+	update_node: "Changed one step in the campaign",
+	schedule_campaign: "Staged the campaign for you to approve",
 	send_email: "Sent the email",
 	enrol_contact: "Put them into the campaign",
 	campaign_stats: "Checked how the campaign is delivering",

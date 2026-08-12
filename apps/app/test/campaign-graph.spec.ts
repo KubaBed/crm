@@ -1,0 +1,119 @@
+import { describe, expect, test } from "bun:test";
+import {
+	type GraphEdge,
+	type GraphNode,
+	graphErrors,
+	validateGraph,
+} from "@crm/db/marketing";
+import {
+	type CampaignGraph,
+	type NewKind,
+	withNode,
+} from "@/lib/campaign-graph";
+
+function node(
+	id: string,
+	kind: CampaignGraph["nodes"][number]["kind"],
+): CampaignGraph["nodes"][number] {
+	return {
+		id,
+		kind,
+		label: kind === "EMAIL" ? "Touch" : null,
+		templateId: null,
+		subject: kind === "EMAIL" ? "Hello" : null,
+		preheader: null,
+		document: kind === "EMAIL" ? { version: 1, blocks: [] } : null,
+		delayHours: kind === "WAIT" ? 48 : null,
+		condition: null,
+		x: 0,
+		y: 0,
+	};
+}
+
+function graph(): CampaignGraph {
+	return { nodes: [node("a", "EMAIL")], edges: [] };
+}
+
+function problemsFor(campaign: CampaignGraph, kind: NewKind, after: string) {
+	const next = withNode(campaign, kind, after);
+
+	return validateGraph(
+		next.nodes as unknown as GraphNode[],
+		next.edges as unknown as GraphEdge[],
+		{ openTracking: true },
+	);
+}
+
+describe("adding a step from the canvas", () => {
+	test("an email lands after the anchor and the graph still runs", () => {
+		const next = withNode(graph(), "EMAIL", "a");
+
+		expect(next.nodes).toHaveLength(2);
+		expect(next.edges).toHaveLength(1);
+		expect(next.edges[0]?.fromId).toBe("a");
+		expect(graphErrors(problemsFor(graph(), "EMAIL", "a"))).toEqual([]);
+	});
+
+	test("a wait and an exit both pass the validator", () => {
+		expect(graphErrors(problemsFor(graph(), "WAIT", "a"))).toEqual([]);
+		expect(graphErrors(problemsFor(graph(), "EXIT", "a"))).toEqual([]);
+	});
+
+	test("a branch arrives with a condition and both arms", () => {
+		const next = withNode(graph(), "BRANCH", "a");
+		const branch = next.nodes.find((row) => row.kind === "BRANCH");
+
+		expect(branch?.condition).toEqual({
+			facet: { facet: "mailbox.neverReplied" },
+		});
+
+		const handles = next.edges
+			.filter((edge) => edge.fromId === branch?.id)
+			.map((edge) => edge.handle)
+			.sort();
+
+		expect(handles).toEqual(["no", "yes"]);
+		expect(graphErrors(problemsFor(graph(), "BRANCH", "a"))).toEqual([]);
+	});
+
+	test("a branch inserted mid-chain keeps the rest on the yes arm", () => {
+		const chain: CampaignGraph = {
+			nodes: [node("a", "EMAIL"), node("b", "EMAIL")],
+			edges: [
+				{ fromId: "a", toId: "b", handle: "next", label: null, weight: 100 },
+			],
+		};
+
+		const next = withNode(chain, "BRANCH", "a");
+		const branch = next.nodes.find((row) => row.kind === "BRANCH");
+		const toB = next.edges.find((edge) => edge.toId === "b");
+
+		expect(toB?.fromId).toBe(branch?.id);
+		expect(toB?.handle).toBe("yes");
+		expect(
+			graphErrors(
+				validateGraph(
+					next.nodes as unknown as GraphNode[],
+					next.edges as unknown as GraphEdge[],
+					{ openTracking: true },
+				),
+			),
+		).toEqual([]);
+	});
+
+	test("with nothing selected it appends to the end of the chain", () => {
+		const chain: CampaignGraph = {
+			nodes: [node("a", "EMAIL"), node("b", "EMAIL")],
+			edges: [
+				{ fromId: "a", toId: "b", handle: "next", label: null, weight: 100 },
+			],
+		};
+
+		const next = withNode(chain, "EXIT", null);
+		const added = next.nodes.find((row) => row.kind === "EXIT");
+
+		expect(next.edges.find((edge) => edge.toId === added?.id)?.fromId).toBe(
+			"b",
+		);
+	});
+});

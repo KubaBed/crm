@@ -24,7 +24,10 @@ import { Switch } from "@crm/ui/components/switch";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useId, useState } from "react";
 import { toast } from "sonner";
-import { SendingDomains } from "@/components/marketing/sending-domains";
+import {
+	SendingDomainActions,
+	SendingDomains,
+} from "@/components/marketing/sending-domains";
 import { useTRPC } from "@/lib/trpc/client";
 
 const NO_QUIET = "none";
@@ -263,6 +266,9 @@ export function MarketingSettingsForm() {
 					<CardDescription>
 						Pick a domain Resend has verified. Resend owns the DNS.
 					</CardDescription>
+					<CardAction>
+						<SendingDomainActions />
+					</CardAction>
 				</CardHeader>
 				<CardContent>
 					<SendingDomains />

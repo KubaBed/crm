@@ -76,29 +76,88 @@ export class MarketingTemplatesService {
 			this.db.marketingTemplate.count({ where }),
 		]);
 
-		return {
-			rows: rows.map((row) => {
-				const findings = lintEmail({
-					document: row.document,
-					subject: row.subject,
-					preheader: row.preheader,
-				});
+		const shells = await this.db.marketingPartial.findMany({
+			where: {
+				archivedAt: null,
+				...(input.q && { name: { contains: input.q, mode: "insensitive" } }),
+			},
+			orderBy: [{ kind: "asc" }, { isDefault: "desc" }],
+			select: {
+				id: true,
+				kind: true,
+				name: true,
+				document: true,
+				updatedAt: true,
+				_count: { select: { headerFor: true, footerFor: true } },
+			},
+		});
 
-				return {
-					id: row.id,
-					name: row.name,
-					subject: row.subject,
-					usedBy: row._count.nodes,
-					updatedAt: row.updatedAt,
-					glyph: glyphOf(row.document),
-					errors: findings.filter((finding) => finding.level === "error")
-						.length,
-					warnings: findings.filter((finding) => finding.level === "warning")
-						.length,
-				};
-			}),
+		const shellRows = shells.map((shell) => ({
+			id: shell.id,
+			kind: shell.kind as "HEADER" | "FOOTER",
+			name: shell.name,
+			subject: null as string | null,
+			usedBy: shell._count.headerFor + shell._count.footerFor,
+			updatedAt: shell.updatedAt,
+			glyph: glyphOf(shell.document),
+			errors: 0,
+			warnings: 0,
+		}));
+
+		return {
+			rows: [
+				...(input.page === 1 ? shellRows : []),
+				...rows.map((row) => {
+					const findings = lintEmail({
+						document: row.document,
+						subject: row.subject,
+						preheader: row.preheader,
+					});
+
+					return {
+						id: row.id,
+						kind: "TEMPLATE" as "HEADER" | "FOOTER" | "TEMPLATE",
+						name: row.name,
+						subject: row.subject,
+						usedBy: row._count.nodes,
+						updatedAt: row.updatedAt,
+						glyph: glyphOf(row.document),
+						errors: findings.filter((finding) => finding.level === "error")
+							.length,
+						warnings: findings.filter((finding) => finding.level === "warning")
+							.length,
+					};
+				}),
+			],
 			total,
 			facetCounts: {},
+		};
+	}
+
+	async shellById(id: string) {
+		const row = await this.db.marketingPartial.findUnique({
+			where: { id },
+			select: {
+				id: true,
+				kind: true,
+				name: true,
+				document: true,
+				isDefault: true,
+				updatedAt: true,
+				_count: { select: { headerFor: true, footerFor: true } },
+			},
+		});
+
+		if (!row) return null;
+
+		return {
+			id: row.id,
+			kind: row.kind,
+			name: row.name,
+			document: readDocument(row.document),
+			isDefault: row.isDefault,
+			usedBy: row._count.headerFor + row._count.footerFor,
+			updatedAt: row.updatedAt,
 		};
 	}
 

@@ -174,11 +174,13 @@ export const AGENT_TOOLS = [
 	"research_company",
 	"research_person",
 	"resolve_linkedin_profile",
+	"schedule_campaign",
 	"schedule_recheck",
 	"search_crm",
 	"set_chat_title",
 	"set_contact_socials",
 	"set_field_value",
+	"update_node",
 	"write_brief",
 	"write_workspace_profile",
 ] as const;

@@ -290,7 +290,7 @@ export function SetupWizard({ step }: { step: string }) {
 							title="Your sending domain"
 							blurb="Pick a domain you have already verified in Resend. Resend owns the DNS, so there is nothing to paste here."
 						>
-							<SendingDomains enabled />
+							<SendingDomains />
 
 							{domain.data?.name ? (
 								<div className="flex flex-col gap-3">

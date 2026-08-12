@@ -1,9 +1,6 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
-import {
-	CreateTemplateButton,
-	EditShellButton,
-} from "@/components/marketing/create-buttons";
+import { CreateTemplateButton } from "@/components/marketing/create-buttons";
 import {
 	PageShell,
 	PageShellActions,
@@ -31,7 +28,6 @@ export default function TemplatesPage() {
 					</PageShellDescription>
 				</PageShellHeading>
 				<PageShellActions>
-					<EditShellButton />
 					<CreateTemplateButton />
 				</PageShellActions>
 			</PageShellHeader>

@@ -16,6 +16,8 @@ import { templatesSearchParams } from "./templates-search-params";
 type TemplateRow = RouterOutputs["marketingTemplates"]["list"]["rows"][number];
 
 function Checks({ row }: { row: TemplateRow }) {
+	if (row.kind !== "TEMPLATE") return <EmptyCellValue />;
+
 	if (row.errors > 0) {
 		return (
 			<span className="text-destructive">
@@ -50,9 +52,24 @@ const COLUMNS: DataTableColumn<TemplateRow>[] = [
 		),
 	},
 	{
+		id: "kind",
+		header: "Kind",
+		width: "w-[10%]",
+		hideBelow: "md",
+		cell: (row) => (
+			<span className="truncate text-muted-foreground">
+				{row.kind === "HEADER"
+					? "Header"
+					: row.kind === "FOOTER"
+						? "Footer"
+						: "Template"}
+			</span>
+		),
+	},
+	{
 		id: "subject",
 		header: "Subject",
-		width: "w-[32%]",
+		width: "w-[26%]",
 		hideBelow: "md",
 		cell: (row) =>
 			row.subject ? (
@@ -69,7 +86,9 @@ const COLUMNS: DataTableColumn<TemplateRow>[] = [
 			<span className="truncate text-muted-foreground">
 				{row.usedBy === 0
 					? "Never used"
-					: `${row.usedBy} campaign${row.usedBy === 1 ? "" : "s"}`}
+					: row.kind === "TEMPLATE"
+						? `${row.usedBy} campaign${row.usedBy === 1 ? "" : "s"}`
+						: `${row.usedBy} template${row.usedBy === 1 ? "" : "s"}`}
 			</span>
 		),
 	},

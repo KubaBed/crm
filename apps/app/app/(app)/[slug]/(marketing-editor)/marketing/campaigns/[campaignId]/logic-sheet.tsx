@@ -47,6 +47,14 @@ export function LogicSheet({
 		fromDefinition(node.condition),
 	);
 
+	const condition = toDefinition(rules);
+	const usesOpened = rules.rules.some(
+		(rule) => rule.facet === "marketing.openedCampaign",
+	);
+	const unknown = rules.rules.filter(
+		(rule) => !FACETS.some((facet) => facet.id === rule.facet),
+	);
+
 	const save = useMutation(
 		trpc.marketingCampaigns.updateNode.mutationOptions({
 			onSuccess: () => {
@@ -229,10 +237,48 @@ export function LogicSheet({
 				) : null}
 
 				{node.kind === "BRANCH" ? (
-					<p className="text-muted-foreground text-xs">
-						This branch splits on a rule. Editing the rule is not built yet —
-						ask the co-pilot to change it, or rebuild the graph.
-					</p>
+					<div className="flex flex-col gap-3">
+						<Label className="text-muted-foreground text-xs">
+							Take the yes arm when
+						</Label>
+
+						<RuleTree value={rules} facets={FACETS} onChange={setRules} />
+
+						{unknown.length > 0 ? (
+							<p className="text-destructive text-xs">
+								{unknown.length} rule{unknown.length === 1 ? "" : "s"} here
+								{unknown.length === 1 ? " is" : " are"} not something this
+								editor can show, so saving would drop
+								{unknown.length === 1 ? " it" : " them"}. Ask the co-pilot to
+								change the branch instead.
+							</p>
+						) : null}
+
+						{usesOpened ? (
+							<p className="text-destructive text-xs">
+								Apple Mail opens every email before a person does, so this
+								branch routes people on a fact about their mail client. Branch
+								on a click, a reply or something in the CRM instead.
+							</p>
+						) : null}
+
+						<p className="text-muted-foreground text-xs">
+							Anybody the rule does not match takes the no arm. Changing this
+							changes where people go next; it never moves somebody who has
+							already passed through.
+						</p>
+
+						<Button
+							className="self-start"
+							disabled={
+								save.isPending || condition === null || unknown.length > 0
+							}
+							onClick={() => save.mutate({ nodeId: node.id, condition })}
+						>
+							{save.isPending ? <Spinner /> : null}
+							Save
+						</Button>
+					</div>
 				) : null}
 			</div>
 		</aside>
