@@ -2,6 +2,12 @@
 
 import { Button } from "@crm/ui/components/button";
 import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuTrigger,
+} from "@crm/ui/components/dropdown-menu";
+import {
 	FlowCanvas,
 	type FlowEdge,
 	type FlowNode,
@@ -114,6 +120,70 @@ function toFlow(
 	return { nodes, edges };
 }
 
+type NewKind = "EMAIL" | "WAIT" | "EXIT";
+
+const NEW_NODE: Record<NewKind, Record<string, unknown>> = {
+	EMAIL: {
+		kind: "EMAIL",
+		label: "New touch",
+		subject: "",
+		document: { version: 1, blocks: [] },
+	},
+	WAIT: { kind: "WAIT", label: "Wait", delayHours: 72 },
+	EXIT: { kind: "EXIT", label: "Stop here" },
+};
+
+function withNode(campaign: Campaign, kind: NewKind, afterId: string | null) {
+	const nodes = campaign.nodes.map((node) => ({
+		id: node.id,
+		kind: node.kind,
+		label: node.label,
+		templateId: node.templateId,
+		subject: node.subject,
+		preheader: node.preheader,
+		document: node.document,
+		delayHours: node.delayHours,
+		condition: node.condition,
+		x: node.x,
+		y: node.y,
+	}));
+
+	const edges = campaign.edges.map((edge) => ({
+		fromId: edge.fromId,
+		toId: edge.toId,
+		handle: edge.handle,
+		label: edge.label,
+		weight: edge.weight,
+	}));
+
+	const outgoing = new Set(edges.map((edge) => edge.fromId));
+	const anchor =
+		afterId ??
+		campaign.nodes.findLast((node) => !outgoing.has(node.id))?.id ??
+		campaign.nodes[campaign.nodes.length - 1]?.id ??
+		null;
+
+	const id = `node_${Math.random().toString(36).slice(2, 12)}`;
+	nodes.push({ id, ...NEW_NODE[kind] } as (typeof nodes)[number]);
+
+	if (anchor) {
+		const following = edges.find(
+			(edge) => edge.fromId === anchor && edge.handle === "next",
+		);
+
+		if (following) following.fromId = id;
+		edges.push({
+			fromId: anchor,
+			toId: id,
+			handle: "next",
+			label: null,
+			weight: 100,
+		});
+	}
+
+	return { nodes, edges };
+}
+
 export function CampaignCanvas({ campaignId }: { campaignId: string }) {
 	const trpc = useTRPC();
 	const queryClient = useQueryClient();
@@ -138,6 +208,21 @@ export function CampaignCanvas({ campaignId }: { campaignId: string }) {
 	const rename = useMutation(
 		trpc.marketingCampaigns.update.mutationOptions({
 			onSuccess: () => invalidate(),
+			onError: (error) => toast.error(error.message),
+		}),
+	);
+
+	const addNode = useMutation(
+		trpc.marketingCampaigns.writeGraph.mutationOptions({
+			onSuccess: (result) => {
+				if (!result.ok) {
+					toast.error(
+						result.problems[0]?.message ?? "That step cannot be added.",
+					);
+					return;
+				}
+				void invalidate();
+			},
 			onError: (error) => toast.error(error.message),
 		}),
 	);
@@ -209,6 +294,34 @@ export function CampaignCanvas({ campaignId }: { campaignId: string }) {
 			}
 			actions={
 				<>
+					<DropdownMenu>
+						<DropdownMenuTrigger asChild>
+							<Button variant="outline" size="sm" disabled={addNode.isPending}>
+								{addNode.isPending ? <Spinner /> : null}
+								Add step
+							</Button>
+						</DropdownMenuTrigger>
+						<DropdownMenuContent align="end">
+							{(["EMAIL", "WAIT", "EXIT"] as const).map((kind) => (
+								<DropdownMenuItem
+									key={kind}
+									onSelect={() =>
+										addNode.mutate({
+											campaignId,
+											...withNode(data, kind, selectedId),
+										})
+									}
+								>
+									{kind === "EMAIL"
+										? "Email"
+										: kind === "WAIT"
+											? "Wait"
+											: "Exit"}
+								</DropdownMenuItem>
+							))}
+						</DropdownMenuContent>
+					</DropdownMenu>
+
 					{live ? null : (
 						<Button
 							size="sm"

@@ -13,6 +13,7 @@ import {
 import { Icon } from "@crm/ui/components/icon";
 import { RuleTree, type RuleTreeValue } from "@crm/ui/components/rule-tree";
 import { Spinner } from "@crm/ui/components/spinner";
+import { ToggleGroup, ToggleGroupItem } from "@crm/ui/components/toggle-group";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
@@ -43,6 +44,7 @@ export function SegmentBuilder({ segmentId }: { segmentId: string }) {
 	});
 	const [dirty, setDirty] = useState(false);
 	const [search, setSearch] = useState("");
+	const [mode, setMode] = useState<"ADD" | "EXCLUDE">("ADD");
 
 	const data = segment.data;
 
@@ -106,6 +108,16 @@ export function SegmentBuilder({ segmentId }: { segmentId: string }) {
 
 	const addMember = useMutation(
 		trpc.marketingSegments.addMember.mutationOptions({
+			onSuccess: async () => {
+				setSearch("");
+				await reload();
+			},
+			onError: (error) => toast.error(error.message),
+		}),
+	);
+
+	const excludeMember = useMutation(
+		trpc.marketingSegments.excludeMember.mutationOptions({
 			onSuccess: async () => {
 				setSearch("");
 				await reload();
@@ -233,7 +245,17 @@ export function SegmentBuilder({ segmentId }: { segmentId: string }) {
 							</span>
 						</div>
 
-						<div className="px-4">
+						<div className="flex items-center gap-2 px-4">
+							<ToggleGroup
+								type="single"
+								value={mode}
+								onValueChange={(next) =>
+									setMode(next === "EXCLUDE" ? "EXCLUDE" : "ADD")
+								}
+							>
+								<ToggleGroupItem value="ADD">Add</ToggleGroupItem>
+								<ToggleGroupItem value="EXCLUDE">Hold out</ToggleGroupItem>
+							</ToggleGroup>
 							<Combobox
 								options={(people.data?.rows ?? []).map((person) => ({
 									value: person.id,
@@ -246,11 +268,15 @@ export function SegmentBuilder({ segmentId }: { segmentId: string }) {
 								}))}
 								value=""
 								onValueChange={(contactId) =>
-									addMember.mutate({ segmentId, contactId })
+									mode === "EXCLUDE"
+										? excludeMember.mutate({ segmentId, contactId })
+										: addMember.mutate({ segmentId, contactId })
 								}
 								search={search}
 								onSearchChange={setSearch}
-								placeholder="Add somebody"
+								placeholder={
+									mode === "EXCLUDE" ? "Hold somebody out" : "Add somebody"
+								}
 								searchPlaceholder="Search contacts…"
 								empty={
 									search.trim() ? "Nobody matches." : "Type a name to search."
