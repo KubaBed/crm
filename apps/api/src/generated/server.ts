@@ -23,7 +23,7 @@ import { dashboardSummaryInput } from "../dashboard/dashboard.contracts";
 import { dealListInput, dealIdInput, dealCreateInput, dealUpdateArgs, setStageInput, dealContactsInput, dealAttachContactInput, dealDetachContactInput, dealContactRoleInput, dealBulkOwnerInput, dealBulkStageInput, dealBulkInput } from "../deals/deals.contracts";
 import { fieldListInput, fieldByKeyInput, fieldIdInput, fieldCreateInput, fieldUpdateArgs, fieldReorderInput } from "../fields/fields.contracts";
 import { setAutoCreateInput, suppressDomainInput, threadInput, calendarEventInput } from "../google/google.contracts";
-import { saveKeyInput, saveIdentityInput, saveSendingInput, createDomainInput, campaignListInput, idInput, campaignPageInput, createCampaignInput, updateCampaignInput, writeGraphInput, updateNodeInput, scheduleInput, pauseInput, resumeInput, archiveCampaignInput, enrolInput, winnerInput, sendDirectInput, previewSegmentInput, createSegmentInput, updateSegmentInput, memberInput, previewTemplateInput, createTemplateInput, updateTemplateInput } from "../marketing/marketing.contracts";
+import { saveKeyInput, saveIdentityInput, saveSendingInput, createDomainInput, campaignListInput, idInput, previewNodeInput, campaignPageInput, createCampaignInput, updateCampaignInput, writeGraphInput, updateNodeInput, scheduleInput, pauseInput, resumeInput, archiveCampaignInput, enrolInput, winnerInput, sendDirectInput, previewSegmentInput, createSegmentInput, updateSegmentInput, memberInput, previewTemplateInput, createTemplateInput, updateTemplateInput } from "../marketing/marketing.contracts";
 import { listInput } from "../marketing/../trpc/list-input";
 import { setOutlookAutoCreateInput } from "../microsoft/microsoft.contracts";
 import { setAgentModelInput, setResearchKeyInput } from "../settings/settings.contracts";
@@ -394,6 +394,9 @@ const appRouter = t.router({
     nodeStats: publicProcedure
       .input(idInput)
       .query(async () => "PLACEHOLDER_DO_NOT_REMOVE" as unknown as Awaited<ReturnType<MarketingCampaignsRouter["nodeStats"]>>),
+    previewNode: publicProcedure
+      .input(previewNodeInput)
+      .query(async () => "PLACEHOLDER_DO_NOT_REMOVE" as unknown as Awaited<ReturnType<MarketingCampaignsRouter["previewNode"]>>),
     recipients: publicProcedure
       .input(campaignPageInput)
       .query(async () => "PLACEHOLDER_DO_NOT_REMOVE" as unknown as Awaited<ReturnType<MarketingCampaignsRouter["recipients"]>>),

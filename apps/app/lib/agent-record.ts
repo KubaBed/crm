@@ -1,12 +1,24 @@
 import type { CarbonIcon } from "@crm/ui/components/icon";
 
-export type AgentRecordKind = "contact" | "company" | "deal";
+export type AgentRecordKind =
+	| "contact"
+	| "company"
+	| "deal"
+	| "campaign"
+	| "segment"
+	| "template";
 
 export type AgentRecord = { kind: AgentRecordKind; id: string };
 
 type RecordCopy = {
 	header: string;
-	field: "contactId" | "companyId" | "dealId";
+	field:
+		| "contactId"
+		| "companyId"
+		| "dealId"
+		| "campaignId"
+		| "segmentId"
+		| "templateId";
 	title: string;
 	blurb: string;
 	placeholder: string;
@@ -51,6 +63,45 @@ const COPY: Record<AgentRecordKind, RecordCopy> = {
 			"Where does this stand?",
 			"Who else should be involved?",
 			"What is the risk here?",
+		],
+	},
+	campaign: {
+		header: "x-crm-campaign",
+		field: "campaignId",
+		title: "Build this campaign",
+		blurb:
+			"Describe the touches and it writes the graph. It edits drafts; you activate it.",
+		placeholder:
+			"Four touches over two weeks, branching on whether they opened.",
+		suggestions: [
+			"Add a wait and a follow-up after touch one",
+			"Branch after the first email on whether they clicked",
+			"Make touch two shorter",
+		],
+	},
+	segment: {
+		header: "x-crm-segment",
+		field: "segmentId",
+		title: "Describe who is in this segment",
+		blurb: "It writes the rules. You can still drag them afterwards.",
+		placeholder: "People who hit pricing twice and never replied.",
+		suggestions: [
+			"Everyone who visited pricing and has no open deal",
+			"Signed up but never logged in",
+			"Drop anyone we spoke to this month",
+		],
+	},
+	template: {
+		header: "x-crm-template",
+		field: "templateId",
+		title: "Write this email",
+		blurb:
+			"It writes the body only. The header and footer come from the shell.",
+		placeholder: "Make this shorter and lead with the customer.",
+		suggestions: [
+			"Make this shorter",
+			"Lead with the customer, not us",
+			"Add a closing line about the Thursday walkthrough",
 		],
 	},
 };

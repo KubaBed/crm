@@ -1,0 +1,82 @@
+@import "@xyflow/react/dist/style.css";
+
+.crm-flow {
+	--xy-background-color: var(--color-muted);
+	--xy-background-pattern-color: var(--color-border);
+
+	--xy-edge-stroke: var(--color-border);
+	--xy-edge-stroke-width: 1;
+	--xy-edge-stroke-selected: var(--color-primary);
+	--xy-edge-label-background-color: var(--color-muted);
+	--xy-edge-label-color: var(--color-muted-foreground);
+
+	--xy-connectionline-stroke: var(--color-primary);
+	--xy-connectionline-stroke-width: 1;
+
+	--xy-node-color: var(--color-foreground);
+	--xy-node-border: 1px solid var(--color-border);
+	--xy-node-background-color: var(--color-card);
+	--xy-node-group-background-color: transparent;
+	--xy-node-boxshadow-hover: none;
+	--xy-node-boxshadow-selected: none;
+	--xy-node-border-radius: var(--radius-lg);
+
+	--xy-handle-background-color: var(--color-border);
+	--xy-handle-border-color: var(--color-card);
+
+	--xy-selection-background-color: color-mix(
+		in oklab,
+		var(--color-primary) 8%,
+		transparent
+	);
+	--xy-selection-border: 1px solid var(--color-primary);
+
+	--xy-controls-button-background-color: var(--color-card);
+	--xy-controls-button-background-color-hover: var(--color-muted);
+	--xy-controls-button-color: var(--color-foreground);
+	--xy-controls-button-color-hover: var(--color-foreground);
+	--xy-controls-button-border-color: var(--color-border);
+	--xy-controls-box-shadow: none;
+
+	--xy-minimap-background-color: var(--color-card);
+	--xy-minimap-mask-background-color: color-mix(
+		in oklab,
+		var(--color-muted) 70%,
+		transparent
+	);
+	--xy-minimap-node-background-color: var(--color-border);
+
+	--xy-attribution-background-color: transparent;
+
+	--xy-resize-background-color: var(--color-primary);
+	--xy-theme-selected: var(--color-primary);
+	--xy-theme-hover: var(--color-border);
+	--xy-theme-edge-hover: var(--color-muted-foreground);
+	--xy-theme-color-focus: var(--color-ring);
+}
+
+.crm-flow .react-flow__node {
+	font-family: inherit;
+	font-size: inherit;
+}
+
+.crm-flow .react-flow__node-default,
+.crm-flow .react-flow__node-input,
+.crm-flow .react-flow__node-output {
+	padding: 0;
+	border: 0 none;
+	background: transparent;
+	box-shadow: none;
+	width: auto;
+}
+
+.crm-flow .react-flow__handle {
+	width: 6px;
+	height: 6px;
+	border-width: 1px;
+	border-radius: var(--radius-sm);
+}
+
+.crm-flow .react-flow__attribution {
+	display: none;
+}

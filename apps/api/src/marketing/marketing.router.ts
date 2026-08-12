@@ -23,6 +23,7 @@ import {
 	idInput,
 	memberInput,
 	pauseInput,
+	previewNodeInput,
 	previewSegmentInput,
 	previewTemplateInput,
 	resumeInput,
@@ -129,6 +130,11 @@ export class MarketingCampaignsRouter {
 	@Query({ input: idInput })
 	async nodeStats(@Input() input: z.infer<typeof idInput>) {
 		return this.campaigns.nodeStats(input.id);
+	}
+
+	@Query({ input: previewNodeInput })
+	async previewNode(@Input() input: z.infer<typeof previewNodeInput>) {
+		return this.campaigns.previewNode(input);
 	}
 
 	@Query({ input: campaignPageInput })

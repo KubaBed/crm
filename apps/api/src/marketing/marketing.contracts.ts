@@ -1,10 +1,8 @@
-import {
-	filterSchema,
-	graphEdgeInput,
-	graphNodeInput,
-} from "@crm/db/marketing";
+import { graphEdgeInput, graphNodeInput } from "@crm/db/marketing";
 import { z } from "zod";
 import { listInput } from "../trpc/list-input";
+
+const ruleTree = z.record(z.string(), z.unknown());
 
 export const idInput = z.object({ id: z.string().min(1) });
 
@@ -43,8 +41,8 @@ export const updateCampaignInput = z.object({
 	name: z.string().min(1).max(160).optional(),
 	segmentId: z.string().nullish(),
 	replyTo: z.string().max(320).nullish(),
-	entryDefinition: filterSchema.nullish(),
-	exitDefinition: filterSchema.nullish(),
+	entryDefinition: ruleTree.nullish(),
+	exitDefinition: ruleTree.nullish(),
 	reentryCooldownDays: z.number().int().min(0).max(3650).nullish(),
 	maxPasses: z.number().int().min(1).max(20).optional(),
 	scheduledAt: z.date().nullish(),
@@ -63,7 +61,7 @@ export const updateNodeInput = z.object({
 	preheader: z.string().max(300).nullish(),
 	document: z.unknown().optional(),
 	delayHours: z.number().int().min(0).max(8760).nullish(),
-	condition: filterSchema.nullish(),
+	condition: ruleTree.nullish(),
 	x: z.number().optional(),
 	y: z.number().optional(),
 });
@@ -111,17 +109,17 @@ export const sendDirectInput = z.object({
 export const createSegmentInput = z.object({
 	name: z.string().min(1).max(160),
 	description: z.string().max(400).nullish(),
-	definition: filterSchema.nullish(),
+	definition: ruleTree.nullish(),
 });
 
 export const updateSegmentInput = z.object({
 	id: z.string().min(1),
 	name: z.string().min(1).max(160).optional(),
 	description: z.string().max(400).nullish(),
-	definition: filterSchema.nullish(),
+	definition: ruleTree.nullish(),
 });
 
-export const previewSegmentInput = z.object({ definition: filterSchema });
+export const previewSegmentInput = z.object({ definition: ruleTree });
 
 export const memberInput = z.object({
 	segmentId: z.string().min(1),
@@ -142,8 +140,14 @@ export const updateTemplateInput = z.object({
 	document: z.unknown().optional(),
 });
 
+export const previewNodeInput = z.object({
+	nodeId: z.string().min(1),
+	subject: z.string().max(200).nullish(),
+	preheader: z.string().max(300).nullish(),
+});
+
 export const previewTemplateInput = z.object({
-	document: z.unknown(),
+	document: z.record(z.string(), z.unknown()),
 	subject: z.string().max(200).nullish(),
 	preheader: z.string().max(300).nullish(),
 	contactId: z.string().nullish(),

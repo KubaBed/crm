@@ -8,7 +8,8 @@
 		"./postcss.config": "./postcss.config.mjs",
 		"./components/*": "./src/components/*.tsx",
 		"./hooks/*": "./src/hooks/*.ts",
-		"./lib/*": "./src/lib/*.ts"
+		"./lib/*": "./src/lib/*.ts",
+		"./flow-tokens.css": "./src/styles/flow-tokens.css"
 	},
 	"scripts": {
 		"check-types": "tsc --noEmit",
@@ -24,6 +25,7 @@
 		"@dnd-kit/sortable": "^10.0.0",
 		"@dnd-kit/utilities": "^3.2.2",
 		"@shadcn/react": "^0.3.0",
+		"@xyflow/react": "^12.11.2",
 		"class-variance-authority": "^0.7.1",
 		"clsx": "^2.1.1",
 		"cmdk": "^1.1.1",

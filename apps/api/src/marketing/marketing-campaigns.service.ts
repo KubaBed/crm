@@ -21,7 +21,10 @@ import {
 import { blankToNull } from "../crm/values";
 import { InjectDatabase } from "../database/database.constants";
 import { type ListInput, paginate, resolveOrderBy } from "../trpc/list-input";
+import { MarketingTemplatesService } from "./marketing-templates.service";
 import { ResendService } from "./resend.service";
+
+type Json = Record<string, unknown> | null;
 
 export type NodeStats = {
 	nodeId: string;
@@ -40,6 +43,7 @@ export class MarketingCampaignsService {
 	constructor(
 		@InjectDatabase() private readonly db: Db,
 		private readonly resend: ResendService,
+		private readonly templates: MarketingTemplatesService,
 	) {}
 
 	async list(input: ListInput & { kind?: string; status?: string }) {
@@ -210,7 +214,40 @@ export class MarketingCampaignsService {
 			}),
 		]);
 
-		return { ...campaign, stats, health, enrolled, inFlight };
+		return {
+			...campaign,
+			entryDefinition: campaign.entryDefinition as Json,
+			exitDefinition: campaign.exitDefinition as Json,
+			nodes: campaign.nodes.map((node) => ({
+				...node,
+				document: node.document as Json,
+				condition: node.condition as Json,
+			})),
+			stats,
+			health,
+			enrolled,
+			inFlight,
+		};
+	}
+
+	async previewNode(input: {
+		nodeId: string;
+		subject?: string | null;
+		preheader?: string | null;
+	}) {
+		const node = await this.db.marketingCampaignNode.findUnique({
+			where: { id: input.nodeId },
+			select: { subject: true, preheader: true, document: true },
+		});
+
+		if (!node) throw new NotFoundException("No such node.");
+
+		return this.templates.preview({
+			document: node.document,
+			subject: input.subject ?? node.subject,
+			preheader: input.preheader ?? node.preheader,
+			contactId: null,
+		});
 	}
 
 	async nodeStats(campaignId: string): Promise<NodeStats[]> {

@@ -40,14 +40,14 @@ export const graphNodeInput = z.object({
 	templateId: z.string().nullish(),
 	subject: z.string().trim().max(200).nullish(),
 	preheader: z.string().trim().max(300).nullish(),
-	document: z.unknown().nullish(),
+	document: z.record(z.string(), z.unknown()).nullish(),
 	delayHours: z
 		.number()
 		.int()
 		.min(0)
 		.max(24 * 365)
 		.nullish(),
-	condition: z.unknown().nullish(),
+	condition: z.record(z.string(), z.unknown()).nullish(),
 	x: z.number().nullish(),
 	y: z.number().nullish(),
 });
