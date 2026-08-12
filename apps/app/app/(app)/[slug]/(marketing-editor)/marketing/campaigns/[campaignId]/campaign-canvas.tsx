@@ -275,6 +275,8 @@ export function CampaignCanvas({ campaignId }: { campaignId: string }) {
 				) : selected ? (
 					<NodeSheet
 						node={selected}
+						campaignId={campaignId}
+						recipients={data.inFlight}
 						stats={stats.get(selected.id) ?? null}
 						onClose={() => setSelectedId(null)}
 						onSaved={() => invalidate()}

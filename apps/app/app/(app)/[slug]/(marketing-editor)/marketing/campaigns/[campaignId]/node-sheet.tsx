@@ -14,6 +14,7 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { useTRPC } from "@/lib/trpc/client";
 import type { RouterOutputs } from "@/lib/trpc/types";
+import { AttachmentsPanel } from "./attachments-panel";
 
 type Campaign = RouterOutputs["marketingCampaigns"]["byId"];
 type Node = Campaign["nodes"][number];
@@ -69,11 +70,15 @@ function ShellRow({ kind, detail }: { kind: string; detail: string }) {
 
 export function NodeSheet({
 	node,
+	campaignId,
+	recipients,
 	stats,
 	onClose,
 	onSaved,
 }: {
 	node: Node;
+	campaignId: string;
+	recipients: number;
 	stats: Stats | null;
 	onClose: () => void;
 	onSaved: () => void;
@@ -215,6 +220,8 @@ export function NodeSheet({
 							/>
 						</div>
 					</div>
+
+					<AttachmentsPanel campaignId={campaignId} recipients={recipients} />
 
 					<div className="flex flex-col gap-1 rounded-md bg-muted px-3 py-2.5">
 						<span className="font-medium text-xs">

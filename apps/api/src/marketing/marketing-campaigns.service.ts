@@ -191,7 +191,10 @@ export class MarketingCampaignsService {
 			health.find((row) => row.status === status)?._count._all ?? 0;
 
 		const sent =
-			count("SENT") + count("DELIVERED") + count("BOUNCED") + count("COMPLAINED");
+			count("SENT") +
+			count("DELIVERED") +
+			count("BOUNCED") +
+			count("COMPLAINED");
 
 		return {
 			sendable: settings.ok,

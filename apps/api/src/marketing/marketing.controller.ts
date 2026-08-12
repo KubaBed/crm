@@ -57,6 +57,7 @@ export class MarketingDrainController {
 
 	@Post("drain")
 	@HttpCode(200)
+	@AllowAnonymous()
 	async run(@Headers("authorization") authorization?: string) {
 		const allowed = [this.cronSecret, this.agentSecret].filter(Boolean);
 
