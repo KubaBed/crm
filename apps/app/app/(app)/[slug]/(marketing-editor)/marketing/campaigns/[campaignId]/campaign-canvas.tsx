@@ -33,6 +33,7 @@ import { useWorkspaceUrl } from "@/lib/use-workspace-url";
 import { CampaignStatus } from "../../../../(marketing)/marketing/campaign-status";
 import { BlastComposer } from "./blast-composer";
 import { CampaignActions } from "./campaign-actions";
+import { CampaignResults } from "./campaign-results";
 import { DripSettings } from "./drip-settings";
 import { LogicSheet } from "./logic-sheet";
 import { NodeSheet } from "./node-sheet";
@@ -122,6 +123,31 @@ function toFlow(
 		};
 	});
 
+	const targeted = new Set(campaign.edges.map((edge) => edge.toId));
+	const root = campaign.nodes.find((node) => !targeted.has(node.id));
+
+	if (root) {
+		nodes.unshift({
+			id: ENTRY.id,
+			type: "entry",
+			position: { x: entryX(root), y: root.y - ENTRY.gapY },
+			draggable: false,
+			selectable: false,
+			data: { label: entryLabel(campaign.segment?.name ?? null) },
+		});
+
+		edges.unshift({
+			id: `${ENTRY.id}-edge`,
+			source: ENTRY.id,
+			target: root.id,
+			type: "smoothstep",
+			label:
+				campaign.enrolled > 0
+					? `${campaign.enrolled.toLocaleString()} entered`
+					: undefined,
+		});
+	}
+
 	return { nodes, edges };
 }
 
@@ -130,6 +156,10 @@ export function CampaignCanvas({ campaignId }: { campaignId: string }) {
 	const queryClient = useQueryClient();
 	const workspaceUrl = useWorkspaceUrl();
 	const [selectedId, setSelectedId] = useQueryState("node");
+	const [view, setView] = useQueryState(
+		"view",
+		parseAsStringLiteral(["flow", "results"] as const).withDefault("flow"),
+	);
 
 	const campaign = useQuery(
 		trpc.marketingCampaigns.byId.queryOptions({ id: campaignId }),
@@ -264,20 +294,26 @@ export function CampaignCanvas({ campaignId }: { campaignId: string }) {
 					/>
 				</>
 			}
-			meta={
-				<MarketingEditorMeta
-					parts={[
-						`${data.enrolled.toLocaleString()} enrolled`,
-						`${data.inFlight.toLocaleString()} in flight`,
-						`${data.health.sent.toLocaleString()} sent`,
-						`${(data.health.deliveredRate * 100).toFixed(1)}% delivered`,
-						`${(data.health.bounceRate * 100).toFixed(1)}% bounced`,
-						`${(data.health.complaintRate * 100).toFixed(2)}% complaints`,
-					]}
-				/>
+			tabs={
+				<ToggleGroup
+					type="single"
+					size="sm"
+					value={view}
+					onValueChange={(next) =>
+						void setView(next === "results" ? "results" : "flow")
+					}
+				>
+					<ToggleGroupItem value="flow">Flow</ToggleGroupItem>
+					<ToggleGroupItem value="results">Results</ToggleGroupItem>
+				</ToggleGroup>
 			}
 			rail={
-				selected && selected.kind !== "EMAIL" ? (
+				view === "results" ? (
+					<CopilotRail
+						record={{ kind: "campaign", id: campaignId }}
+						onFinish={() => void invalidate()}
+					/>
+				) : selected && selected.kind !== "EMAIL" ? (
 					<LogicSheet
 						key={`${selected.id}:${selected.delayHours ?? ""}`}
 						node={selected}
@@ -309,39 +345,54 @@ export function CampaignCanvas({ campaignId }: { campaignId: string }) {
 				)
 			}
 		>
-			<FlowCanvas
-				menu={
-					<ContextMenuContent>
-						<ContextMenuLabel>
-							{selected
-								? `Add after ${selected.label ?? "this step"}`
-								: "Add a step"}
-						</ContextMenuLabel>
-						{(["EMAIL", "WAIT", "BRANCH", "EXIT"] as const).map((kind) => (
-							<ContextMenuItem
-								key={kind}
-								disabled={addNode.isPending}
-								onSelect={() =>
-									addNode.mutate({
-										campaignId,
-										...withNode(data, kind, selectedId),
-									})
-								}
-							>
-								{NEW_LABEL[kind]}
-							</ContextMenuItem>
-						))}
-					</ContextMenuContent>
-				}
-				nodes={flow.nodes}
-				edges={flow.edges}
-				selectedId={selectedId}
-				fitKey={`${data.nodes.length}-${data.edges.length}`}
-				onNodeClick={(_event, node) => void setSelectedId(node.id)}
-				onNodeMoved={(id, position) =>
-					moveNode.mutate({ nodeId: id, x: position.x, y: position.y })
-				}
-			/>
+			{view === "results" ? (
+				<CampaignResults campaign={data} />
+			) : (
+				<div className="relative flex min-h-0 min-w-0 flex-1">
+					<FlowCanvas
+						menu={
+							<ContextMenuContent>
+								<ContextMenuLabel>
+									{selected
+										? `Add after ${selected.label ?? "this step"}`
+										: "Add a step"}
+								</ContextMenuLabel>
+								{(["EMAIL", "WAIT", "BRANCH", "EXIT"] as const).map((kind) => (
+									<ContextMenuItem
+										key={kind}
+										disabled={addNode.isPending}
+										onSelect={() =>
+											addNode.mutate({
+												campaignId,
+												...withNode(data, kind, selectedId),
+											})
+										}
+									>
+										{NEW_LABEL[kind]}
+									</ContextMenuItem>
+								))}
+							</ContextMenuContent>
+						}
+						nodes={flow.nodes}
+						edges={flow.edges}
+						selectedId={selectedId}
+						fitKey={`${data.nodes.length}-${data.edges.length}`}
+						onNodeClick={(_event, node) => void setSelectedId(node.id)}
+						onNodeMoved={(id, position) =>
+							moveNode.mutate({ nodeId: id, x: position.x, y: position.y })
+						}
+					/>
+
+					{selected ? (
+						<button
+							type="button"
+							aria-label="Close the step"
+							className="absolute inset-0 z-10 bg-overlay"
+							onClick={() => void setSelectedId(null)}
+						/>
+					) : null}
+				</div>
+			)}
 		</MarketingEditorShell>
 	);
 }

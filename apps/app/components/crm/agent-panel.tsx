@@ -53,6 +53,7 @@ import {
 	ConversationPicker,
 	useConversations,
 } from "@/components/crm/agent-conversations";
+import { graphWriteSummary } from "@/lib/agent-graph-result";
 import {
 	type AgentRecord,
 	type AgentRecordFilter,
@@ -77,6 +78,7 @@ import {
 	toTranscript,
 } from "@/lib/agent-transcript";
 import { useTRPC } from "@/lib/trpc/client";
+import { AgentGraphResult } from "./agent-graph-result";
 import { useRecordSheetView } from "./record-sheet/record-stack";
 
 export function AgentPanel({
@@ -440,6 +442,13 @@ function Item({ item }: { item: TranscriptItem }) {
 	}
 
 	if (item.kind === "reasoned") return null;
+
+	const graph =
+		item.tool === "write_campaign_graph" && !item.pending
+			? graphWriteSummary(item.input, item.output)
+			: null;
+
+	if (graph) return <AgentGraphResult summary={graph} />;
 
 	return (
 		<div className="min-w-0 space-y-1.5">
