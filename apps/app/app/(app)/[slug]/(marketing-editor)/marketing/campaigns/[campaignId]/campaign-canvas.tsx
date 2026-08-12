@@ -19,6 +19,7 @@ import { useTRPC } from "@/lib/trpc/client";
 import type { RouterOutputs } from "@/lib/trpc/types";
 import { useWorkspaceUrl } from "@/lib/use-workspace-url";
 import { CampaignStatus } from "../../../../(marketing)/marketing/campaign-status";
+import { BlastComposer } from "./blast-composer";
 import { CopilotRail } from "./copilot-rail";
 import { NodeSheet } from "./node-sheet";
 
@@ -170,6 +171,12 @@ export function CampaignCanvas({ campaignId }: { campaignId: string }) {
 			<div className="flex min-h-0 flex-1 items-center justify-center text-muted-foreground text-xs">
 				That campaign is gone.
 			</div>
+		);
+	}
+
+	if (data.kind === "BLAST") {
+		return (
+			<BlastComposer campaign={data} onChanged={() => void invalidate()} />
 		);
 	}
 

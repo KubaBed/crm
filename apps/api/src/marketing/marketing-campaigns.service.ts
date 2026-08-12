@@ -9,6 +9,7 @@ import {
 	materialise,
 	queueDirect,
 	readMarketingSettings,
+	segmentWhere,
 	validateGraph,
 } from "@crm/db/marketing";
 import { EMPTY_DOCUMENT, lintEmail } from "@crm/email";
@@ -205,13 +206,14 @@ export class MarketingCampaignsService {
 
 		if (!campaign) throw new NotFoundException("No such campaign.");
 
-		const [stats, health, enrolled, inFlight] = await Promise.all([
+		const [stats, health, enrolled, inFlight, audience] = await Promise.all([
 			this.nodeStats(id),
 			this.health(id),
 			this.db.marketingEnrolment.count({ where: { campaignId: id } }),
 			this.db.marketingEnrolment.count({
 				where: { campaignId: id, status: "ACTIVE" },
 			}),
+			this.audience(campaign.segmentId),
 		]);
 
 		return {
@@ -227,6 +229,7 @@ export class MarketingCampaignsService {
 			health,
 			enrolled,
 			inFlight,
+			audience,
 		};
 	}
 
@@ -248,6 +251,44 @@ export class MarketingCampaignsService {
 			preheader: input.preheader ?? node.preheader,
 			contactId: null,
 		});
+	}
+
+	private async audience(
+		segmentId: string | null,
+	): Promise<{ total: number; sendable: number; excluded: number }> {
+		if (!segmentId) return { total: 0, sendable: 0, excluded: 0 };
+
+		const segment = await this.db.marketingSegment.findUnique({
+			where: { id: segmentId },
+			select: {
+				definition: true,
+				members: { select: { contactId: true, mode: true } },
+			},
+		});
+
+		if (!segment) return { total: 0, sendable: 0, excluded: 0 };
+
+		const where = segmentWhere(segment);
+
+		const [total, sendable] = await Promise.all([
+			this.db.contact.count({ where }),
+			this.db.contact.count({
+				where: {
+					AND: [
+						where,
+						{ email: { not: null } },
+						{
+							OR: [
+								{ marketingRecipients: { none: {} } },
+								{ marketingRecipients: { some: { status: "SUBSCRIBED" } } },
+							],
+						},
+					],
+				},
+			}),
+		]);
+
+		return { total, sendable, excluded: total - sendable };
 	}
 
 	async nodeStats(campaignId: string): Promise<NodeStats[]> {
