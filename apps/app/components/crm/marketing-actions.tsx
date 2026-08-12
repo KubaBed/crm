@@ -103,7 +103,7 @@ export function ContactMarketingActions({
 						Send an email
 					</DropdownMenuItem>
 					<DropdownMenuItem onSelect={() => setMode("enrol")}>
-						Enrol in a drip
+						Enrol in a sequence
 					</DropdownMenuItem>
 				</DropdownMenuContent>
 			</DropdownMenu>
@@ -116,7 +116,7 @@ export function ContactMarketingActions({
 					<DialogHeader>
 						<DialogTitle>Send an email</DialogTitle>
 						<DialogDescription>
-							This is marketing mail like any other: it gets the shell, the
+							This is marketing mail like any other: it gets your header, your
 							footer and the unsubscribe link, and it is refused if they have
 							unsubscribed.
 						</DialogDescription>
@@ -159,7 +159,7 @@ export function ContactMarketingActions({
 			>
 				<DialogContent>
 					<DialogHeader>
-						<DialogTitle>Enrol in a drip</DialogTitle>
+						<DialogTitle>Enrol in a sequence</DialogTitle>
 						<DialogDescription>
 							Only campaigns somebody has already activated are listed.
 						</DialogDescription>
@@ -171,7 +171,9 @@ export function ContactMarketingActions({
 							<SelectTrigger id="enrol-campaign">
 								<SelectValue
 									placeholder={
-										live.length === 0 ? "No live drips" : "Choose a drip"
+										live.length === 0
+											? "No live sequences"
+											: "Choose a sequence"
 									}
 								/>
 							</SelectTrigger>
@@ -277,7 +279,7 @@ export function CompanyMarketingActions({
 						Send an email to everybody here
 					</DropdownMenuItem>
 					<DropdownMenuItem onSelect={() => setMode("enrol")}>
-						Enrol everybody in a drip
+						Enrol everybody in a sequence
 					</DropdownMenuItem>
 				</DropdownMenuContent>
 			</DropdownMenu>
@@ -333,7 +335,7 @@ export function CompanyMarketingActions({
 			>
 				<DialogContent>
 					<DialogHeader>
-						<DialogTitle>Enrol everybody in a drip</DialogTitle>
+						<DialogTitle>Enrol everybody in a sequence</DialogTitle>
 						<DialogDescription>
 							Only campaigns somebody has already activated are listed.
 						</DialogDescription>
@@ -345,7 +347,9 @@ export function CompanyMarketingActions({
 							<SelectTrigger id="company-campaign">
 								<SelectValue
 									placeholder={
-										live.length === 0 ? "No live drips" : "Choose a drip"
+										live.length === 0
+											? "No live sequences"
+											: "Choose a sequence"
 									}
 								/>
 							</SelectTrigger>

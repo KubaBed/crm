@@ -1317,6 +1317,14 @@ model AppSetting {
   marketingBrandColor     String?
   marketingLogoUrl        String?
 
+  marketingResendClientId     String?
+  marketingResendClientSecret String?
+  marketingResendAccessToken  String?
+  marketingResendRefreshToken String?
+  marketingResendTokenExpires DateTime?
+  marketingResendAuthState    String?
+  marketingResendAuthVerifier String?
+
   updatedAt DateTime @updatedAt
 
   @@map("appSetting")
@@ -1742,7 +1750,7 @@ model MarketingSegment {
   lastCountedAt DateTime?
 
   members       MarketingSegmentMember[]
-  campaigns     MarketingCampaign[]
+  campaigns     MarketingCampaignSegment[]
   conversations AgentConversation[]
 
   archivedAt DateTime?
@@ -1751,6 +1759,22 @@ model MarketingSegment {
 
   @@index([archivedAt])
   @@map("marketingSegment")
+}
+
+model MarketingCampaignSegment {
+  campaignId String
+  campaign   MarketingCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  segmentId  String
+  segment    MarketingSegment  @relation(fields: [segmentId], references: [id], onDelete: Cascade)
+
+  mode MarketingMemberMode @default(INCLUDE)
+
+  addedAt DateTime @default(now())
+
+  @@id([campaignId, segmentId])
+  @@index([segmentId])
+  @@index([campaignId, mode])
+  @@map("marketingCampaignSegment")
 }
 
 model MarketingSegmentMember {
@@ -1774,8 +1798,7 @@ model MarketingCampaign {
   kind   MarketingCampaignKind   @default(BLAST)
   status MarketingCampaignStatus @default(DRAFT)
 
-  segmentId String?
-  segment   MarketingSegment? @relation(fields: [segmentId], references: [id], onDelete: SetNull)
+  segments MarketingCampaignSegment[]
 
   entryMode       MarketingEntryMode @default(MANUAL)
   entryDefinition Json?
@@ -1883,7 +1906,9 @@ model MarketingSend {
   origin        MarketingSendOrigin @default(CAMPAIGN)
   pass          Int                 @default(1)
   requestedById String?
+  fromName      String?
   subject       String?
+  preheader     String?
   document      Json?
   replyTo       String?
 

@@ -9,9 +9,11 @@ import {
 	DropdownMenuTrigger,
 } from "@crm/ui/components/dropdown-menu";
 import {
+	DEFAULT_SHELL,
 	type EmailBlock,
 	EmailBlockEditor,
 } from "@crm/ui/components/email-blocks";
+import { EmailPreview } from "@crm/ui/components/email-preview";
 import { Icon } from "@crm/ui/components/icon";
 import { Input } from "@crm/ui/components/input";
 import { Label } from "@crm/ui/components/label";
@@ -26,10 +28,12 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { CopilotRail } from "@/components/marketing/copilot-rail";
+import { EditShellLink } from "@/components/marketing/edit-shell-link";
 import {
 	MarketingEditorMeta,
 	MarketingEditorShell,
 } from "@/components/marketing/editor-shell";
+import { useImageUpload } from "@/components/marketing/use-image-upload";
 import { useTRPC } from "@/lib/trpc/client";
 import { useWorkspaceUrl } from "@/lib/use-workspace-url";
 
@@ -41,6 +45,7 @@ function blocksOf(document: unknown): EmailBlock[] {
 
 export function TemplateEditor({ templateId }: { templateId: string }) {
 	const trpc = useTRPC();
+	const uploadImage = useImageUpload();
 	const queryClient = useQueryClient();
 	const workspaceUrl = useWorkspaceUrl();
 	const router = useRouter();
@@ -54,9 +59,6 @@ export function TemplateEditor({ templateId }: { templateId: string }) {
 	const [preheader, setPreheader] = useState("");
 	const [blocks, setBlocks] = useState<EmailBlock[]>([]);
 	const [selected, setSelected] = useState<number | null>(null);
-	const [device, setDevice] = useState<"desktop" | "mobile" | "text">(
-		"desktop",
-	);
 	const [dirty, setDirty] = useState(false);
 
 	const data = template.data;
@@ -228,7 +230,7 @@ export function TemplateEditor({ templateId }: { templateId: string }) {
 				/>
 			}
 		>
-			<div className="flex w-[400px] shrink-0 flex-col gap-4 overflow-y-auto border-r p-4">
+			<div className="flex w-[400px] shrink-0 flex-col gap-4 overflow-y-auto overflow-x-hidden border-r p-4">
 				<div className="flex flex-col gap-1.5">
 					<Label
 						htmlFor="template-subject"
@@ -244,12 +246,6 @@ export function TemplateEditor({ templateId }: { templateId: string }) {
 							setDirty(true);
 						}}
 					/>
-					<span className="text-muted-foreground text-xs">
-						{subject.length} characters
-						{subject.length > 50
-							? " — most phones cut it at 50"
-							: " — comfortably inside the mobile cut"}
-					</span>
 				</div>
 
 				<div className="flex flex-col gap-1.5">
@@ -272,6 +268,7 @@ export function TemplateEditor({ templateId }: { templateId: string }) {
 				<div className="flex flex-col gap-2">
 					<span className="text-muted-foreground text-xs">Body</span>
 					<EmailBlockEditor
+						onUploadImage={uploadImage}
 						blocks={blocks}
 						selected={selected}
 						onSelect={setSelected}
@@ -279,66 +276,18 @@ export function TemplateEditor({ templateId }: { templateId: string }) {
 							setBlocks(next);
 							setDirty(true);
 						}}
-						shell={{
-							header: "Default shell · workspace logo",
-							footer: "Default shell · address + unsubscribe",
-						}}
+						shell={{ ...DEFAULT_SHELL, action: <EditShellLink /> }}
 					/>
-				</div>
-
-				<div className="flex flex-col gap-1 rounded-md bg-muted px-3 py-2.5">
-					<span className="font-medium text-xs">
-						Header and footer: Default shell
-					</span>
-					<span className="text-muted-foreground text-xs">
-						The logo, the address and the unsubscribe link are added by the
-						compiler. Edit the shell once in Templates, not here.
-					</span>
 				</div>
 			</div>
 
-			<div className="flex min-h-0 min-w-0 flex-1 flex-col bg-muted">
-				<div className="flex h-12 shrink-0 items-center gap-2 border-b px-4">
-					<div className="flex items-center gap-0.5 rounded-md bg-muted p-0.5">
-						{(["desktop", "mobile", "text"] as const).map((mode) => (
-							<Button
-								key={mode}
-								variant={device === mode ? "outline" : "ghost"}
-								size="sm"
-								className="h-7 px-2.5 font-normal text-xs capitalize"
-								onClick={() => setDevice(mode)}
-							>
-								{mode === "text" ? "Plain text" : mode}
-							</Button>
-						))}
-					</div>
-					<span className="flex-1" />
-					<span className="text-muted-foreground text-xs">
-						Rendered by the code that sends it
-					</span>
-				</div>
-
-				<div className="flex min-h-0 flex-1 justify-center overflow-y-auto p-6">
-					{preview.isPending ? (
-						<Spinner />
-					) : preview.data?.blocked ? (
-						<p className="max-w-sm text-center text-muted-foreground text-xs">
-							{preview.data.blocked}
-						</p>
-					) : device === "text" ? (
-						<pre className="w-full whitespace-pre-wrap rounded-lg border bg-background p-5 text-xs">
-							{preview.data?.text}
-						</pre>
-					) : (
-						<iframe
-							title="Email preview"
-							srcDoc={preview.data?.html ?? ""}
-							sandbox=""
-							className="h-full w-full rounded-lg border bg-background"
-							style={{ maxWidth: device === "mobile" ? 390 : 640 }}
-						/>
-					)}
-				</div>
+			<div className="flex min-h-0 min-w-0 flex-1 flex-col">
+				<EmailPreview
+					html={preview.data?.html ?? ""}
+					text={preview.data?.text ?? ""}
+					blocked={preview.data?.blocked ?? null}
+					pending={preview.isPending}
+				/>
 
 				{findings.length > 0 ? (
 					<div className="flex shrink-0 flex-col border-t bg-background">

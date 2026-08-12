@@ -528,7 +528,7 @@ describe("a blast", () => {
 				name: `${TAG} blast`,
 				kind: "BLAST",
 				status: "SCHEDULED",
-				segmentId: segment.id,
+				segments: { create: [{ segmentId: segment.id, mode: "INCLUDE" }] },
 				scheduledAt: new Date(),
 			},
 			select: { id: true },
@@ -554,6 +554,88 @@ describe("a blast", () => {
 
 		expect(rows).toBe(1);
 		expect(second.total).toBe(first.total);
+	});
+
+	test("an excluded segment beats every included one", async () => {
+		seq += 1;
+		const suffix = `${TAG}x${seq}`;
+
+		const [wanted, held] = await Promise.all([
+			db.contact.create({
+				data: {
+					firstName: "Wanted",
+					lastName: TAG,
+					title: `keep-${suffix}`,
+					email: `wanted.${suffix}@example.test`,
+				},
+				select: { id: true },
+			}),
+			db.contact.create({
+				data: {
+					firstName: "Held",
+					lastName: TAG,
+					title: `keep-${suffix} drop-${suffix}`,
+					email: `held.${suffix}@example.test`,
+				},
+				select: { id: true },
+			}),
+		]);
+
+		const [include, exclude] = await Promise.all([
+			db.marketingSegment.create({
+				data: {
+					name: `${TAG} include ${seq}`,
+					definition: {
+						facet: { facet: "contact.titleContains", value: `keep-${suffix}` },
+					},
+				},
+				select: { id: true },
+			}),
+			db.marketingSegment.create({
+				data: {
+					name: `${TAG} exclude ${seq}`,
+					definition: {
+						facet: { facet: "contact.titleContains", value: `drop-${suffix}` },
+					},
+				},
+				select: { id: true },
+			}),
+		]);
+
+		const campaign = await db.marketingCampaign.create({
+			data: {
+				name: `${TAG} split blast ${seq}`,
+				kind: "BLAST",
+				status: "SCHEDULED",
+				segments: {
+					create: [
+						{ segmentId: include.id, mode: "INCLUDE" },
+						{ segmentId: exclude.id, mode: "EXCLUDE" },
+					],
+				},
+				scheduledAt: new Date(),
+				nodes: {
+					create: [
+						{
+							kind: "EMAIL",
+							subject: "Only the wanted",
+							document: { version: 1, blocks: [] },
+						},
+					],
+				},
+			},
+			select: { id: true },
+		});
+
+		await materialise(db, campaign.id);
+
+		const sends = await db.marketingSend.findMany({
+			where: { campaignId: campaign.id },
+			select: { contactId: true },
+		});
+
+		expect(sends.map((send) => send.contactId)).toEqual([wanted.id]);
+		expect(sends.some((send) => send.contactId === held.id)).toBe(false);
 	});
 });
 
@@ -906,10 +988,12 @@ describe("the daily cap", () => {
 					recipientId: recipient.id,
 					address: `cap.${TAG}@example.test`,
 					token: "t",
+					origin: "CAMPAIGN",
 					contactId: null,
 					campaignId: drip.campaignId,
 					nodeId: null,
 					subject: null,
+					preheader: null,
 					document: null,
 					replyTo: null,
 					attempts: 1,
@@ -935,6 +1019,62 @@ describe("the daily cap", () => {
 	test("lets everybody through when the cap is zero", async () => {
 		const allowed = await skipOverCap(db, [], 0, new Date());
 		expect(allowed).toHaveLength(0);
+	});
+
+	test("never skips a test send, however many the person already had", async () => {
+		const recipient = await db.marketingRecipient.create({
+			data: { address: `captest.${TAG}@example.test` },
+			select: { id: true },
+		});
+
+		const now = new Date();
+
+		await db.marketingSend.create({
+			data: {
+				recipientId: recipient.id,
+				origin: "TEST",
+				status: "SENT",
+				dueAt: now,
+				sentAt: now,
+			},
+		});
+
+		const queued = await db.marketingSend.create({
+			data: {
+				recipientId: recipient.id,
+				origin: "TEST",
+				status: "SENDING",
+				dueAt: now,
+			},
+			select: { id: true },
+		});
+
+		const allowed = await skipOverCap(
+			db,
+			[
+				{
+					id: queued.id,
+					recipientId: recipient.id,
+					address: `captest.${TAG}@example.test`,
+					token: "t",
+					origin: "TEST",
+					contactId: null,
+					campaignId: null,
+					nodeId: null,
+					subject: null,
+					preheader: null,
+					document: null,
+					replyTo: null,
+					attempts: 1,
+					hasAttachments: false,
+					attachments: [],
+				},
+			],
+			1,
+			now,
+		);
+
+		expect(allowed).toHaveLength(1);
 	});
 });
 
@@ -1176,7 +1316,7 @@ describe("a template-backed blast", () => {
 				name: `${TAG} template blast ${seq}`,
 				kind: "BLAST",
 				status: "SCHEDULED",
-				segmentId: segment.id,
+				segments: { create: [{ segmentId: segment.id, mode: "INCLUDE" }] },
 				scheduledAt: new Date(),
 			},
 			select: { id: true },

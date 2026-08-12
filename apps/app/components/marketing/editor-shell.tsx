@@ -53,7 +53,7 @@ export function MarketingEditorShell({
 }) {
 	return (
 		<div className="flex min-h-0 min-w-0 flex-1 flex-col">
-			<header className="flex shrink-0 flex-col gap-1.5 border-b px-6 py-4">
+			<header className="flex shrink-0 flex-col gap-1.5 border-b py-4 pr-4 pl-6">
 				<div className="flex items-center gap-2">
 					<Button
 						asChild

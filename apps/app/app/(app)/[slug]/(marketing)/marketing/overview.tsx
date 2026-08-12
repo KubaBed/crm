@@ -108,9 +108,9 @@ export function MarketingOverview() {
 					note="campaigns"
 				/>
 				<Stat
-					label="In flight"
+					label="In progress"
 					value={data.inFlight.toLocaleString()}
-					note="people mid-drip"
+					note="people in a sequence"
 				/>
 				<Stat
 					label="Sent"
@@ -130,7 +130,7 @@ export function MarketingOverview() {
 
 			<div className="flex flex-col overflow-clip rounded-lg border">
 				<div className="flex items-center justify-between border-b bg-muted px-4 py-2.5">
-					<span className="font-medium text-xs">Recently touched</span>
+					<span className="font-medium text-xs">Recently updated</span>
 					<Link
 						href={workspaceUrl("/marketing/campaigns")}
 						className="text-muted-foreground text-xs underline"
@@ -142,8 +142,8 @@ export function MarketingOverview() {
 
 				{data.recent.length === 0 ? (
 					<p className="px-4 py-8 text-center text-muted-foreground text-xs">
-						Nothing yet. A blast goes to a segment once; a drip follows up over
-						weeks and branches.
+						Nothing yet. A blast goes to a segment once. A sequence follows up
+						over weeks and branches.
 					</p>
 				) : (
 					data.recent.map((campaign) => (
@@ -157,7 +157,7 @@ export function MarketingOverview() {
 								{campaign.name}
 							</span>
 							<span className="shrink-0 text-muted-foreground text-xs">
-								{campaign.kind === "DRIP" ? "Drip" : "Blast"}
+								{campaign.kind === "DRIP" ? "Sequence" : "Blast"}
 							</span>
 							<span className="w-20 shrink-0 text-xs">
 								<CampaignStatus status={campaign.status} />

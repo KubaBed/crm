@@ -82,13 +82,13 @@ const COPY: Record<AgentRecordKind, RecordCopy> = {
 		field: "campaignId",
 		title: "Build this campaign",
 		blurb:
-			"Describe the touches and it writes the graph. It edits drafts; you activate it.",
+			"Describe the steps and it builds the flow. It edits drafts; you activate it.",
 		placeholder:
-			"Four touches over two weeks, branching on whether they opened.",
+			"Four emails over two weeks, branching on whether they opened.",
 		suggestions: [
-			"Add a wait and a follow-up after touch one",
+			"Add a wait and a follow-up after the first email",
 			"Branch after the first email on whether they clicked",
-			"Make touch two shorter",
+			"Make the second email shorter",
 		],
 	},
 	segment: {
@@ -96,7 +96,7 @@ const COPY: Record<AgentRecordKind, RecordCopy> = {
 		field: "segmentId",
 		title: "Describe who is in this segment",
 		blurb:
-			"Say it in plain English. The agent writes the rules on the left, and you can still edit every one by hand.",
+			"Say it in plain English. The agent writes the rules on the left, and you can still edit every one yourself.",
 		placeholder: "People who hit pricing twice and never replied.",
 		suggestions: [
 			"Everyone who visited pricing and has no open deal",
@@ -109,7 +109,7 @@ const COPY: Record<AgentRecordKind, RecordCopy> = {
 		field: "shellId",
 		title: "Write this header or footer",
 		blurb:
-			"Every email wears it. The postal address and the unsubscribe link are the compiler's and cannot move.",
+			"Every email carries it. The postal address and the unsubscribe link are added on every send and cannot move.",
 		placeholder: "Put our logo at the top and a thin rule under it.",
 		suggestions: [
 			"Put our logo at the top",
@@ -122,7 +122,7 @@ const COPY: Record<AgentRecordKind, RecordCopy> = {
 		field: "templateId",
 		title: "Write this email",
 		blurb:
-			"It writes the body only. The header and footer come from the shell.",
+			"It writes the body only. The header and footer come from your default template.",
 		placeholder: "Make this shorter and lead with the customer.",
 		suggestions: [
 			"Make this shorter",

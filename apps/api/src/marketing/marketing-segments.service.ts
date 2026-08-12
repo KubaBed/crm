@@ -88,7 +88,12 @@ export class MarketingSegmentsService {
 				...paginate(input),
 				select: {
 					...SELECT,
-					campaigns: { select: { id: true, name: true, kind: true } },
+					campaigns: {
+						select: {
+							mode: true,
+							campaign: { select: { id: true, name: true, kind: true } },
+						},
+					},
 				},
 			}),
 			this.db.marketingSegment.count({ where }),
@@ -112,11 +117,16 @@ export class MarketingSegmentsService {
 					people: counts.total,
 					byRule: counts.byRule,
 					byHand: counts.byHand,
-					usedBy: row.campaigns.map((campaign) => ({
-						id: campaign.id,
-						name: campaign.name,
-						kind: campaign.kind,
-						role: campaign.kind === "DRIP" ? "Entry" : "Audience",
+					usedBy: row.campaigns.map((link) => ({
+						id: link.campaign.id,
+						name: link.campaign.name,
+						kind: link.campaign.kind,
+						role:
+							link.mode === "EXCLUDE"
+								? "Excluded"
+								: link.campaign.kind === "DRIP"
+									? "Entry"
+									: "Audience",
 					})),
 					refreshed: hasRule ? "Live" : row.updatedAt.toISOString(),
 					updatedAt: row.updatedAt,
@@ -133,7 +143,12 @@ export class MarketingSegmentsService {
 			select: {
 				...SELECT,
 				campaigns: {
-					select: { id: true, name: true, kind: true, status: true },
+					select: {
+						mode: true,
+						campaign: {
+							select: { id: true, name: true, kind: true, status: true },
+						},
+					},
 				},
 			},
 		});
@@ -188,7 +203,10 @@ export class MarketingSegmentsService {
 			definition: row.definition as Record<string, unknown> | null,
 			kind: row.kind,
 			counts: { ...counts, sendable, suppressed: excluded.length },
-			usedBy: row.campaigns,
+			usedBy: row.campaigns.map((link) => ({
+				...link.campaign,
+				mode: link.mode,
+			})),
 			members: row.members.map((member) => ({
 				contactId: member.contactId,
 				mode: member.mode,
@@ -205,6 +223,80 @@ export class MarketingSegmentsService {
 				email: contact.email,
 				company: contact.company?.name ?? null,
 			})),
+		};
+	}
+
+	async people(input: ListInput & { segmentId: string }) {
+		const segment = await this.db.marketingSegment.findUnique({
+			where: { id: input.segmentId },
+			select: {
+				definition: true,
+				members: { select: { contactId: true, mode: true } },
+			},
+		});
+
+		if (!segment) throw new NotFoundException("No such segment.");
+
+		const where: Prisma.ContactWhereInput = {
+			AND: [
+				segmentWhere(segment),
+				...(input.q
+					? [
+							{
+								OR: [
+									{
+										firstName: {
+											contains: input.q,
+											mode: "insensitive" as const,
+										},
+									},
+									{
+										lastName: {
+											contains: input.q,
+											mode: "insensitive" as const,
+										},
+									},
+									{
+										email: { contains: input.q, mode: "insensitive" as const },
+									},
+								],
+							},
+						]
+					: []),
+			],
+		};
+
+		const [rows, total] = await Promise.all([
+			this.db.contact.findMany({
+				where,
+				...paginate(input),
+				orderBy: { createdAt: "desc" },
+				select: {
+					id: true,
+					firstName: true,
+					lastName: true,
+					email: true,
+					title: true,
+					company: { select: { name: true } },
+					marketingRecipients: { select: { status: true }, take: 1 },
+				},
+			}),
+			this.db.contact.count({ where }),
+		]);
+
+		return {
+			rows: rows.map((contact) => ({
+				id: contact.id,
+				name:
+					[contact.firstName, contact.lastName].filter(Boolean).join(" ") ||
+					(contact.email ?? "Somebody"),
+				email: contact.email,
+				title: contact.title,
+				company: contact.company?.name ?? null,
+				status: contact.marketingRecipients[0]?.status ?? "SUBSCRIBED",
+			})),
+			total,
+			facetCounts: {},
 		};
 	}
 

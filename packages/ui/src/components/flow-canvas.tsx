@@ -24,6 +24,8 @@ export type FlowCanvasProps = {
 	edges: Edge[];
 	selectedId?: string | null;
 	onNodeClick?: NodeMouseHandler;
+	onNodeContextMenu?: NodeMouseHandler;
+	onPaneContextMenu?: () => void;
 	onNodeMoved?: (id: string, position: { x: number; y: number }) => void;
 	className?: string;
 	fitKey?: string;
@@ -46,6 +48,8 @@ function Canvas({
 	nodes,
 	edges,
 	onNodeClick,
+	onNodeContextMenu,
+	onPaneContextMenu,
 	onNodeMoved,
 	className,
 	fitKey,
@@ -58,6 +62,8 @@ function Canvas({
 				edges={edges}
 				nodeTypes={FLOW_NODE_TYPES}
 				onNodeClick={onNodeClick}
+				onNodeContextMenu={onNodeContextMenu}
+				onPaneContextMenu={() => onPaneContextMenu?.()}
 				onNodeDragStop={(_event, node) =>
 					onNodeMoved?.(node.id, { x: node.position.x, y: node.position.y })
 				}

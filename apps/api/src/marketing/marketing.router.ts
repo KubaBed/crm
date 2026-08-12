@@ -16,6 +16,7 @@ import {
 	archiveCampaignInput,
 	campaignListInput,
 	campaignPageInput,
+	connectFinishInput,
 	createCampaignInput,
 	createSegmentInput,
 	createTemplateInput,
@@ -35,8 +36,10 @@ import {
 	savePartialInput,
 	saveSendingInput,
 	scheduleInput,
+	segmentPageInput,
 	sendCompanyInput,
 	sendDirectInput,
+	sendTestNodeInput,
 	setDomainInput,
 	setKindInput,
 	setTrackingInput,
@@ -44,6 +47,7 @@ import {
 	updateNodeInput,
 	updateSegmentInput,
 	updateTemplateInput,
+	uploadImageInput,
 	winnerInput,
 	writeGraphInput,
 } from "./marketing.contracts";
@@ -99,6 +103,16 @@ export class MarketingRouter {
 	@Mutation()
 	async disconnect() {
 		return this.settingsService.disconnect();
+	}
+
+	@Mutation()
+	async connectStart() {
+		return this.settingsService.connectStart();
+	}
+
+	@Mutation({ input: connectFinishInput })
+	async connectFinish(@Input() input: z.infer<typeof connectFinishInput>) {
+		return this.settingsService.connectFinish(input.code, input.state);
 	}
 
 	@Mutation({ input: saveIdentityInput })
@@ -183,6 +197,11 @@ export class MarketingCampaignsRouter {
 		return this.campaigns.enrolments(input);
 	}
 
+	@Query({ input: idInput })
+	async forContact(@Input() input: z.infer<typeof idInput>) {
+		return this.campaigns.forContact(input.id);
+	}
+
 	@Mutation({ input: createCampaignInput })
 	async create(
 		@Ctx() ctx: AuthedTrpcContext,
@@ -194,6 +213,19 @@ export class MarketingCampaignsRouter {
 	@Mutation({ input: updateCampaignInput })
 	async update(@Input() input: z.infer<typeof updateCampaignInput>) {
 		return this.campaigns.update(input);
+	}
+
+	@Mutation({ input: idInput })
+	async duplicate(
+		@Ctx() ctx: AuthedTrpcContext,
+		@Input() input: z.infer<typeof idInput>,
+	) {
+		return this.campaigns.duplicate(input.id, ctx.user.id);
+	}
+
+	@Mutation({ input: idInput })
+	async saveNodeAsTemplate(@Input() input: z.infer<typeof idInput>) {
+		return this.campaigns.saveNodeAsTemplate(input.id);
 	}
 
 	@Mutation({ input: writeGraphInput })
@@ -307,6 +339,14 @@ export class MarketingCampaignsRouter {
 		return this.attachmentsService.remove(input.id);
 	}
 
+	@Mutation({ input: sendTestNodeInput })
+	async sendTest(
+		@Ctx() ctx: AuthedTrpcContext,
+		@Input() input: z.infer<typeof sendTestNodeInput>,
+	) {
+		return this.campaigns.sendTest({ ...input, userId: ctx.user.id });
+	}
+
 	@Mutation({ input: sendDirectInput })
 	async sendDirect(
 		@Ctx() ctx: AuthedTrpcContext,
@@ -350,6 +390,11 @@ export class MarketingSegmentsRouter {
 	@Query({ input: previewSegmentInput })
 	async preview(@Input() input: z.infer<typeof previewSegmentInput>) {
 		return this.segments.preview(input.definition);
+	}
+
+	@Query({ input: segmentPageInput })
+	async people(@Input() input: z.infer<typeof segmentPageInput>) {
+		return this.segments.people(input);
 	}
 
 	@Mutation({ input: createSegmentInput })
@@ -433,6 +478,11 @@ export class MarketingTemplatesRouter {
 	@Query({ input: previewTemplateInput })
 	async preview(@Input() input: z.infer<typeof previewTemplateInput>) {
 		return this.templates.preview(input);
+	}
+
+	@Mutation({ input: uploadImageInput })
+	async uploadImage(@Input() input: z.infer<typeof uploadImageInput>) {
+		return this.templates.uploadImage(input);
 	}
 
 	@Mutation({ input: createTemplateInput })

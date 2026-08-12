@@ -1,4 +1,10 @@
 export {
+	type CampaignSegment,
+	campaignAudienceWhere,
+	campaignSegments,
+	setCampaignSegments,
+} from "./audience";
+export {
 	advance,
 	advanceDue,
 	archiveDrained,
@@ -72,7 +78,10 @@ export {
 	MARKETING,
 	type MarketingSettings,
 	maskKey,
+	RESEND_OAUTH,
+	type ResendConnection,
 	readMarketingSettings,
+	resendConnection,
 	type Sendable,
 	type SetupStep,
 	writeMarketingSettings,

@@ -1,11 +1,11 @@
 "use client";
 
 import Locked from "@carbon/icons-react/es/Locked";
-import { Button } from "@crm/ui/components/button";
 import {
 	type EmailBlock,
 	EmailBlockEditor,
 } from "@crm/ui/components/email-blocks";
+import { EmailPreview } from "@crm/ui/components/email-preview";
 import { Icon } from "@crm/ui/components/icon";
 import { Spinner } from "@crm/ui/components/spinner";
 import {
@@ -21,6 +21,7 @@ import {
 	MarketingEditorMeta,
 	MarketingEditorShell,
 } from "@/components/marketing/editor-shell";
+import { useImageUpload } from "@/components/marketing/use-image-upload";
 import { useTRPC } from "@/lib/trpc/client";
 import { useWorkspaceUrl } from "@/lib/use-workspace-url";
 
@@ -32,6 +33,7 @@ function blocksOf(document: unknown): EmailBlock[] {
 
 export function ShellEditor({ shellId }: { shellId: string }) {
 	const trpc = useTRPC();
+	const uploadImage = useImageUpload();
 	const queryClient = useQueryClient();
 	const workspaceUrl = useWorkspaceUrl();
 
@@ -43,9 +45,6 @@ export function ShellEditor({ shellId }: { shellId: string }) {
 	const [blocks, setBlocks] = useState<EmailBlock[]>([]);
 	const [selected, setSelected] = useState<number | null>(null);
 	const [dirty, setDirty] = useState(false);
-	const [device, setDevice] = useState<"desktop" | "mobile" | "text">(
-		"desktop",
-	);
 
 	const data = shell.data;
 
@@ -135,13 +134,13 @@ export function ShellEditor({ shellId }: { shellId: string }) {
 						data.usedBy === 0
 							? "No template picks it"
 							: `${data.usedBy} template${data.usedBy === 1 ? "" : "s"}`,
-						"A node cannot change this. Every email wears it.",
+						"No campaign can change this. Every email carries it.",
 					]}
 				/>
 			}
 			rail={<CopilotRail record={{ kind: "shell", id: shellId }} />}
 		>
-			<div className="flex w-[400px] shrink-0 flex-col gap-4 overflow-y-auto border-r p-4">
+			<div className="flex w-[400px] shrink-0 flex-col gap-4 overflow-y-auto overflow-x-hidden border-r p-4">
 				{data.kind === "HEADER" ? (
 					<div className="flex items-center gap-2 rounded-md bg-muted px-2.5 py-2">
 						<Icon
@@ -160,6 +159,7 @@ export function ShellEditor({ shellId }: { shellId: string }) {
 				) : null}
 
 				<EmailBlockEditor
+					onUploadImage={uploadImage}
 					blocks={blocks}
 					selected={selected}
 					onSelect={setSelected}
@@ -171,54 +171,18 @@ export function ShellEditor({ shellId }: { shellId: string }) {
 
 				<p className="text-muted-foreground text-xs">
 					{data.kind === "HEADER"
-						? "The brand line is drawn from your logo, and the postal address and the unsubscribe link are added by the compiler. They are not blocks and nothing here can remove them. Anything you add sits under the brand line."
-						: "The postal address and the unsubscribe link are added by the compiler on every send. They are not blocks and nothing here can remove them."}
+						? "The brand line is drawn from your logo, and the postal address and the unsubscribe link go on every send. They are not blocks and nothing here can remove them. Anything you add sits under the brand line."
+						: "The postal address and the unsubscribe link go on every send. They are not blocks and nothing here can remove them."}
 				</p>
 			</div>
 
-			<div className="flex min-h-0 min-w-0 flex-1 flex-col bg-muted">
-				<div className="flex h-12 shrink-0 items-center gap-2 border-b px-4">
-					<div className="flex items-center gap-0.5 rounded-md bg-muted p-0.5">
-						{(["desktop", "mobile", "text"] as const).map((mode) => (
-							<Button
-								key={mode}
-								variant={device === mode ? "outline" : "ghost"}
-								size="sm"
-								className="h-7 px-2.5 font-normal text-xs capitalize"
-								onClick={() => setDevice(mode)}
-							>
-								{mode === "text" ? "Plain text" : mode}
-							</Button>
-						))}
-					</div>
-					<span className="flex-1" />
-					<span className="text-muted-foreground text-xs">
-						An email wearing this, rendered by the code that sends it
-					</span>
-				</div>
-
-				<div className="flex min-h-0 flex-1 justify-center overflow-y-auto p-6">
-					{preview.isPending ? (
-						<Spinner />
-					) : preview.data?.blocked ? (
-						<p className="max-w-sm text-center text-muted-foreground text-xs">
-							{preview.data.blocked}
-						</p>
-					) : device === "text" ? (
-						<pre className="w-full whitespace-pre-wrap rounded-lg border bg-background p-5 text-xs">
-							{preview.data?.text}
-						</pre>
-					) : (
-						<iframe
-							title="Shell preview"
-							srcDoc={preview.data?.html ?? ""}
-							sandbox=""
-							className="h-full w-full rounded-lg border bg-background"
-							style={{ maxWidth: device === "mobile" ? 390 : 640 }}
-						/>
-					)}
-				</div>
-			</div>
+			<EmailPreview
+				html={preview.data?.html ?? ""}
+				text={preview.data?.text ?? ""}
+				blocked={preview.data?.blocked ?? null}
+				pending={preview.isPending}
+				note="An email with this header and footer, exactly as it sends"
+			/>
 		</MarketingEditorShell>
 	);
 }

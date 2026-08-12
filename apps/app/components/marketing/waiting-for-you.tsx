@@ -12,6 +12,7 @@ import { Spinner } from "@crm/ui/components/spinner";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { toast } from "sonner";
+import { CampaignStatus } from "@/app/(app)/[slug]/(marketing)/marketing/campaign-status";
 import { LocalDateTime } from "@/components/local-date-time";
 import { useTRPC } from "@/lib/trpc/client";
 import { useWorkspaceUrl } from "@/lib/use-workspace-url";
@@ -68,8 +69,7 @@ export function WaitingForYou() {
 			<CardHeader>
 				<CardTitle>Waiting for you</CardTitle>
 				<CardDescription>
-					The agent staged {rows.length === 1 ? "this" : "these"}. Nothing sends
-					until you approve.
+					The agent staged {rows.length === 1 ? "this" : "these"}.
 				</CardDescription>
 			</CardHeader>
 			<CardContent className="gap-0 p-0">
@@ -87,14 +87,17 @@ export function WaitingForYou() {
 								{row.name}
 							</Link>
 							<span className="shrink-0 rounded-sm border px-1.5 py-px text-muted-foreground text-xs">
-								{row.kind === "DRIP" ? "Drip" : "Blast"}
+								{row.kind === "DRIP" ? "Sequence" : "Blast"}
+							</span>
+							<span className="shrink-0 text-xs">
+								<CampaignStatus status="PENDING_APPROVAL" />
 							</span>
 						</div>
 
 						<p className="text-muted-foreground text-xs">{row.note}</p>
 
 						<p className="text-muted-foreground text-xs">
-							{row.segment?.name ?? "No segment"} · {row.nodes} node
+							{row.segment?.name ?? "No segment"} · {row.nodes} step
 							{row.nodes === 1 ? "" : "s"} ·{" "}
 							{row.at ? (
 								<>

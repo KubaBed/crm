@@ -108,6 +108,15 @@ export function MarketingSettingsForm() {
 		}),
 	);
 
+	const connect = useMutation(
+		trpc.marketing.connectStart.mutationOptions({
+			onSuccess: (result) => {
+				window.location.href = result.url;
+			},
+			onError: (error) => toast.error(error.message),
+		}),
+	);
+
 	const setTracking = useMutation(
 		trpc.marketing.setTracking.mutationOptions({
 			onSuccess: () => {
@@ -164,17 +173,23 @@ export function MarketingSettingsForm() {
 					</CardDescription>
 					<CardAction>
 						<Button
-							disabled={!key.trim() || saveKey.isPending}
-							onClick={() => saveKey.mutate({ key })}
+							disabled={connect.isPending}
+							onClick={() => connect.mutate()}
 						>
-							{saveKey.isPending ? <Spinner /> : null}
-							{data.connected ? "Replace key" : "Connect"}
+							{connect.isPending ? <Spinner /> : null}
+							{data.connection === "oauth" ? "Sign in again" : "Sign in"}
 						</Button>
 					</CardAction>
 				</CardHeader>
-				<CardContent>
+				<CardContent className="gap-4">
+					<p className="text-muted-foreground text-xs">
+						{data.connection === "oauth"
+							? "Signed in to Resend. Revoke it in Resend at any time."
+							: "Signing in grants access on Resend's own screen, and you can revoke it there."}
+					</p>
+
 					<Field>
-						<FieldLabel htmlFor={keyId}>API key</FieldLabel>
+						<FieldLabel htmlFor={keyId}>Or paste an API key</FieldLabel>
 						<Input
 							id={keyId}
 							value={key}
@@ -183,6 +198,17 @@ export function MarketingSettingsForm() {
 							autoComplete="off"
 						/>
 					</Field>
+
+					<Button
+						variant="outline"
+						size="sm"
+						className="self-start"
+						disabled={!key.trim() || saveKey.isPending}
+						onClick={() => saveKey.mutate({ key })}
+					>
+						{saveKey.isPending ? <Spinner /> : null}
+						{data.connection === "key" ? "Replace key" : "Use this key"}
+					</Button>
 				</CardContent>
 			</Card>
 

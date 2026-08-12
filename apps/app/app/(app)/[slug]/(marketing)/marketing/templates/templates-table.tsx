@@ -136,7 +136,7 @@ export function TemplatesTable() {
 			onRowClick={(row) =>
 				router.push(workspaceUrl(`/marketing/templates/${row.id}`))
 			}
-			empty="No templates yet. A template holds the shell and a starting point for the copy."
+			empty="No templates yet. A template is a saved email you can start a campaign from."
 		/>
 	);
 }

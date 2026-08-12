@@ -4,7 +4,9 @@ import {
 	ensureDefaultSegments,
 	maskKey,
 	queueDirect,
+	type ResendConnection,
 	readMarketingSettings,
+	resendConnection,
 	type SetupStep,
 	writeMarketingSettings,
 } from "@crm/db/marketing";
@@ -15,11 +17,13 @@ import { InjectDatabase } from "../database/database.constants";
 import { MarketingDrainService } from "./marketing-drain.service";
 import type { DnsRecord } from "./resend.service";
 import { ResendService } from "./resend.service";
+import { ResendOauthService } from "./resend-oauth.service";
 
 export type MarketingStatus = { onboarded: boolean };
 
 export type MarketingSettingsView = {
 	connected: boolean;
+	connection: ResendConnection;
 	apiKeyMask: string | null;
 	sendingDomain: string | null;
 	fromName: string | null;
@@ -40,6 +44,7 @@ export class MarketingSettingsService {
 	constructor(
 		@InjectDatabase() private readonly db: Db,
 		private readonly resend: ResendService,
+		private readonly oauth: ResendOauthService,
 		private readonly drain: MarketingDrainService,
 		private readonly agent: AgentTriggerService,
 	) {}
@@ -56,7 +61,8 @@ export class MarketingSettingsService {
 		]);
 
 		return {
-			connected: settings.resendApiKey !== null,
+			connected: resendConnection(settings) !== null,
+			connection: resendConnection(settings),
 			apiKeyMask: maskKey(settings.resendApiKey),
 			sendingDomain: settings.sendingDomain,
 			fromName: settings.fromName,
@@ -94,11 +100,21 @@ export class MarketingSettingsService {
 	}
 
 	async disconnect(): Promise<void> {
+		await this.oauth.disconnect();
 		await writeMarketingSettings(this.db, {
 			resendApiKey: null,
 			resendDomainId: null,
 			sendingDomain: null,
 		});
+	}
+
+	async connectStart(): Promise<{ url: string }> {
+		return this.oauth.start();
+	}
+
+	async connectFinish(code: string, state: string): Promise<void> {
+		await this.oauth.finish(code, state);
+		await this.agent.marketingConnected().catch(() => {});
 	}
 
 	async saveIdentity(input: {

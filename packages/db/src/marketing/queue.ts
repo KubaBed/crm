@@ -4,6 +4,7 @@ import type {
 	MarketingSendOrigin,
 	MarketingSendStatus,
 } from "../generated/prisma/enums";
+import { campaignAudienceWhere } from "./audience";
 import { emailContent } from "./drips";
 import { recipientsFor, type SkipReason, skipFor } from "./recipients";
 import { segmentWhere } from "./segments";
@@ -11,11 +12,20 @@ import { MARKETING } from "./settings";
 
 export type { SkipReason } from "./recipients";
 
+const CAPPED_ORIGINS = new Set<MarketingSendOrigin>(["CAMPAIGN", "DRIP"]);
+
 export type MaterialiseResult = {
 	queued: number;
 	skipped: Record<string, number>;
 	total: number;
 };
+
+export function contactsIn(
+	db: Db,
+	where: Prisma.ContactWhereInput,
+): Promise<{ id: string; email: string | null }[]> {
+	return db.contact.findMany({ where, select: { id: true, email: true } });
+}
 
 export async function audienceFor(
 	db: Db,
@@ -31,10 +41,7 @@ export async function audienceFor(
 
 	if (!segment) return [];
 
-	return db.contact.findMany({
-		where: segmentWhere(segment),
-		select: { id: true, email: true },
-	});
+	return contactsIn(db, segmentWhere(segment));
 }
 
 export async function materialise(
@@ -46,7 +53,7 @@ export async function materialise(
 		where: { id: campaignId },
 		select: {
 			id: true,
-			segmentId: true,
+			fromName: true,
 			replyTo: true,
 			scheduledAt: true,
 			nodes: {
@@ -62,14 +69,17 @@ export async function materialise(
 		},
 	});
 
-	if (!campaign?.segmentId) return { queued: 0, skipped: {}, total: 0 };
+	if (!campaign) return { queued: 0, skipped: {}, total: 0 };
+
+	const where = await campaignAudienceWhere(db, campaign.id);
+	if (!where) return { queued: 0, skipped: {}, total: 0 };
 
 	const node = campaign.nodes.find((candidate) => candidate.kind === "EMAIL");
 	if (!node) return { queued: 0, skipped: {}, total: 0 };
 
 	const content = emailContent(node);
 
-	const contacts = await audienceFor(db, campaign.segmentId);
+	const contacts = await contactsIn(db, where);
 	const withEmail = contacts.filter((contact) => contact.email);
 	const recipients = await recipientsFor(
 		db,
@@ -104,7 +114,9 @@ export async function materialise(
 			contactId: contact.id,
 			origin: "CAMPAIGN",
 			pass: 1,
+			fromName: campaign.fromName,
 			subject: content.subject,
+			preheader: content.preheader,
 			document: content.document,
 			replyTo: campaign.replyTo,
 			status: reason ? "SKIPPED" : "QUEUED",
@@ -131,7 +143,9 @@ export async function materialise(
 export type DirectSend = {
 	address: string;
 	contactId?: string | null;
+	fromName?: string | null;
 	subject: string;
+	preheader?: string | null;
 	document: unknown;
 	replyTo?: string | null;
 	requestedById?: string | null;
@@ -162,7 +176,9 @@ export async function queueDirect(
 			recipientId: recipient.id,
 			contactId: input.contactId ?? recipient.contactId,
 			origin: input.origin ?? "DIRECT",
+			fromName: input.fromName ?? null,
 			subject: input.subject,
+			preheader: input.preheader ?? null,
 			document: input.document as Prisma.InputJsonValue,
 			replyTo: input.replyTo ?? null,
 			requestedById: input.requestedById ?? null,
@@ -251,12 +267,15 @@ export async function skipOverCap(
 ): Promise<ClaimedSend[]> {
 	if (cap <= 0 || claimed.length === 0) return claimed;
 
+	const capped = claimed.filter((send) => CAPPED_ORIGINS.has(send.origin));
+	if (capped.length === 0) return claimed;
+
 	const since = new Date(now.getTime() - MARKETING.cap.windowMs);
 
 	const counts = await db.marketingSend.groupBy({
 		by: ["recipientId"],
 		where: {
-			recipientId: { in: claimed.map((send) => send.recipientId) },
+			recipientId: { in: capped.map((send) => send.recipientId) },
 			sentAt: { gte: since },
 		},
 		_count: { _all: true },
@@ -270,6 +289,11 @@ export async function skipOverCap(
 	const over: string[] = [];
 
 	for (const send of claimed) {
+		if (!CAPPED_ORIGINS.has(send.origin)) {
+			allowed.push(send);
+			continue;
+		}
+
 		const already = sent.get(send.recipientId) ?? 0;
 		if (already >= cap) {
 			over.push(send.id);
@@ -295,10 +319,13 @@ export type ClaimedSend = {
 	recipientId: string;
 	address: string;
 	token: string;
+	origin: MarketingSendOrigin;
 	contactId: string | null;
 	campaignId: string | null;
 	nodeId: string | null;
+	fromName: string | null;
 	subject: string | null;
+	preheader: string | null;
 	document: unknown;
 	replyTo: string | null;
 	attempts: number;
@@ -341,10 +368,13 @@ export async function claimDueSends(
 		select: {
 			id: true,
 			recipientId: true,
+			origin: true,
 			contactId: true,
 			campaignId: true,
 			nodeId: true,
+			fromName: true,
 			subject: true,
+			preheader: true,
 			document: true,
 			replyTo: true,
 			attempts: true,
@@ -372,10 +402,13 @@ export async function claimDueSends(
 			recipientId: row.recipientId,
 			address: row.recipient.address,
 			token: row.recipient.token,
+			origin: row.origin,
 			contactId: row.contactId,
 			campaignId: row.campaignId,
 			nodeId: row.nodeId,
+			fromName: row.fromName,
 			subject: row.subject,
+			preheader: row.preheader,
 			document: row.document,
 			replyTo: row.replyTo,
 			attempts: row.attempts,

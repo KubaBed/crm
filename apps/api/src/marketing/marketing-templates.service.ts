@@ -1,5 +1,6 @@
 import type { Db, Prisma } from "@crm/db";
-import { readMarketingSettings } from "@crm/db/marketing";
+import { blobEnabled, putBytes } from "@crm/db/blob";
+import { MARKETING, readMarketingSettings } from "@crm/db/marketing";
 import { readWorkspaceIdentity } from "@crm/db/workspace";
 import {
 	EMPTY_DOCUMENT,
@@ -19,6 +20,8 @@ import { type ListInput, paginate, resolveOrderBy } from "../trpc/list-input";
 import { MarketingComposeService } from "./marketing-compose.service";
 
 const GLYPH_LINES = 4;
+
+const EMAIL_IMAGE_TYPES = new Set(["image/png", "image/jpeg", "image/gif"]);
 
 const UNREADABLE_EMAIL =
 	"That email content cannot be read, so nothing can be previewed or sent. Undo the last change, or start the body again.";
@@ -226,7 +229,55 @@ export class MarketingTemplatesService {
 		};
 	}
 
-	async create(input: { name: string; subject?: string; document?: unknown }) {
+	async uploadImage(input: {
+		filename: string;
+		mimeType: string;
+		contentBase64: string;
+	}): Promise<{ url: string }> {
+		if (!blobEnabled()) {
+			throw new BadRequestException(
+				"This install has no blob storage, so it cannot host an image. Paste a URL instead.",
+			);
+		}
+
+		const type = input.mimeType.split(";")[0]?.trim().toLowerCase() ?? "";
+
+		if (!EMAIL_IMAGE_TYPES.has(type)) {
+			throw new BadRequestException(
+				`Use a PNG, a JPEG or a GIF. Outlook draws none of the rest, ${type || "that type"} included.`,
+			);
+		}
+
+		const bytes = Buffer.from(input.contentBase64, "base64");
+
+		if (bytes.byteLength === 0) {
+			throw new BadRequestException("That file is empty.");
+		}
+
+		if (bytes.byteLength > MARKETING.image.maxBytes) {
+			const mb = Math.round(MARKETING.image.maxBytes / (1024 * 1024));
+			throw new BadRequestException(
+				`That image is over ${mb} MB. A big image is slow in a phone inbox, so shrink it first.`,
+			);
+		}
+
+		const url = await putBytes(bytes, input.filename, type, "marketing/images");
+
+		if (!url) {
+			throw new BadRequestException(
+				"The upload failed. Try again, or paste a URL instead.",
+			);
+		}
+
+		return { url };
+	}
+
+	async create(input: {
+		name: string;
+		subject?: string;
+		preheader?: string | null;
+		document?: unknown;
+	}) {
 		const name = blankToNull(input.name);
 		if (!name) throw new BadRequestException("Give the template a name.");
 
@@ -241,6 +292,7 @@ export class MarketingTemplatesService {
 			data: {
 				name,
 				subject: input.subject ?? "",
+				preheader: input.preheader ?? null,
 				document: (input.document ?? EMPTY_DOCUMENT) as Prisma.InputJsonValue,
 			},
 			select: { id: true },
@@ -320,6 +372,7 @@ export class MarketingTemplatesService {
 			return {
 				html: null,
 				text: null,
+				subject: input.subject ?? "",
 				lint,
 				blocked: UNREADABLE_EMAIL,
 			};
@@ -339,13 +392,20 @@ export class MarketingTemplatesService {
 			return {
 				html: null,
 				text: null,
+				subject: input.subject ?? "",
 				lint,
 				blocked:
 					"Set a postal address in Marketing settings, and APP_URL for this install, before anything can be previewed or sent.",
 			};
 		}
 
-		return { html: composed.html, text: composed.text, lint, blocked: null };
+		return {
+			html: composed.html,
+			text: composed.text,
+			subject: composed.subject,
+			lint,
+			blocked: null,
+		};
 	}
 
 	async partials() {

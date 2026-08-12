@@ -315,7 +315,9 @@ export async function readCampaign(id: string) {
 			entryMode: true,
 			maxPasses: true,
 			reentryCooldownDays: true,
-			segment: { select: { id: true, name: true } },
+			segments: {
+				select: { mode: true, segment: { select: { id: true, name: true } } },
+			},
 			nodes: {
 				select: {
 					id: true,
@@ -365,7 +367,15 @@ export async function readCampaign(id: string) {
 		}),
 	);
 
-	return { ...campaign, stats };
+	return {
+		...campaign,
+		segments: campaign.segments.map((link) => ({
+			id: link.segment.id,
+			name: link.segment.name,
+			mode: link.mode,
+		})),
+		stats,
+	};
 }
 
 function nodeDocumentProblems(nodes: GraphNode[]): ToolProblem[] {
@@ -636,8 +646,7 @@ export async function stageCampaign(input: {
 		select: {
 			kind: true,
 			status: true,
-			segmentId: true,
-			_count: { select: { nodes: true } },
+			_count: { select: { nodes: true, segments: true } },
 		},
 	});
 
@@ -649,7 +658,7 @@ export async function stageCampaign(input: {
 		};
 	}
 
-	if (!campaign.segmentId) {
+	if (campaign._count.segments === 0) {
 		return { error: "It has no segment, so nobody would receive it." };
 	}
 

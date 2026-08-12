@@ -26,7 +26,7 @@ export type EmailNodeData = {
 
 export type WaitNodeData = { label: string };
 export type LogicNodeData = { kind: string; label: string };
-export type EntryNodeData = { label: string };
+export type EntryNodeData = { label: string; detail?: string | null };
 export type ExitNodeData = { label: string };
 
 function percent(part: number, whole: number): string {
@@ -76,10 +76,16 @@ export function EmailNode({ data, selected }: NodeProps) {
 			</div>
 			{stats ? (
 				<div className="flex items-center gap-2 border-t bg-muted px-3 py-1.5">
-					<Stat>{stats.sent.toLocaleString()} sent</Stat>
-					<Stat>{percent(stats.opened, stats.sent)} open</Stat>
-					<Stat>{percent(stats.clicked, stats.sent)} click</Stat>
-					<Stat>{percent(stats.replied, stats.sent)} reply</Stat>
+					{stats.sent === 0 ? (
+						<Stat>Nothing sent yet</Stat>
+					) : (
+						<>
+							<Stat>{stats.sent.toLocaleString()} sent</Stat>
+							<Stat>{percent(stats.opened, stats.sent)} open</Stat>
+							<Stat>{percent(stats.clicked, stats.sent)} click</Stat>
+							<Stat>{percent(stats.replied, stats.sent)} reply</Stat>
+						</>
+					)}
 				</div>
 			) : null}
 			<Source />
@@ -164,12 +170,24 @@ export function LogicNode({ data, selected }: NodeProps) {
 	);
 }
 
-export function EntryNode({ data }: NodeProps) {
+export function EntryNode({ data, selected }: NodeProps) {
 	const node = data as unknown as EntryNodeData;
 
 	return (
-		<div className="flex h-[30px] w-[320px] items-center justify-center rounded-md border bg-background px-3">
-			<span className="truncate text-muted-foreground text-xs">{node.label}</span>
+		<div
+			className={cn(
+				"flex w-[320px] flex-col items-center justify-center rounded-lg border bg-card px-3 py-2",
+				selected && "border-primary",
+			)}
+		>
+			<span className="max-w-full truncate font-medium text-xs">
+				{node.label}
+			</span>
+			{node.detail ? (
+				<span className="max-w-full truncate text-muted-foreground text-xs">
+					{node.detail}
+				</span>
+			) : null}
 			<Source />
 		</div>
 	);

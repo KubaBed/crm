@@ -67,6 +67,16 @@ export function CampaignActions({
 			after("Nobody new gets in. The people inside will finish."),
 		),
 	);
+	const duplicate = useMutation(
+		trpc.marketingCampaigns.duplicate.mutationOptions({
+			onSuccess: (copy) => {
+				toast.success("Copied. This is the copy, as a draft.");
+				router.push(workspaceUrl(`/marketing/campaigns/${copy.id}`));
+			},
+			onError: (error) => toast.error(error.message),
+		}),
+	);
+
 	const archive = useMutation(
 		trpc.marketingCampaigns.archive.mutationOptions({
 			onSuccess: () => {
@@ -79,7 +89,11 @@ export function CampaignActions({
 	);
 
 	const busy =
-		pause.isPending || resume.isPending || drain.isPending || archive.isPending;
+		pause.isPending ||
+		resume.isPending ||
+		drain.isPending ||
+		duplicate.isPending ||
+		archive.isPending;
 
 	return (
 		<>
@@ -95,6 +109,12 @@ export function CampaignActions({
 					</Button>
 				</DropdownMenuTrigger>
 				<DropdownMenuContent align="end">
+					<DropdownMenuItem
+						onSelect={() => duplicate.mutate({ id: campaignId })}
+					>
+						Make a copy
+					</DropdownMenuItem>
+
 					{status === "ACTIVE" ? (
 						<DropdownMenuItem onSelect={() => pause.mutate({ id: campaignId })}>
 							Pause
@@ -127,8 +147,8 @@ export function CampaignActions({
 					<AlertDialogHeader>
 						<AlertDialogTitle>Resume this campaign</AlertDialogTitle>
 						<AlertDialogDescription>
-							{inFlight.toLocaleString()} people are mid-flow and their next
-							email is overdue. Restarting the clocks spreads them out from
+							{inFlight.toLocaleString()} people are part-way through and their
+							next email is overdue. Restarting the clocks spreads them out from
 							today. Sending the backlog delivers all of them at once, which
 							looks like a spike to a spam filter.
 						</AlertDialogDescription>

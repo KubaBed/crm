@@ -60,6 +60,7 @@ import { hasContactLinks } from "@/lib/social-links";
 import { useCrmCache } from "@/lib/trpc/cache";
 import { useTRPC } from "@/lib/trpc/client";
 import type { RouterOutputs } from "@/lib/trpc/types";
+import { ContactMarketing } from "./contact-marketing";
 import { RecordActions } from "./record-actions";
 import { DealAmount, MetaLine, RecordSheetFrame } from "./record-parts";
 import { useOpenRecord, useRecordSheetView } from "./record-stack";
@@ -130,6 +131,11 @@ export function ContactSheet({ contactId }: { contactId: string }) {
 					value: "activity",
 					label: "Activity",
 					content: <Timeline anchor={{ contactId: contact.id }} />,
+				},
+				{
+					value: "marketing",
+					label: "Marketing",
+					content: <ContactMarketing contactId={contact.id} />,
 				},
 				{
 					value: "agent",

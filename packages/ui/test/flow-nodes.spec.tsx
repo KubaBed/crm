@@ -70,7 +70,8 @@ describe("an email node", () => {
 		);
 
 		expect(text(empty)).toContain("No subject yet");
-		expect(text(empty)).toContain("— open");
+		expect(text(empty)).toContain("Nothing sent yet");
+		expect(text(empty)).not.toContain("open");
 	});
 });
 

@@ -4,6 +4,9 @@ import type {
 	RuleRow,
 	RuleTreeValue,
 } from "@crm/ui/components/rule-tree";
+import { DEAL_STAGE_OPTIONS } from "@/lib/deal-stage";
+
+const DOMAIN_SEPARATOR = ",";
 
 export const FACETS: FacetSpec[] = [
 	{
@@ -26,7 +29,7 @@ export const FACETS: FacetSpec[] = [
 			kind: "choice",
 			key: "source",
 			options: [
-				{ value: "MANUAL", label: "Added by hand" },
+				{ value: "MANUAL", label: "Added manually" },
 				{ value: "IMPORT", label: "An import" },
 				{ value: "EMAIL", label: "Email" },
 				{ value: "CALENDAR", label: "Calendar" },
@@ -59,6 +62,23 @@ export const FACETS: FacetSpec[] = [
 		field: { kind: "text", key: "value", placeholder: "United Kingdom" },
 	},
 	{
+		id: "company.domainIn",
+		group: "Company",
+		label: "Domain is one of",
+		field: {
+			kind: "list",
+			key: "domains",
+			separator: DOMAIN_SEPARATOR,
+			placeholder: "acme.com, globex.com",
+		},
+	},
+	{
+		id: "field.equals",
+		group: "Custom fields",
+		label: "Custom field",
+		field: { kind: "pair", key: "key", extraKey: "value", options: [] },
+	},
+	{
 		id: "activity.within",
 		group: "Activity",
 		label: "Active within",
@@ -69,6 +89,12 @@ export const FACETS: FacetSpec[] = [
 		group: "Activity",
 		label: "Quiet for at least",
 		field: { kind: "number", key: "days", suffix: "days" },
+	},
+	{
+		id: "deal.atStage",
+		group: "Deals",
+		label: "Has a deal at stage",
+		field: { kind: "choice", key: "stage", options: DEAL_STAGE_OPTIONS },
 	},
 	{
 		id: "deal.hasNoOpen",
@@ -124,13 +150,37 @@ export const FACETS: FacetSpec[] = [
 		label: "Had no marketing email within",
 		field: { kind: "number", key: "days", suffix: "days" },
 	},
+	{
+		id: "marketing.openedCampaign",
+		group: "Marketing",
+		label: "Opened the campaign",
+		field: { kind: "choice", key: "campaignId", options: [] },
+	},
+	{
+		id: "marketing.clickedCampaign",
+		group: "Marketing",
+		label: "Clicked in the campaign",
+		field: { kind: "choice", key: "campaignId", options: [] },
+	},
+	{
+		id: "marketing.inCampaign",
+		group: "Marketing",
+		label: "Is walking the campaign",
+		field: { kind: "choice", key: "campaignId", options: [] },
+	},
 ];
+
+const CAMPAIGN_FACETS = new Set([
+	"marketing.openedCampaign",
+	"marketing.clickedCampaign",
+	"marketing.inCampaign",
+]);
 
 type Facet = Record<string, unknown> & { facet: string };
 
 export const UNSUPPORTED_RULE = {
 	nested: "a group inside a group",
-	negated: "a not rule",
+	negated: "a not around a whole group",
 	unreadable: "a rule it cannot read",
 } as const;
 
@@ -155,7 +205,7 @@ function checkRule(rule: RuleRow): RuleResult {
 			: `"${rule.facet}"`;
 
 		return {
-			message: `This editor cannot show ${what}, so saving drops it. Ask the co-pilot to change these rules instead.`,
+			message: `This editor cannot show ${what}, so it will not write these rules. Remove that rule to edit them here, or ask the co-pilot to change them.`,
 		};
 	}
 
@@ -163,6 +213,30 @@ function checkRule(rule: RuleRow): RuleResult {
 
 	const raw = rule.value.trim();
 	if (raw === "") return { message: `${spec.label} needs a value.` };
+
+	if (spec.field.kind === "list") {
+		const items = raw
+			.split(spec.field.separator)
+			.map((item) => item.trim())
+			.filter(Boolean);
+
+		if (items.length === 0) return { message: `${spec.label} needs a value.` };
+
+		return { facet: { facet: rule.facet, [spec.field.key]: items } };
+	}
+
+	if (spec.field.kind === "pair") {
+		const extra = (rule.extra ?? "").trim();
+		if (extra === "") return { message: `${spec.label} needs a value.` };
+
+		return {
+			facet: {
+				facet: rule.facet,
+				[spec.field.key]: raw,
+				[spec.field.extraKey]: extra,
+			},
+		};
+	}
 
 	if (spec.field.kind === "number") {
 		const unit = unitOf(spec.field);
@@ -195,19 +269,25 @@ export function ruleProblems(value: RuleTreeValue): RuleProblem[] {
 	});
 }
 
+function wrap(
+	facet: Facet,
+	negate: boolean | undefined,
+): Record<string, unknown> {
+	return negate ? { not: { facet } } : { facet };
+}
+
 export function toDefinition(
 	value: RuleTreeValue,
 ): Record<string, unknown> | null {
-	const facets = value.rules
-		.map(checkRule)
-		.flatMap((result) => ("facet" in result ? [result.facet] : []));
+	const terms = value.rules.flatMap((rule) => {
+		const result = checkRule(rule);
+		return "facet" in result ? [wrap(result.facet, rule.negate)] : [];
+	});
 
-	if (facets.length === 0) return null;
-	if (facets.length === 1) return { facet: facets[0] };
+	if (terms.length === 0) return null;
+	if (terms.length === 1) return terms[0] as Record<string, unknown>;
 
-	return value.match === "all"
-		? { all: facets.map((facet) => ({ facet })) }
-		: { any: facets.map((facet) => ({ facet })) };
+	return value.match === "all" ? { all: terms } : { any: terms };
 }
 
 export function fromDefinition(definition: unknown): RuleTreeValue {
@@ -224,9 +304,8 @@ export function fromDefinition(definition: unknown): RuleTreeValue {
 
 	const node = definition as Record<string, unknown>;
 
-	if ("facet" in node) {
-		return { match: "all", rules: [toRule(node.facet, 0)] };
-	}
+	const single = termOf(node, 0);
+	if (single) return { match: "all", rules: [single] };
 
 	for (const match of ["all", "any"] as const) {
 		const list = node[match];
@@ -234,15 +313,34 @@ export function fromDefinition(definition: unknown): RuleTreeValue {
 
 		return {
 			match,
-			rules: list.map((entry, index) =>
-				entry && typeof entry === "object" && "facet" in entry
-					? toRule((entry as { facet: unknown }).facet, index)
-					: placeholder(index, describe(entry)),
+			rules: list.map(
+				(entry, index) =>
+					termOf(entry, index) ?? placeholder(index, describe(entry)),
 			),
 		};
 	}
 
 	return { match: "all", rules: [placeholder(0, describe(node))] };
+}
+
+function termOf(entry: unknown, index: number): RuleRow | null {
+	if (!entry || typeof entry !== "object") return null;
+
+	const node = entry as Record<string, unknown>;
+
+	if ("facet" in node) return toRule(node.facet, index);
+
+	if ("not" in node) {
+		const inner = node.not;
+		if (!inner || typeof inner !== "object" || !("facet" in inner)) return null;
+
+		return {
+			...toRule((inner as { facet: unknown }).facet, index),
+			negate: true,
+		};
+	}
+
+	return null;
 }
 
 function describe(value: unknown): string {
@@ -266,31 +364,86 @@ function toRule(value: unknown, index: number): RuleRow {
 	if (!id) return placeholder(index, UNSUPPORTED_RULE.unreadable);
 
 	const spec = FACETS.find((candidate) => candidate.id === id);
-	const raw = spec && spec.field.kind !== "none" ? facet[spec.field.key] : null;
+	const field = spec?.field;
+	const raw = field && field.kind !== "none" ? facet[field.key] : null;
+
+	const written =
+		field?.kind === "list" && Array.isArray(raw)
+			? raw.join(`${field.separator} `)
+			: raw === null || raw === undefined
+				? ""
+				: String(raw);
+
+	const extra = field?.kind === "pair" ? facet[field.extraKey] : undefined;
 
 	return {
 		id: `rule-${index}-${id}`,
 		facet: id,
-		value: raw === null || raw === undefined ? "" : String(raw),
+		value: written,
+		...(extra === null || extra === undefined ? {} : { extra: String(extra) }),
 	};
+}
+
+export type FacetChoices = {
+	owners?: { id: string; name?: string | null; email?: string | null }[];
+	campaigns?: { id: string; name: string }[];
+	fields?: { key: string; label: string }[];
+};
+
+export function facetsWith(choices: FacetChoices): FacetSpec[] {
+	const owners = (choices.owners ?? []).map((owner) => ({
+		value: owner.id,
+		label: owner.name || owner.email || "Somebody",
+	}));
+
+	const campaigns = (choices.campaigns ?? []).map((campaign) => ({
+		value: campaign.id,
+		label: campaign.name,
+	}));
+
+	const fields = (choices.fields ?? []).map((field) => ({
+		value: field.key,
+		label: field.label,
+	}));
+
+	return FACETS.map((facet) => {
+		if (facet.id === "contact.owner") {
+			return {
+				...facet,
+				field: { kind: "choice" as const, key: "userId", options: owners },
+			};
+		}
+
+		if (CAMPAIGN_FACETS.has(facet.id)) {
+			return {
+				...facet,
+				field: {
+					kind: "choice" as const,
+					key: "campaignId",
+					options: campaigns,
+				},
+			};
+		}
+
+		if (facet.id === "field.equals") {
+			return {
+				...facet,
+				field: {
+					kind: "pair" as const,
+					key: "key",
+					extraKey: "value",
+					options: fields,
+					placeholder: "Enterprise",
+				},
+			};
+		}
+
+		return facet;
+	});
 }
 
 export function facetsWithOwners(
 	owners: { id: string; name?: string | null; email?: string | null }[],
 ): FacetSpec[] {
-	return FACETS.map((facet) =>
-		facet.id === "contact.owner"
-			? {
-					...facet,
-					field: {
-						kind: "choice" as const,
-						key: "userId",
-						options: owners.map((owner) => ({
-							value: owner.id,
-							label: owner.name || owner.email || "Somebody",
-						})),
-					},
-				}
-			: facet,
-	);
+	return facetsWith({ owners });
 }

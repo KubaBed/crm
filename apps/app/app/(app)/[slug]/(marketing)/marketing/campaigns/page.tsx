@@ -24,7 +24,7 @@ export default function CampaignsPage() {
 				<PageShellHeading>
 					<PageShellTitle>Campaigns</PageShellTitle>
 					<PageShellDescription>
-						One-off sends and multi-touch drips.
+						One-off sends and multi-step sequences.
 					</PageShellDescription>
 				</PageShellHeading>
 				<PageShellActions>

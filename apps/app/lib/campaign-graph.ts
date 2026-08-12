@@ -36,10 +36,35 @@ export const ENTRY = {
 	},
 } as const;
 
-export function entryLabel(segment: string | null): string {
-	return segment
-		? `Anyone in ${segment} starts here`
-		: "No segment yet — nobody starts here";
+export function entryLabel(
+	segment: string | null,
+	hasEntryRule = false,
+): string {
+	if (segment) return `Anyone in ${segment} starts here`;
+	if (hasEntryRule) return "Anyone matching this campaign's rule starts here";
+	return "Nobody starts here yet — click to choose who";
+}
+
+export function entryDetail(input: {
+	automatic: boolean;
+	chosen: boolean;
+	held: number;
+	hasExitRule: boolean;
+}): string {
+	const entry = !input.chosen
+		? null
+		: input.automatic
+			? "Enters automatically"
+			: "Added manually";
+
+	const held =
+		input.held > 0
+			? `${input.held} segment${input.held === 1 ? "" : "s"} excluded`
+			: null;
+
+	const exit = input.hasExitRule ? "leaves on a rule" : "leaves at the end";
+
+	return [entry, held, exit].filter(Boolean).join(" · ");
 }
 
 export function entryX(root: { kind: NodeKind; x: number }): number {
@@ -73,6 +98,86 @@ const NEW_NODE: Record<NewKind, Record<string, unknown>> = {
 
 function newId(): string {
 	return `node_${Math.random().toString(36).slice(2, 12)}`;
+}
+
+type PlainNode = CampaignGraph["nodes"][number];
+type PlainEdge = CampaignGraph["edges"][number];
+
+function reachable(from: string[], edges: PlainEdge[]): Set<string> {
+	const seen = new Set<string>();
+	const queue = [...from];
+
+	while (queue.length > 0) {
+		const id = queue.pop();
+		if (!id || seen.has(id)) continue;
+		seen.add(id);
+
+		for (const edge of edges) {
+			if (edge.fromId === id) queue.push(edge.toId);
+		}
+	}
+
+	return seen;
+}
+
+export type Removal = {
+	nodes: PlainNode[];
+	edges: PlainEdge[];
+	orphaned: number;
+};
+
+export function withoutNode(
+	campaign: CampaignGraph,
+	nodeId: string,
+): Removal | null {
+	if (campaign.nodes.length <= 1) return null;
+
+	const incoming = campaign.edges.filter((edge) => edge.toId === nodeId);
+	const outgoing = campaign.edges.filter((edge) => edge.fromId === nodeId);
+
+	const kept = campaign.edges
+		.filter((edge) => edge.fromId !== nodeId && edge.toId !== nodeId)
+		.map((edge) => ({ ...edge }));
+
+	const onward = outgoing.find((edge) => edge.handle === "next") ?? outgoing[0];
+
+	if (onward && outgoing.length === 1) {
+		for (const edge of incoming) {
+			kept.push({
+				fromId: edge.fromId,
+				toId: onward.toId,
+				handle: edge.handle,
+				label: edge.label,
+				weight: edge.weight,
+			});
+		}
+	}
+
+	const left = campaign.nodes
+		.filter((node) => node.id !== nodeId)
+		.map((node) => ({ ...node }));
+
+	if (left.length === 0) return null;
+
+	const targeted = new Set(campaign.edges.map((edge) => edge.toId));
+
+	const roots = campaign.nodes
+		.filter((node) => !targeted.has(node.id) && node.id !== nodeId)
+		.map((node) => node.id);
+
+	const start = roots.length > 0 ? roots : outgoing.map((edge) => edge.toId);
+
+	const alive = reachable(start, kept);
+	const nodes = left.filter((node) => alive.has(node.id));
+
+	if (nodes.length === 0) return null;
+
+	const ids = new Set(nodes.map((node) => node.id));
+	const edges = kept.filter(
+		(edge) => ids.has(edge.fromId) && ids.has(edge.toId),
+	);
+
+	return { nodes, edges, orphaned: left.length - nodes.length };
 }
 
 export function withNode(

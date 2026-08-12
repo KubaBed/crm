@@ -24,7 +24,7 @@ export default function SegmentsPage() {
 				<PageShellHeading>
 					<PageShellTitle>Segments</PageShellTitle>
 					<PageShellDescription>
-						Rules, people added by hand, or both. Every campaign shares them.
+						Rules, people added manually, or both. Every campaign shares them.
 					</PageShellDescription>
 				</PageShellHeading>
 				<PageShellActions>

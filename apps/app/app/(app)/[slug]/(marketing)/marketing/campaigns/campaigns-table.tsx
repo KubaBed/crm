@@ -20,6 +20,13 @@ function count(value: number, sent: number) {
 	return <span>{value.toLocaleString()}</span>;
 }
 
+function rate(value: number, sent: number) {
+	if (sent === 0) return <EmptyCellValue />;
+	return (
+		<span className="tabular-nums">{((value / sent) * 100).toFixed(1)}%</span>
+	);
+}
+
 const COLUMNS: DataTableColumn<CampaignRow>[] = [
 	{
 		id: "name",
@@ -64,11 +71,36 @@ const COLUMNS: DataTableColumn<CampaignRow>[] = [
 		cell: (row) => count(row.sent, row.sent),
 	},
 	{
+		id: "openRate",
+		header: "Open rate",
+		label: "Open rate · inflated by Apple Mail",
+		align: "right",
+		width: "w-[9%]",
+		hideBelow: "sm",
+		cell: (row) => rate(row.opened, row.sent),
+	},
+	{
+		id: "clickRate",
+		header: "Click rate",
+		align: "right",
+		width: "w-[9%]",
+		hideBelow: "sm",
+		cell: (row) => rate(row.clicked, row.sent),
+	},
+	{
+		id: "replyRate",
+		header: "Reply rate",
+		align: "right",
+		width: "w-[9%]",
+		hideBelow: "md",
+		cell: (row) => rate(row.replied, row.sent),
+	},
+	{
 		id: "opened",
 		header: "Opened",
 		align: "right",
 		width: "w-[8%]",
-		hideBelow: "sm",
+		defaultHidden: true,
 		cell: (row) => count(row.opened, row.sent),
 	},
 	{
@@ -76,7 +108,7 @@ const COLUMNS: DataTableColumn<CampaignRow>[] = [
 		header: "Clicked",
 		align: "right",
 		width: "w-[8%]",
-		hideBelow: "sm",
+		defaultHidden: true,
 		cell: (row) => count(row.clicked, row.sent),
 	},
 	{
@@ -84,7 +116,7 @@ const COLUMNS: DataTableColumn<CampaignRow>[] = [
 		header: "Replied",
 		align: "right",
 		width: "w-[8%]",
-		hideBelow: "md",
+		defaultHidden: true,
 		cell: (row) => count(row.replied, row.sent),
 	},
 	{
@@ -117,12 +149,13 @@ export function CampaignsTable() {
 	const { query, input } = useTableQuery(campaignsSearchParams);
 
 	const kind = query.filters.kind ?? "all";
+	const status = query.filters.status ?? "all";
 
 	const campaigns = useQuery({
 		...trpc.marketingCampaigns.list.queryOptions({
 			...input,
 			kind: kind === "all" ? "" : kind,
-			status: "",
+			status: status === "all" ? "" : status,
 		}),
 		placeholderData: (previous) => previous,
 	});
@@ -132,10 +165,11 @@ export function CampaignsTable() {
 	return (
 		<DataTable
 			query={query}
-			search={<ListSearch placeholder="Search campaigns…" />}
+			search={<ListSearch placeholder="Search name or subject…" />}
 			columns={COLUMNS}
 			rows={rows}
 			total={campaigns.data?.total ?? 0}
+			facetCounts={campaigns.data?.facetCounts}
 			getRowId={(row) => row.id}
 			facets={[
 				{
@@ -143,7 +177,18 @@ export function CampaignsTable() {
 					label: "Kind",
 					options: [
 						{ value: "BLAST", label: "Blasts" },
-						{ value: "DRIP", label: "Drips" },
+						{ value: "DRIP", label: "Sequences" },
+					],
+				},
+				{
+					id: "status",
+					label: "Status",
+					options: [
+						{ value: "DRAFT", label: "Drafts" },
+						{ value: "ACTIVE", label: "Running" },
+						{ value: "PAUSED", label: "Paused" },
+						{ value: "SENT", label: "Sent" },
+						{ value: "ARCHIVED", label: "Archived" },
 					],
 				},
 			]}
@@ -151,7 +196,7 @@ export function CampaignsTable() {
 			onRowClick={(row) =>
 				router.push(workspaceUrl(`/marketing/campaigns/${row.id}`))
 			}
-			empty="No campaigns yet. A blast goes to a segment once; a drip follows up over weeks and branches."
+			empty="No campaigns yet. A blast goes to a segment once. A sequence follows up over weeks and branches."
 		/>
 	);
 }

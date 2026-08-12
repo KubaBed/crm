@@ -6,6 +6,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { ListSearch } from "@/components/data-table/list-search";
 import { useTableQuery } from "@/components/data-table/use-table-query";
+import { LocalRelativeDate } from "@/components/local-date-time";
 import { useTRPC } from "@/lib/trpc/client";
 import type { RouterOutputs } from "@/lib/trpc/types";
 import { useWorkspaceUrl } from "@/lib/use-workspace-url";
@@ -15,7 +16,7 @@ type SegmentRow = RouterOutputs["marketingSegments"]["list"]["rows"][number];
 
 const TYPE_LABEL: Record<string, string> = {
 	rule: "By rule",
-	hand: "By hand",
+	hand: "Added manually",
 	both: "Both",
 };
 
@@ -45,7 +46,9 @@ const COLUMNS: DataTableColumn<SegmentRow>[] = [
 		cell: (row) => (
 			<span className="truncate">
 				{row.people.toLocaleString()}
-				{row.type === "both" ? ` · ${row.byHand.toLocaleString()} by hand` : ""}
+				{row.type === "both"
+					? ` · ${row.byHand.toLocaleString()} added manually`
+					: ""}
 			</span>
 		),
 	},
@@ -73,7 +76,13 @@ const COLUMNS: DataTableColumn<SegmentRow>[] = [
 		hideBelow: "lg",
 		cell: (row) => (
 			<span className="text-muted-foreground">
-				{row.refreshed === "Live" ? "Live" : "By hand"}
+				{row.refreshed === "Live" ? (
+					"Live"
+				) : (
+					<>
+						Edited <LocalRelativeDate date={row.refreshed} />
+					</>
+				)}
 			</span>
 		),
 	},

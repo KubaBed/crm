@@ -1,18 +1,21 @@
 import type { Db } from "../client";
 import type { Prisma } from "../generated/prisma/client";
 import type { MarketingExitKind } from "../generated/prisma/enums";
+import { campaignAudienceWhere } from "./audience";
 import { pickArm } from "./graph";
-import { compile, filterSchema, segmentWhere } from "./segments";
+import { compile, filterSchema } from "./segments";
 
 const DAY_MS = 86_400_000;
 
 type EmailContent = {
 	subject: string | null;
+	preheader: string | null;
 	document: Prisma.InputJsonValue | undefined;
 };
 
 export function emailContent(node: {
 	subject: string | null;
+	preheader?: string | null;
 	document: Prisma.JsonValue | null;
 	template: { subject: string; document: Prisma.JsonValue } | null;
 }): EmailContent {
@@ -22,6 +25,7 @@ export function emailContent(node: {
 		subject: node.subject?.trim()
 			? node.subject
 			: (node.template?.subject ?? null),
+		preheader: node.preheader ?? null,
 		document: (document ?? undefined) as Prisma.InputJsonValue | undefined,
 	};
 }
@@ -145,7 +149,6 @@ export async function sweepEntries(
 			id: true,
 			entryMode: true,
 			entryDefinition: true,
-			segmentId: true,
 			maxPasses: true,
 			reentryCooldownDays: true,
 			nodes: { select: { id: true, kind: true } },
@@ -155,18 +158,9 @@ export async function sweepEntries(
 
 	if (campaign?.entryMode !== "CONTINUOUS") return 0;
 
-	let where: Prisma.ContactWhereInput | null = null;
+	let where = await campaignAudienceWhere(db, campaign.id);
 
-	if (campaign.segmentId) {
-		const segment = await db.marketingSegment.findUnique({
-			where: { id: campaign.segmentId },
-			select: {
-				definition: true,
-				members: { select: { contactId: true, mode: true } },
-			},
-		});
-		if (segment) where = segmentWhere(segment);
-	} else if (campaign.entryDefinition) {
+	if (!where && campaign.entryDefinition) {
 		const parsed = filterSchema.safeParse(campaign.entryDefinition);
 		if (parsed.success) where = compile(parsed.data);
 	}
@@ -339,6 +333,7 @@ export async function advance(db: Db, enrolmentId: string): Promise<void> {
 			currentNodeId: true,
 			campaign: {
 				select: {
+					fromName: true,
 					replyTo: true,
 					nodes: {
 						select: {
@@ -409,7 +404,9 @@ export async function advance(db: Db, enrolmentId: string): Promise<void> {
 					contactId: enrolment.contactId,
 					origin: "DRIP",
 					pass: enrolment.pass,
+					fromName: enrolment.campaign.fromName,
 					subject: content.subject,
+					preheader: content.preheader,
 					document: content.document,
 					replyTo: enrolment.campaign.replyTo,
 					dueAt: new Date(),

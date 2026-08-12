@@ -11,8 +11,8 @@ import { Spinner } from "@crm/ui/components/spinner";
 import { useMutation } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
+import { useMarketingFacets } from "@/components/marketing/use-marketing-facets";
 import {
-	FACETS,
 	fromDefinition,
 	ruleProblems,
 	toDefinition,
@@ -64,6 +64,7 @@ export function LogicSheet({
 	onChanged: () => void;
 }) {
 	const trpc = useTRPC();
+	const facets = useMarketingFacets();
 	const [hours, setHours] = useState(String(node.delayHours ?? 0));
 	const [rules, setRules] = useState<RuleTreeValue>(
 		fromDefinition(node.condition),
@@ -264,7 +265,7 @@ export function LogicSheet({
 								: !enough
 									? `Too early — ${smallest.toLocaleString()} on the smallest arm, and ${MIN_PER_ARM} is the floor before a difference means anything.`
 									: conclusive
-										? `${best?.label} leads on reply rate. Declaring a winner sends everybody new down it and leaves people mid-flow where they are.`
+										? `${best?.label} leads on reply rate. Declaring a winner sends everybody new down it and leaves everybody part-way through where they are.`
 										: "Enough people, but the arms are inside the noise. Leave it running."}
 						</p>
 
@@ -284,7 +285,7 @@ export function LogicSheet({
 							Take the yes arm when
 						</Label>
 
-						<RuleTree value={rules} facets={FACETS} onChange={setRules} />
+						<RuleTree value={rules} facets={facets} onChange={setRules} />
 
 						<FieldError errors={problems} />
 

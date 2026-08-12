@@ -1,5 +1,7 @@
 export {
 	FACETS,
+	type FacetChoices,
+	facetsWith,
 	facetsWithOwners,
 	fromDefinition,
 	type RuleProblem,

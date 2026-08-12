@@ -4,9 +4,11 @@ import { readMarketingSettings } from "@crm/db/marketing";
 import { Injectable, Logger } from "@nestjs/common";
 import { type ErrorResponse, Resend } from "resend";
 import { InjectDatabase } from "../database/database.constants";
+import { ResendOauthService } from "./resend-oauth.service";
 
 export type SendOne = {
 	to: string;
+	fromName?: string | null;
 	subject: string;
 	html: string;
 	text: string;
@@ -15,6 +17,17 @@ export type SendOne = {
 	idempotencyKey?: string;
 	attachments?: { filename: string; path: string }[];
 };
+
+function fromLine(
+	settings: { fromName: string | null; fromAddress: string | null },
+	override?: string | null,
+): string {
+	const address = settings.fromAddress;
+	if (!address) return "";
+
+	const name = override?.trim() || settings.fromName;
+	return name ? `${name} <${address}>` : address;
+}
 
 export type SendOutcome =
 	| { ok: true; providerId: string }
@@ -58,9 +71,15 @@ function batchKey(sendIds: string[]): string {
 export class ResendService {
 	private readonly logger = new Logger(ResendService.name);
 
-	constructor(@InjectDatabase() private readonly db: Db) {}
+	constructor(
+		@InjectDatabase() private readonly db: Db,
+		private readonly oauth: ResendOauthService,
+	) {}
 
 	async client(): Promise<Resend | null> {
+		const token = await this.oauth.accessToken();
+		if (token) return new Resend(token);
+
 		const settings = await readMarketingSettings(this.db);
 		return settings.resendApiKey ? new Resend(settings.resendApiKey) : null;
 	}
@@ -180,9 +199,7 @@ export class ResendService {
 		}
 
 		const settings = await readMarketingSettings(this.db);
-		const from = settings.fromName
-			? `${settings.fromName} <${settings.fromAddress}>`
-			: (settings.fromAddress ?? "");
+		const from = fromLine(settings, input.fromName);
 
 		if (!from) {
 			return {
@@ -246,14 +263,11 @@ export class ResendService {
 		}
 
 		const settings = await readMarketingSettings(this.db);
-		const from = settings.fromName
-			? `${settings.fromName} <${settings.fromAddress}>`
-			: (settings.fromAddress ?? "");
 
 		try {
 			const result = await client.batch.send(
 				messages.map((message) => ({
-					from,
+					from: fromLine(settings, message.fromName),
 					to: [message.to],
 					subject: message.subject,
 					html: message.html,

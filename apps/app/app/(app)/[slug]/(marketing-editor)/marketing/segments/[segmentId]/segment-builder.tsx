@@ -10,6 +10,7 @@ import {
 	DropdownMenuItem,
 	DropdownMenuTrigger,
 } from "@crm/ui/components/dropdown-menu";
+import { ExportCsv } from "@crm/ui/components/export-csv";
 import { FieldError } from "@crm/ui/components/field";
 import { Icon } from "@crm/ui/components/icon";
 import { RuleTree, type RuleTreeValue } from "@crm/ui/components/rule-tree";
@@ -24,14 +25,13 @@ import {
 	MarketingEditorMeta,
 	MarketingEditorShell,
 } from "@/components/marketing/editor-shell";
+import { useMarketingFacets } from "@/components/marketing/use-marketing-facets";
 import { useTRPC } from "@/lib/trpc/client";
+import type { RouterOutputs } from "@/lib/trpc/types";
 import { useWorkspaceUrl } from "@/lib/use-workspace-url";
-import {
-	facetsWithOwners,
-	fromDefinition,
-	ruleProblems,
-	toDefinition,
-} from "./facets";
+import { fromDefinition, ruleProblems, toDefinition } from "./facets";
+
+type Person = RouterOutputs["marketingSegments"]["people"]["rows"][number];
 
 export function SegmentBuilder({ segmentId }: { segmentId: string }) {
 	const trpc = useTRPC();
@@ -63,11 +63,7 @@ export function SegmentBuilder({ segmentId }: { segmentId: string }) {
 	const definition = useMemo(() => toDefinition(rules), [rules]);
 	const problems = useMemo(() => ruleProblems(rules), [rules]);
 
-	const users = useQuery(trpc.users.list.queryOptions());
-	const facets = useMemo(
-		() => facetsWithOwners(users.data ?? []),
-		[users.data],
-	);
+	const facets = useMarketingFacets();
 
 	const previewOptions = trpc.marketingSegments.preview.queryOptions({
 		definition: (definition ?? {
@@ -81,12 +77,16 @@ export function SegmentBuilder({ segmentId }: { segmentId: string }) {
 		enabled: definition !== null,
 	});
 
+	const locked = problems.length > 0;
+
 	const save = useMutation(
 		trpc.marketingSegments.update.mutationOptions({
 			onSuccess: async () => {
 				setDirty(false);
 				toast.success(
-					"Saved. This changes who enters next, not who is already in a drip.",
+					locked
+						? "Name saved. The rules stay as they are, because this editor cannot show one of them."
+						: "Saved. This changes who enters next, not who is already in a sequence.",
 				);
 				await queryClient.invalidateQueries({
 					queryKey: trpc.marketingSegments.byId.queryKey({ id: segmentId }),
@@ -179,6 +179,42 @@ export function SegmentBuilder({ segmentId }: { segmentId: string }) {
 			}}
 			actions={
 				<>
+					<ExportCsv
+						name={name || "segment"}
+						total={total ?? 0}
+						columns={[
+							{ header: "Name", value: (row: Person) => row.name },
+							{ header: "Email", value: (row: Person) => row.email },
+							{ header: "Title", value: (row: Person) => row.title },
+							{ header: "Company", value: (row: Person) => row.company },
+							{
+								header: "Marketing status",
+								value: (row: Person) => row.status,
+							},
+						]}
+						fetchPage={async (page, pageSize) => {
+							const result = await queryClient.fetchQuery(
+								trpc.marketingSegments.people.queryOptions({
+									segmentId,
+									q: "",
+									sort: "",
+									dir: "desc",
+									page,
+									pageSize,
+								}),
+							);
+							return result.rows;
+						}}
+						onDone={(count, capped) =>
+							toast.success(
+								capped
+									? `${count.toLocaleString()} people exported. The rest are over the limit.`
+									: `${count.toLocaleString()} people exported.`,
+							)
+						}
+						onError={(message) => toast.error(message)}
+					/>
+
 					<DropdownMenu>
 						<DropdownMenuTrigger asChild>
 							<Button variant="ghost" size="icon" aria-label="More">
@@ -197,11 +233,17 @@ export function SegmentBuilder({ segmentId }: { segmentId: string }) {
 					</DropdownMenu>
 					<Button
 						size="sm"
-						disabled={save.isPending || !dirty || problems.length > 0}
-						onClick={() => save.mutate({ id: segmentId, name, definition })}
+						disabled={save.isPending || !dirty}
+						onClick={() =>
+							save.mutate(
+								locked
+									? { id: segmentId, name }
+									: { id: segmentId, name, definition },
+							)
+						}
 					>
 						{save.isPending ? <Spinner /> : null}
-						Save
+						{locked ? "Save the name" : "Save"}
 					</Button>
 				</>
 			}
@@ -211,7 +253,7 @@ export function SegmentBuilder({ segmentId }: { segmentId: string }) {
 						`${(total ?? 0).toLocaleString()} match these rules`,
 						`${data.counts.sendable.toLocaleString()} can be emailed today`,
 						data.counts.byHand > 0
-							? `${data.counts.byHand} added by hand`
+							? `${data.counts.byHand} added manually`
 							: null,
 						data.usedBy.length > 0
 							? `used by ${data.usedBy.map((campaign) => campaign.name).join(", ")}`
@@ -248,7 +290,7 @@ export function SegmentBuilder({ segmentId }: { segmentId: string }) {
 
 					<div className="flex flex-col gap-3 overflow-clip rounded-lg border">
 						<div className="flex items-center justify-between border-b bg-muted px-4 py-2.5">
-							<span className="font-medium text-xs">Added by hand</span>
+							<span className="font-medium text-xs">Added manually</span>
 							<span className="text-muted-foreground text-xs">
 								They stay in even when the rules stop matching them.
 							</span>
@@ -263,7 +305,7 @@ export function SegmentBuilder({ segmentId }: { segmentId: string }) {
 								}
 							>
 								<ToggleGroupItem value="ADD">Add</ToggleGroupItem>
-								<ToggleGroupItem value="EXCLUDE">Hold out</ToggleGroupItem>
+								<ToggleGroupItem value="EXCLUDE">Exclude</ToggleGroupItem>
 							</ToggleGroup>
 							<Combobox
 								options={(people.data?.rows ?? []).map((person) => ({
@@ -284,7 +326,7 @@ export function SegmentBuilder({ segmentId }: { segmentId: string }) {
 								search={search}
 								onSearchChange={setSearch}
 								placeholder={
-									mode === "EXCLUDE" ? "Hold somebody out" : "Add somebody"
+									mode === "EXCLUDE" ? "Exclude somebody" : "Add somebody"
 								}
 								searchPlaceholder="Search contacts…"
 								empty={
@@ -311,7 +353,7 @@ export function SegmentBuilder({ segmentId }: { segmentId: string }) {
 											{member.email ?? "No address"}
 										</span>
 										<span className="text-muted-foreground">
-											{member.mode === "EXCLUDE" ? "Held out" : "Added"}
+											{member.mode === "EXCLUDE" ? "Excluded" : "Added"}
 										</span>
 										<Button
 											variant="ghost"

@@ -6,7 +6,7 @@ import ChevronUp from "@carbon/icons-react/es/ChevronUp";
 import Close from "@carbon/icons-react/es/Close";
 import Draggable from "@carbon/icons-react/es/Draggable";
 import Locked from "@carbon/icons-react/es/Locked";
-import { useId } from "react";
+import { type ReactNode, useId, useRef, useState } from "react";
 import { Button } from "./button";
 import { Field, FieldLabel } from "./field";
 import { Icon } from "./icon";
@@ -83,7 +83,17 @@ export function textOf(block: EmailBlock): string {
 	return "";
 }
 
-function ShellRow({ kind, detail, top }: { kind: string; detail: string; top?: boolean }) {
+function ShellRow({
+	kind,
+	detail,
+	action,
+	top,
+}: {
+	kind: string;
+	detail: string;
+	action?: ReactNode;
+	top?: boolean;
+}) {
 	return (
 		<div
 			className={cn(
@@ -98,22 +108,73 @@ function ShellRow({ kind, detail, top }: { kind: string; detail: string; top?: b
 			<span className="min-w-0 flex-1 truncate text-muted-foreground text-xs">
 				{detail}
 			</span>
+			{action}
 		</div>
 	);
 }
+
+function ImageUpload({
+	upload,
+	onUploaded,
+}: {
+	upload: (file: File) => Promise<string | null>;
+	onUploaded: (url: string) => void;
+}) {
+	const input = useRef<HTMLInputElement>(null);
+	const [busy, setBusy] = useState(false);
+
+	return (
+		<div className="flex items-center gap-2">
+			<input
+				ref={input}
+				type="file"
+				accept="image/png,image/jpeg,image/gif"
+				className="hidden"
+				onChange={async (event) => {
+					const file = event.target.files?.[0];
+					event.target.value = "";
+					if (!file) return;
+
+					setBusy(true);
+					const url = await upload(file);
+					setBusy(false);
+					if (url) onUploaded(url);
+				}}
+			/>
+			<Button
+				variant="outline"
+				size="sm"
+				disabled={busy}
+				onClick={() => input.current?.click()}
+			>
+				{busy ? "Uploading…" : "Upload an image"}
+			</Button>
+			<span className="text-muted-foreground text-xs">
+				PNG, JPEG or GIF. Outlook draws nothing else.
+			</span>
+		</div>
+	);
+}
+
+export const DEFAULT_SHELL = {
+	header: "Your workspace logo",
+	footer: "Your postal address and the unsubscribe link",
+} as const;
 
 export function EmailBlockEditor({
 	blocks,
 	selected,
 	onSelect,
 	onChange,
+	onUploadImage,
 	shell,
 }: {
 	blocks: EmailBlock[];
 	selected: number | null;
 	onSelect: (index: number | null) => void;
 	onChange: (blocks: EmailBlock[]) => void;
-	shell?: { header: string; footer: string };
+	onUploadImage?: (file: File) => Promise<string | null>;
+	shell?: { header: string; footer: string; action?: ReactNode };
 }) {
 	const fieldId = useId();
 
@@ -150,7 +211,14 @@ export function EmailBlockEditor({
 
 	return (
 		<div className="flex flex-col overflow-clip rounded-lg border">
-			{shell ? <ShellRow kind="Header" detail={shell.header} top /> : null}
+			{shell ? (
+				<ShellRow
+					kind="Header"
+					detail={shell.header}
+					action={shell.action}
+					top
+				/>
+			) : null}
 
 			{blocks.map((block, index) => {
 				const open = selected === index;
@@ -235,6 +303,12 @@ export function EmailBlockEditor({
 												replace(index, { ...block, src: event.target.value })
 											}
 										/>
+										{onUploadImage ? (
+											<ImageUpload
+												onUploaded={(src) => replace(index, { ...block, src })}
+												upload={onUploadImage}
+											/>
+										) : null}
 										<Input
 											value={block.alt}
 											placeholder="What the image shows"
@@ -284,7 +358,7 @@ export function EmailBlockEditor({
 				<DropdownMenuTrigger asChild>
 					<button
 						type="button"
-						className="flex items-center gap-2 border-t px-2.5 py-2 text-left text-muted-foreground text-xs"
+						className="flex items-center gap-2 border-t px-2.5 py-2 text-left font-medium text-primary text-xs"
 					>
 						<Icon icon={Add} className="size-3" />
 						Add block
@@ -305,7 +379,9 @@ export function EmailBlockEditor({
 				</DropdownMenuContent>
 			</DropdownMenu>
 
-			{shell ? <ShellRow kind="Footer" detail={shell.footer} /> : null}
+			{shell ? (
+				<ShellRow kind="Footer" detail={shell.footer} action={shell.action} />
+			) : null}
 		</div>
 	);
 }

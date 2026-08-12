@@ -2,16 +2,16 @@
 
 import Close from "@carbon/icons-react/es/Close";
 import Email from "@carbon/icons-react/es/Email";
-import Locked from "@carbon/icons-react/es/Locked";
 import { Button } from "@crm/ui/components/button";
 import {
+	DEFAULT_SHELL,
 	type EmailBlock,
 	EmailBlockEditor,
 } from "@crm/ui/components/email-blocks";
+import { EmailPreview } from "@crm/ui/components/email-preview";
 import { Icon } from "@crm/ui/components/icon";
 import { Input } from "@crm/ui/components/input";
 import { Label } from "@crm/ui/components/label";
-import { Spinner } from "@crm/ui/components/spinner";
 import {
 	saveLabel,
 	useAutosave,
@@ -20,9 +20,14 @@ import {
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
+import { EditShellLink } from "@/components/marketing/edit-shell-link";
+import { useImageUpload } from "@/components/marketing/use-image-upload";
 import { useTRPC } from "@/lib/trpc/client";
 import type { RouterOutputs } from "@/lib/trpc/types";
 import { AttachmentsPanel } from "./attachments-panel";
+import { OpenPreview } from "./open-preview";
+import { SaveAsTemplate } from "./save-as-template";
+import { SendTest } from "./send-test";
 
 type Campaign = RouterOutputs["marketingCampaigns"]["byId"];
 type Node = Campaign["nodes"][number];
@@ -43,20 +48,6 @@ function Stat({ label, value }: { label: string; value: string }) {
 	);
 }
 
-function ShellRow({ kind, detail }: { kind: string; detail: string }) {
-	return (
-		<div className="flex h-9 items-center gap-2 bg-muted px-2.5">
-			<Icon icon={Locked} className="size-3 shrink-0 text-muted-foreground" />
-			<span className="shrink-0 rounded-sm bg-background px-1.5 py-px text-xs text-muted-foreground">
-				{kind}
-			</span>
-			<span className="min-w-0 flex-1 truncate text-muted-foreground text-xs">
-				{detail}
-			</span>
-		</div>
-	);
-}
-
 export function NodeSheet({
 	node,
 	campaignId,
@@ -73,11 +64,9 @@ export function NodeSheet({
 	onSaved: () => void;
 }) {
 	const trpc = useTRPC();
+	const uploadImage = useImageUpload();
 	const [subject, setSubject] = useState(node.subject ?? "");
 	const [preheader, setPreheader] = useState(node.preheader ?? "");
-	const [device, setDevice] = useState<"desktop" | "mobile" | "text">(
-		"desktop",
-	);
 
 	useEffect(() => {
 		setSubject(node.subject ?? "");
@@ -129,7 +118,7 @@ export function NodeSheet({
 		whole === 0 ? "—" : `${Math.round((part / whole) * 100)}%`;
 
 	return (
-		<aside className="flex w-[1000px] max-w-[70vw] shrink-0 flex-col overflow-hidden border-l bg-background">
+		<aside className="flex w-[1000px] max-w-[80vw] shrink-0 flex-col overflow-hidden border-l bg-background">
 			<header className="flex h-13 shrink-0 items-center gap-2 border-b px-4 py-3">
 				<Icon
 					icon={Email}
@@ -165,7 +154,7 @@ export function NodeSheet({
 			) : null}
 
 			<div className="flex min-h-0 flex-1 overflow-hidden">
-				<div className="flex w-[400px] shrink-0 flex-col gap-4 overflow-y-auto p-4">
+				<div className="flex w-[360px] shrink-0 flex-col gap-4 overflow-y-auto overflow-x-hidden border-r p-4">
 					<div className="flex flex-col gap-1.5">
 						<Label
 							htmlFor="node-subject"
@@ -181,12 +170,6 @@ export function NodeSheet({
 								setTouched(true);
 							}}
 						/>
-						<span className="text-xs text-muted-foreground">
-							{subject.length} characters
-							{subject.length > 50
-								? " — most phones cut it at 50"
-								: " — comfortably inside the mobile cut"}
-						</span>
 					</div>
 
 					<div className="flex flex-col gap-1.5">
@@ -208,92 +191,47 @@ export function NodeSheet({
 
 					<div className="flex flex-col gap-2">
 						<span className="text-muted-foreground text-xs">Body</span>
-						<ShellRow kind="Header" detail="Default shell · workspace logo" />
 						<EmailBlockEditor
+							onUploadImage={uploadImage}
 							blocks={blocks}
 							selected={selected}
 							onSelect={setSelected}
+							shell={{ ...DEFAULT_SHELL, action: <EditShellLink /> }}
 							onChange={(next) => {
 								setBlocks(next);
 								setTouched(true);
 							}}
 						/>
-						<ShellRow
-							kind="Footer"
-							detail="Default shell · address + unsubscribe"
-						/>
 					</div>
 
 					<AttachmentsPanel campaignId={campaignId} recipients={recipients} />
-
-					<div className="flex flex-col gap-1 rounded-md bg-muted px-3 py-2.5">
-						<span className="font-medium text-xs">
-							Header and footer: Default shell
-						</span>
-						<span className="text-xs text-muted-foreground">
-							The logo, the address and the unsubscribe link are added by the
-							compiler. You cannot edit them here, and that is on purpose — edit
-							the shell once in Templates.
-						</span>
-					</div>
-
-					<div className="flex-1" />
-
-					<div className="flex items-center gap-2">
-						<span className="text-muted-foreground text-xs">
-							{saveLabel(status)}
-						</span>
-						<div className="flex-1" />
-						<Button variant="outline" onClick={onClose}>
-							Close
-						</Button>
-					</div>
 				</div>
 
-				<div className="flex min-h-0 min-w-0 flex-1 flex-col border-l bg-muted">
-					<div className="flex h-12 shrink-0 items-center gap-2 border-b bg-background px-4">
-						<div className="flex items-center gap-0.5 rounded-md bg-muted p-0.5">
-							{(["desktop", "mobile", "text"] as const).map((mode) => (
-								<Button
-									key={mode}
-									variant={device === mode ? "outline" : "ghost"}
-									size="sm"
-									className="h-6 px-2.5 font-normal text-xs capitalize"
-									onClick={() => setDevice(mode)}
-								>
-									{mode === "text" ? "Plain text" : mode}
-								</Button>
-							))}
-						</div>
-						<div className="flex-1" />
-						<span className="text-xs text-muted-foreground">
-							Rendered by the code that sends it
-						</span>
-					</div>
-
-					<div className="flex min-h-0 flex-1 justify-center overflow-y-auto p-6">
-						{preview.isPending ? (
-							<Spinner />
-						) : preview.data?.blocked ? (
-							<p className="max-w-sm text-center text-muted-foreground text-xs">
-								{preview.data.blocked}
-							</p>
-						) : device === "text" ? (
-							<pre className="w-full whitespace-pre-wrap rounded-lg border bg-background p-5 text-xs">
-								{preview.data?.text}
-							</pre>
-						) : (
-							<iframe
-								title="Email preview"
-								srcDoc={preview.data?.html ?? ""}
-								sandbox=""
-								className="h-full w-full rounded-lg border bg-background"
-								style={{ maxWidth: device === "mobile" ? 390 : 640 }}
-							/>
-						)}
-					</div>
-				</div>
+				<EmailPreview
+					html={preview.data?.html ?? ""}
+					text={preview.data?.text ?? ""}
+					blocked={preview.data?.blocked ?? null}
+					pending={preview.isPending}
+				/>
 			</div>
+
+			<footer className="flex h-14 shrink-0 items-center gap-2 border-t px-4">
+				<span className="text-muted-foreground text-xs">
+					{saveLabel(status)}
+				</span>
+				<div className="flex-1" />
+				<OpenPreview nodeId={node.id} disabled={status !== "idle"} />
+				<SaveAsTemplate nodeId={node.id} disabled={status !== "idle"} />
+				<SendTest
+					nodeId={node.id}
+					subject={subject}
+					preheader={preheader}
+					blocks={blocks}
+				/>
+				<Button variant="outline" onClick={onClose}>
+					Close
+				</Button>
+			</footer>
 		</aside>
 	);
 }

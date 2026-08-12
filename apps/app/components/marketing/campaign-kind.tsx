@@ -23,7 +23,7 @@ export function CampaignKind({
 			onSuccess: (result) => {
 				toast.success(
 					result.kind === "DRIP"
-						? "Now a drip. Build the touches on the canvas."
+						? "Now a sequence. Build the steps on the canvas."
 						: "Now a blast. One email, once.",
 				);
 				onChanged();
@@ -35,7 +35,7 @@ export function CampaignKind({
 	if (!editable) {
 		return (
 			<span className="shrink-0 rounded-sm border px-1.5 py-px text-muted-foreground text-xs">
-				{kind === "DRIP" ? "Drip" : "Blast"}
+				{kind === "DRIP" ? "Sequence" : "Blast"}
 			</span>
 		);
 	}
@@ -52,7 +52,7 @@ export function CampaignKind({
 				setKind.mutate({ id: campaignId, kind: next });
 			}}
 		>
-			<ToggleGroupItem value="DRIP">Drip</ToggleGroupItem>
+			<ToggleGroupItem value="DRIP">Sequence</ToggleGroupItem>
 			<ToggleGroupItem value="BLAST">Blast</ToggleGroupItem>
 		</ToggleGroup>
 	);

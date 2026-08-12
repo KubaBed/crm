@@ -42,7 +42,7 @@ beforeAll(async () => {
 			name: `${TAG} win-back`,
 			kind: "DRIP",
 			status: "DRAFT",
-			segmentId,
+			segments: { create: [{ segmentId, mode: "INCLUDE" }] },
 			nodes: {
 				create: [
 					{ kind: "EMAIL", label: "Touch 1", subject: "Hello", x: 0, y: 0 },

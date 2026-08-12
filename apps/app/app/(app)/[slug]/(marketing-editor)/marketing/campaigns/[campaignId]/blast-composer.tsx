@@ -2,34 +2,44 @@
 
 import { Button } from "@crm/ui/components/button";
 import {
+	DEFAULT_SHELL,
 	type EmailBlock,
 	EmailBlockEditor,
 } from "@crm/ui/components/email-blocks";
+import { EmailPreview } from "@crm/ui/components/email-preview";
 import { Input } from "@crm/ui/components/input";
 import { Label } from "@crm/ui/components/label";
-import {
-	Select,
-	SelectContent,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
-} from "@crm/ui/components/select";
 import { Spinner } from "@crm/ui/components/spinner";
+import { ToggleGroup, ToggleGroupItem } from "@crm/ui/components/toggle-group";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { CampaignKind } from "@/components/marketing/campaign-kind";
 import { CopilotRail } from "@/components/marketing/copilot-rail";
+import { EditShellLink } from "@/components/marketing/edit-shell-link";
 import {
 	MarketingEditorMeta,
 	MarketingEditorShell,
 } from "@/components/marketing/editor-shell";
+import {
+	type SegmentChoice,
+	SegmentPicker,
+	splitSegments,
+} from "@/components/marketing/segment-picker";
+import { useImageUpload } from "@/components/marketing/use-image-upload";
 import { useTRPC } from "@/lib/trpc/client";
 import type { RouterOutputs } from "@/lib/trpc/types";
 import { useWorkspaceUrl } from "@/lib/use-workspace-url";
 import { CampaignStatus } from "../../../../(marketing)/marketing/campaign-status";
 import { AttachmentsPanel } from "./attachments-panel";
+import { CampaignActions } from "./campaign-actions";
+import { CampaignRecipients } from "./campaign-recipients";
 import { CampaignResults } from "./campaign-results";
+import { CampaignSettings } from "./campaign-settings";
+import { OpenPreview } from "./open-preview";
+import { SaveAsTemplate } from "./save-as-template";
+import { ScheduleSend } from "./schedule-send";
+import { SendTest } from "./send-test";
 
 type Campaign = RouterOutputs["marketingCampaigns"]["byId"];
 
@@ -39,14 +49,27 @@ function blocksOf(document: unknown): EmailBlock[] {
 	return Array.isArray(blocks) ? (blocks as EmailBlock[]) : [];
 }
 
+const BLAST_VIEWS = ["flow", "results", "recipients"] as const;
+
+const BLAST_VIEW_LABEL: Record<(typeof BLAST_VIEWS)[number], string> = {
+	flow: "Email",
+	results: "Results",
+	recipients: "Recipients",
+};
+
 export function BlastComposer({
 	campaign,
+	view,
+	onViewChange,
 	onChanged,
 }: {
 	campaign: Campaign;
+	view: string;
+	onViewChange: (view: (typeof BLAST_VIEWS)[number]) => void;
 	onChanged: () => void;
 }) {
 	const trpc = useTRPC();
+	const uploadImage = useImageUpload();
 	const queryClient = useQueryClient();
 	const workspaceUrl = useWorkspaceUrl();
 
@@ -58,7 +81,7 @@ export function BlastComposer({
 	const [preheader, setPreheader] = useState(node?.preheader ?? "");
 	const [blocks, setBlocks] = useState<EmailBlock[]>(blocksOf(node?.document));
 	const [selected, setSelected] = useState<number | null>(null);
-	const [segmentId, setSegmentId] = useState(campaign.segmentId ?? "");
+	const [chosen, setChosen] = useState<SegmentChoice[]>(campaign.segments);
 	const [dirty, setDirty] = useState(false);
 
 	useEffect(() => {
@@ -67,8 +90,6 @@ export function BlastComposer({
 		setPreheader(node.preheader ?? "");
 		setBlocks(blocksOf(node.document));
 	}, [node, dirty]);
-
-	const segments = useQuery(trpc.marketingSegments.options.queryOptions());
 
 	const previewOptions = trpc.marketingCampaigns.previewNode.queryOptions({
 		nodeId: node?.id ?? "",
@@ -108,24 +129,11 @@ export function BlastComposer({
 		}),
 	);
 
-	const schedule = useMutation(
-		trpc.marketingCampaigns.schedule.mutationOptions({
-			onSuccess: (result) => {
-				toast.success(
-					`${result.queued.toLocaleString()} queued. Sending starts within a minute.`,
-				);
-				onChanged();
-				void queryClient.invalidateQueries({
-					queryKey: trpc.marketingCampaigns.list.queryKey(),
-				});
-			},
-			onError: (error) => toast.error(error.message),
-		}),
-	);
-
 	const sent = campaign.status === "SENT" || campaign.status === "SENDING";
 	const findings = preview.data?.lint ?? [];
 	const errors = findings.filter((finding) => finding.level === "error");
+	const shown = sent ? view : "flow";
+	const sends = chosen.filter((one) => one.mode === "INCLUDE");
 
 	return (
 		<MarketingEditorShell
@@ -146,28 +154,67 @@ export function BlastComposer({
 					</span>
 				</>
 			}
-			actions={
-				sent ? null : (
-					<Button
+			tabs={
+				sent ? (
+					<ToggleGroup
+						type="single"
 						size="sm"
-						disabled={
-							schedule.isPending ||
-							saveAudience.isPending ||
-							errors.length > 0 ||
-							!segmentId ||
-							dirty
-						}
-						onClick={() => schedule.mutate({ id: campaign.id, at: null })}
+						value={shown}
+						onValueChange={(next) => {
+							const tab = BLAST_VIEWS.find((option) => option === next);
+							onViewChange(tab ?? "flow");
+						}}
 					>
-						{schedule.isPending ? <Spinner /> : null}
-						Send now
-					</Button>
-				)
+						{BLAST_VIEWS.map((option) => (
+							<ToggleGroupItem key={option} value={option}>
+								{BLAST_VIEW_LABEL[option]}
+							</ToggleGroupItem>
+						))}
+					</ToggleGroup>
+				) : null
+			}
+			actions={
+				<>
+					{sent ? null : (
+						<ScheduleSend
+							campaignId={campaign.id}
+							disabled={
+								saveAudience.isPending ||
+								errors.length > 0 ||
+								sends.length === 0 ||
+								dirty
+							}
+							onSent={() => {
+								onChanged();
+								void queryClient.invalidateQueries({
+									queryKey: trpc.marketingCampaigns.list.queryKey(),
+								});
+							}}
+						/>
+					)}
+
+					<CampaignSettings
+						campaignId={campaign.id}
+						kind="BLAST"
+						fromName={campaign.fromName}
+						replyTo={campaign.replyTo}
+						cooldownDays={campaign.reentryCooldownDays}
+						maxPasses={campaign.maxPasses}
+						onChanged={onChanged}
+					/>
+
+					<CampaignActions
+						campaignId={campaign.id}
+						status={campaign.status}
+						inFlight={campaign.inFlight}
+						onChanged={onChanged}
+					/>
+				</>
 			}
 			meta={
 				<MarketingEditorMeta
 					parts={[
-						segmentId
+						sends.length > 0
 							? `${campaign.audience.sendable.toLocaleString()} will receive this`
 							: "No segment yet",
 						errors.length > 0
@@ -184,42 +231,25 @@ export function BlastComposer({
 			}
 		>
 			<div className="flex min-h-0 min-w-0 flex-1 flex-col">
-				{sent ? (
+				{shown === "recipients" ? (
+					<CampaignRecipients campaignId={campaign.id} />
+				) : shown === "results" ? (
 					<CampaignResults campaign={campaign} />
 				) : (
 					<div className="flex min-h-0 flex-1">
-						<div className="flex w-[400px] shrink-0 flex-col gap-4 overflow-y-auto border-r p-4">
-							<div className="flex flex-col gap-1.5">
-								<Label
-									htmlFor="blast-segment"
-									className="text-muted-foreground text-xs"
-								>
-									Who gets this
-								</Label>
-								<Select
-									value={segmentId}
-									disabled={saveAudience.isPending}
-									onValueChange={(next) => {
-										const previous = segmentId;
-										setSegmentId(next);
-										saveAudience.mutate(
-											{ id: campaign.id, segmentId: next },
-											{ onError: () => setSegmentId(previous) },
-										);
-									}}
-								>
-									<SelectTrigger id="blast-segment">
-										<SelectValue placeholder="Choose a segment" />
-									</SelectTrigger>
-									<SelectContent>
-										{(segments.data ?? []).map((segment) => (
-											<SelectItem key={segment.id} value={segment.id}>
-												{segment.name}
-											</SelectItem>
-										))}
-									</SelectContent>
-								</Select>
-							</div>
+						<div className="flex w-[360px] shrink-0 flex-col gap-4 overflow-y-auto overflow-x-hidden border-r p-4">
+							<SegmentPicker
+								value={chosen}
+								disabled={saveAudience.isPending}
+								onChange={(next) => {
+									const previous = chosen;
+									setChosen(next);
+									saveAudience.mutate(
+										{ id: campaign.id, ...splitSegments(next) },
+										{ onError: () => setChosen(previous) },
+									);
+								}}
+							/>
 
 							<div className="flex flex-col gap-1.5">
 								<Label
@@ -236,12 +266,6 @@ export function BlastComposer({
 										setDirty(true);
 									}}
 								/>
-								<span className="text-muted-foreground text-xs">
-									{subject.length} characters
-									{subject.length > 50
-										? " — most phones cut it at 50"
-										: " — comfortably inside the mobile cut"}
-								</span>
 							</div>
 
 							<div className="flex flex-col gap-1.5">
@@ -264,6 +288,7 @@ export function BlastComposer({
 							<div className="flex flex-col gap-2">
 								<span className="text-muted-foreground text-xs">Body</span>
 								<EmailBlockEditor
+									onUploadImage={uploadImage}
 									blocks={blocks}
 									selected={selected}
 									onSelect={setSelected}
@@ -271,10 +296,7 @@ export function BlastComposer({
 										setBlocks(next);
 										setDirty(true);
 									}}
-									shell={{
-										header: "Default shell · workspace logo",
-										footer: "Default shell · address + unsubscribe",
-									}}
+									shell={{ ...DEFAULT_SHELL, action: <EditShellLink /> }}
 								/>
 							</div>
 
@@ -282,76 +304,80 @@ export function BlastComposer({
 								campaignId={campaign.id}
 								recipients={campaign.audience.sendable}
 							/>
-
-							<Button
-								variant="outline"
-								className="self-start"
-								disabled={!node || saveNode.isPending || !dirty}
-								onClick={() =>
-									node &&
-									saveNode.mutate({
-										nodeId: node.id,
-										subject,
-										preheader: preheader || null,
-										document: { version: 1, blocks } as unknown as Record<
-											string,
-											unknown
-										>,
-									})
-								}
-							>
-								{saveNode.isPending ? <Spinner /> : null}
-								Save
-							</Button>
 						</div>
 
-						<div className="flex min-h-0 min-w-0 flex-1 flex-col bg-muted">
-							<div className="flex min-h-0 flex-1 justify-center overflow-y-auto p-6">
-								{preview.isPending ? (
-									<Spinner />
-								) : preview.data?.blocked ? (
-									<p className="max-w-sm text-center text-muted-foreground text-xs">
-										{preview.data.blocked}
-									</p>
-								) : (
-									<iframe
-										title="Email preview"
-										srcDoc={preview.data?.html ?? ""}
-										sandbox=""
-										className="h-full w-full max-w-[640px] rounded-lg border bg-background"
-									/>
-								)}
-							</div>
-
-							<div className="flex shrink-0 items-center gap-3 border-t bg-background px-6 py-4">
-								<span className="font-medium text-2xl tabular-nums">
-									{campaign.audience.sendable.toLocaleString()}
-								</span>
-								<span className="text-muted-foreground text-xs">
-									{segmentId
-										? campaign.audience.excluded > 0
-											? `people will receive this · ${campaign.audience.excluded.toLocaleString()} excluded of ${campaign.audience.total.toLocaleString()} in the segment`
-											: `people will receive this · ${campaign.audience.total.toLocaleString()} in the segment`
-										: "Choose a segment to see who gets this"}
-								</span>
-								<span className="flex-1" />
-								{errors.length > 0 ? (
-									<span className="text-destructive text-xs">
-										{errors[0]?.message}
-									</span>
-								) : saveAudience.isPending ? (
-									<span className="text-muted-foreground text-xs">
-										Saving who gets this
-									</span>
-								) : dirty ? (
-									<span className="text-muted-foreground text-xs">
-										Save before sending
-									</span>
-								) : null}
-							</div>
-						</div>
+						<EmailPreview
+							html={preview.data?.html ?? ""}
+							text={preview.data?.text ?? ""}
+							blocked={preview.data?.blocked ?? null}
+							pending={preview.isPending}
+						/>
 					</div>
 				)}
+
+				{shown === "flow" ? (
+					<footer className="flex h-14 shrink-0 items-center gap-3 border-t px-4">
+						<span className="font-medium text-sm tabular-nums">
+							{campaign.audience.sendable.toLocaleString()}
+						</span>
+						<span className="min-w-0 truncate text-muted-foreground text-xs">
+							{sends.length > 0
+								? campaign.audience.excluded > 0
+									? `people will receive this · ${campaign.audience.excluded.toLocaleString()} excluded of ${campaign.audience.total.toLocaleString()} in the segment`
+									: `people will receive this · ${campaign.audience.total.toLocaleString()} in the segment`
+								: "Choose a segment to see who gets this"}
+						</span>
+
+						{errors.length > 0 ? (
+							<span className="min-w-0 truncate text-destructive text-xs">
+								{errors[0]?.message}
+							</span>
+						) : saveAudience.isPending ? (
+							<span className="shrink-0 text-muted-foreground text-xs">
+								Saving who gets this
+							</span>
+						) : dirty ? (
+							<span className="shrink-0 text-muted-foreground text-xs">
+								Save before sending
+							</span>
+						) : null}
+
+						<span className="flex-1" />
+
+						<Button
+							variant="outline"
+							disabled={!node || saveNode.isPending || !dirty}
+							onClick={() =>
+								node &&
+								saveNode.mutate({
+									nodeId: node.id,
+									subject,
+									preheader: preheader || null,
+									document: { version: 1, blocks } as unknown as Record<
+										string,
+										unknown
+									>,
+								})
+							}
+						>
+							{saveNode.isPending ? <Spinner /> : null}
+							Save
+						</Button>
+
+						<SendTest
+							nodeId={node?.id ?? null}
+							subject={subject}
+							preheader={preheader}
+							blocks={blocks}
+							disabled={errors.length > 0}
+							variant="outline"
+						/>
+
+						<SaveAsTemplate nodeId={node?.id ?? null} disabled={dirty} />
+
+						<OpenPreview nodeId={node?.id ?? null} disabled={dirty} />
+					</footer>
+				) : null}
 			</div>
 		</MarketingEditorShell>
 	);

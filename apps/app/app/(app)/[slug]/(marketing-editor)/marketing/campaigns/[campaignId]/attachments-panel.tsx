@@ -169,7 +169,6 @@ export function AttachmentsPanel({
 			/>
 
 			<Button
-				variant="outline"
 				size="sm"
 				className="self-start"
 				disabled={busy}

@@ -23,6 +23,8 @@ import {
 	type OnModuleInit,
 } from "@nestjs/common";
 import { InjectDatabase } from "../database/database.constants";
+import type { FiledSend } from "./marketing-activity.service";
+import { MarketingActivityService } from "./marketing-activity.service";
 import { MarketingComposeService } from "./marketing-compose.service";
 import { ResendService } from "./resend.service";
 
@@ -41,6 +43,7 @@ export class MarketingDrainService implements OnModuleInit, OnModuleDestroy {
 		@InjectDatabase() private readonly db: Db,
 		private readonly resend: ResendService,
 		private readonly compose: MarketingComposeService,
+		private readonly activity: MarketingActivityService,
 	) {}
 
 	onModuleInit(): void {
@@ -135,6 +138,9 @@ export class MarketingDrainService implements OnModuleInit, OnModuleDestroy {
 		let sent = 0;
 		let failed = 0;
 
+		const filed: FiledSend[] = [];
+		const names = new Map<string, string | null>();
+
 		const batchable: { send: ClaimedSend; body: ComposedBody }[] = [];
 
 		for (const send of claimed) {
@@ -146,6 +152,7 @@ export class MarketingDrainService implements OnModuleInit, OnModuleDestroy {
 				body = await this.compose.compose({
 					document: send.document,
 					subject: send.subject ?? "",
+					preheader: send.preheader,
 					token: send.token,
 					context,
 				});
@@ -176,6 +183,7 @@ export class MarketingDrainService implements OnModuleInit, OnModuleDestroy {
 			if (send.hasAttachments) {
 				const outcome = await this.resend.sendOne({
 					to: send.address,
+					fromName: send.fromName,
 					subject: body.subject,
 					html: body.html,
 					text: body.text,
@@ -189,8 +197,14 @@ export class MarketingDrainService implements OnModuleInit, OnModuleDestroy {
 				});
 
 				await settle(this.db, send.id, outcome);
-				if (outcome.ok) sent += 1;
-				else failed += 1;
+
+				if (outcome.ok) {
+					sent += 1;
+					this.remember(filed, names, send, body);
+				} else {
+					failed += 1;
+				}
+
 				continue;
 			}
 
@@ -208,6 +222,7 @@ export class MarketingDrainService implements OnModuleInit, OnModuleDestroy {
 				slice.map(({ send, body }) => ({
 					sendId: send.id,
 					to: send.address,
+					fromName: send.fromName,
 					subject: body.subject,
 					html: body.html,
 					text: body.text,
@@ -216,7 +231,7 @@ export class MarketingDrainService implements OnModuleInit, OnModuleDestroy {
 				})),
 			);
 
-			for (const { send } of slice) {
+			for (const { send, body } of slice) {
 				const outcome = outcomes.get(send.id) ?? {
 					ok: false as const,
 					error: "Resend did not answer for this message.",
@@ -224,11 +239,68 @@ export class MarketingDrainService implements OnModuleInit, OnModuleDestroy {
 				};
 
 				await settle(this.db, send.id, outcome);
-				if (outcome.ok) sent += 1;
-				else failed += 1;
+
+				if (outcome.ok) {
+					sent += 1;
+					this.remember(filed, names, send, body);
+				} else {
+					failed += 1;
+				}
 			}
 		}
 
+		await this.fileActivity(filed, names);
+
 		return { sent, failed };
+	}
+
+	private remember(
+		filed: FiledSend[],
+		names: Map<string, string | null>,
+		send: ClaimedSend,
+		body: ComposedBody,
+	): void {
+		if (!send.contactId) return;
+
+		filed.push({
+			contactId: send.contactId,
+			subject: body.subject,
+			campaignName: send.campaignId ?? null,
+			sentAt: new Date(),
+		});
+
+		if (send.campaignId) names.set(send.campaignId, null);
+	}
+
+	private async fileActivity(
+		filed: FiledSend[],
+		names: Map<string, string | null>,
+	): Promise<void> {
+		if (filed.length === 0) return;
+
+		if (names.size > 0) {
+			const campaigns = await this.db.marketingCampaign.findMany({
+				where: { id: { in: [...names.keys()] } },
+				select: { id: true, name: true },
+			});
+
+			for (const campaign of campaigns) names.set(campaign.id, campaign.name);
+		}
+
+		try {
+			await this.activity.file(
+				filed.map((send) => ({
+					...send,
+					campaignName: send.campaignName
+						? (names.get(send.campaignName) ?? null)
+						: null,
+				})),
+			);
+		} catch (error) {
+			this.logger.warn({
+				message: "A marketing send did not reach the timeline",
+				error: error instanceof Error ? error.message : String(error),
+			});
+		}
 	}
 }

@@ -316,21 +316,33 @@ export async function campaignPreamble(campaignId: string): Promise<Preamble> {
 			name: true,
 			kind: true,
 			status: true,
-			segment: { select: { id: true, name: true } },
+			segments: {
+				select: { mode: true, segment: { select: { id: true, name: true } } },
+			},
 			_count: { select: { nodes: true } },
 		},
 	});
 
 	if (!campaign) return { markdown: await closing(), focus: {} };
 
+	const named = (mode: "INCLUDE" | "EXCLUDE") =>
+		campaign.segments
+			.filter((link) => link.mode === mode)
+			.map((link) => `**${link.segment.name}** (\`${link.segment.id}\`)`)
+			.join(", ");
+
+	const included = named("INCLUDE");
+	const excluded = named("EXCLUDE");
+
 	const markdown = [
 		"## This session",
 		"",
 		`A rep has the campaign **${campaign.name}** open and is talking to you.`,
 		`It is a **${campaign.kind}**, status **${campaign.status}**, with ${campaign._count.nodes} node(s).`,
-		campaign.segment
-			? `Its audience is the segment **${campaign.segment.name}** (\`${campaign.segment.id}\`).`
+		included
+			? `Its audience is ${included}.`
 			: "It has no segment yet, so it cannot send.",
+		excluded ? `It excludes ${excluded}.` : null,
 		"",
 		editThisOne("campaign", campaignId, "write_campaign_graph", "campaignId"),
 		"",
@@ -342,7 +354,9 @@ export async function campaignPreamble(campaignId: string): Promise<Preamble> {
 		"the graph, say what you changed, and let the rep click Activate.",
 		"",
 		await closing(),
-	].join("\n");
+	]
+		.filter((line) => line !== null)
+		.join("\n");
 
 	return { markdown, focus: {} };
 }

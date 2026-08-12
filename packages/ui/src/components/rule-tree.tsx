@@ -19,7 +19,15 @@ export type FacetField =
 	| { kind: "none" }
 	| { kind: "text"; key: string; placeholder?: string }
 	| { kind: "number"; key: string; suffix?: string }
-	| { kind: "choice"; key: string; options: { value: string; label: string }[] };
+	| { kind: "choice"; key: string; options: { value: string; label: string }[] }
+	| { kind: "list"; key: string; placeholder?: string; separator: string }
+	| {
+			kind: "pair";
+			key: string;
+			extraKey: string;
+			options: { value: string; label: string }[];
+			placeholder?: string;
+	  };
 
 export type FacetSpec = {
 	id: string;
@@ -32,6 +40,8 @@ export type RuleRow = {
 	id: string;
 	facet: string;
 	value: string;
+	extra?: string;
+	negate?: boolean;
 };
 
 export type RuleTreeValue = {
@@ -107,8 +117,25 @@ export function RuleTree({
 						</span>
 
 						<Select
+							value={rule.negate ? "not" : "is"}
+							onValueChange={(next) =>
+								set(rule.id, { negate: next === "not" })
+							}
+						>
+							<SelectTrigger className="w-[76px]">
+								<SelectValue />
+							</SelectTrigger>
+							<SelectContent>
+								<SelectItem value="is">is</SelectItem>
+								<SelectItem value="not">is not</SelectItem>
+							</SelectContent>
+						</Select>
+
+						<Select
 							value={rule.facet}
-							onValueChange={(next) => set(rule.id, { facet: next, value: "" })}
+							onValueChange={(next) =>
+								set(rule.id, { facet: next, value: "", extra: undefined })
+							}
 						>
 							<SelectTrigger className="w-[240px]">
 								<SelectValue />
@@ -176,6 +203,44 @@ export function RuleTree({
 							</Select>
 						) : null}
 
+						{field.kind === "list" ? (
+							<Input
+								className="w-[320px]"
+								value={rule.value}
+								placeholder={field.placeholder}
+								onChange={(event) => set(rule.id, { value: event.target.value })}
+							/>
+						) : null}
+
+						{field.kind === "pair" ? (
+							<span className="flex items-center gap-2">
+								<Select
+									value={rule.value}
+									onValueChange={(next) => set(rule.id, { value: next })}
+								>
+									<SelectTrigger className="w-[180px]">
+										<SelectValue placeholder="Choose a field" />
+									</SelectTrigger>
+									<SelectContent>
+										{field.options.map((option) => (
+											<SelectItem key={option.value} value={option.value}>
+												{option.label}
+											</SelectItem>
+										))}
+									</SelectContent>
+								</Select>
+								<span className="text-muted-foreground text-xs">is</span>
+								<Input
+									className="w-[160px]"
+									value={rule.extra ?? ""}
+									placeholder={field.placeholder}
+									onChange={(event) =>
+										set(rule.id, { extra: event.target.value })
+									}
+								/>
+							</span>
+						) : null}
+
 						<span className="flex-1" />
 
 						{counts?.[rule.id] === undefined ? null : (
@@ -196,8 +261,8 @@ export function RuleTree({
 				);
 			})}
 
-			<div className="flex items-center gap-2 border-t px-4 py-3">
-				<Button variant="outline" size="sm" onClick={add}>
+			<div className="flex items-center gap-2 border-t bg-muted px-4 py-3">
+				<Button size="sm" onClick={add}>
 					<Icon icon={Add} data-icon="inline-start" />
 					Rule
 				</Button>
@@ -206,7 +271,7 @@ export function RuleTree({
 
 				{footer}
 
-				<div className="flex items-center gap-0.5 rounded-md bg-muted p-0.5">
+				<div className="flex items-center gap-0.5 rounded-md bg-border p-0.5">
 					{(["all", "any"] as const).map((mode) => (
 						<Button
 							key={mode}

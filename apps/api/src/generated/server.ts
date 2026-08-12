@@ -23,7 +23,7 @@ import { dashboardSummaryInput } from "../dashboard/dashboard.contracts";
 import { dealListInput, dealIdInput, dealCreateInput, dealUpdateArgs, setStageInput, dealContactsInput, dealAttachContactInput, dealDetachContactInput, dealContactRoleInput, dealBulkOwnerInput, dealBulkStageInput, dealBulkInput } from "../deals/deals.contracts";
 import { fieldListInput, fieldByKeyInput, fieldIdInput, fieldCreateInput, fieldUpdateArgs, fieldReorderInput } from "../fields/fields.contracts";
 import { setAutoCreateInput, suppressDomainInput, threadInput, calendarEventInput } from "../google/google.contracts";
-import { idInput, setDomainInput, saveKeyInput, saveIdentityInput, saveSendingInput, setTrackingInput, campaignListInput, previewNodeInput, campaignPageInput, createCampaignInput, updateCampaignInput, writeGraphInput, updateNodeInput, scheduleInput, setKindInput, rejectInput, pauseInput, resumeInput, archiveCampaignInput, enrolInput, enrolCompanyInput, winnerInput, addAttachmentInput, sendDirectInput, sendCompanyInput, previewSegmentInput, createSegmentInput, updateSegmentInput, memberInput, previewTemplateInput, createTemplateInput, updateTemplateInput, previewShellInput, savePartialInput } from "../marketing/marketing.contracts";
+import { idInput, setDomainInput, saveKeyInput, connectFinishInput, saveIdentityInput, saveSendingInput, setTrackingInput, campaignListInput, previewNodeInput, campaignPageInput, createCampaignInput, updateCampaignInput, writeGraphInput, updateNodeInput, scheduleInput, setKindInput, rejectInput, pauseInput, resumeInput, archiveCampaignInput, enrolInput, enrolCompanyInput, winnerInput, addAttachmentInput, sendTestNodeInput, sendDirectInput, sendCompanyInput, previewSegmentInput, segmentPageInput, createSegmentInput, updateSegmentInput, memberInput, previewTemplateInput, uploadImageInput, createTemplateInput, updateTemplateInput, previewShellInput, savePartialInput } from "../marketing/marketing.contracts";
 import { listInput } from "../marketing/../trpc/list-input";
 import { setOutlookAutoCreateInput } from "../microsoft/microsoft.contracts";
 import { setAgentModelInput, setResearchKeyInput } from "../settings/settings.contracts";
@@ -378,6 +378,11 @@ const appRouter = t.router({
       .mutation(async () => "PLACEHOLDER_DO_NOT_REMOVE" as unknown as Awaited<ReturnType<MarketingRouter["saveKey"]>>),
     disconnect: publicProcedure
       .mutation(async () => "PLACEHOLDER_DO_NOT_REMOVE" as unknown as Awaited<ReturnType<MarketingRouter["disconnect"]>>),
+    connectStart: publicProcedure
+      .mutation(async () => "PLACEHOLDER_DO_NOT_REMOVE" as unknown as Awaited<ReturnType<MarketingRouter["connectStart"]>>),
+    connectFinish: publicProcedure
+      .input(connectFinishInput)
+      .mutation(async () => "PLACEHOLDER_DO_NOT_REMOVE" as unknown as Awaited<ReturnType<MarketingRouter["connectFinish"]>>),
     saveIdentity: publicProcedure
       .input(saveIdentityInput)
       .mutation(async () => "PLACEHOLDER_DO_NOT_REMOVE" as unknown as Awaited<ReturnType<MarketingRouter["saveIdentity"]>>),
@@ -415,12 +420,21 @@ const appRouter = t.router({
     enrolments: publicProcedure
       .input(campaignPageInput)
       .query(async () => "PLACEHOLDER_DO_NOT_REMOVE" as unknown as Awaited<ReturnType<MarketingCampaignsRouter["enrolments"]>>),
+    forContact: publicProcedure
+      .input(idInput)
+      .query(async () => "PLACEHOLDER_DO_NOT_REMOVE" as unknown as Awaited<ReturnType<MarketingCampaignsRouter["forContact"]>>),
     create: publicProcedure
       .input(createCampaignInput)
       .mutation(async () => "PLACEHOLDER_DO_NOT_REMOVE" as unknown as Awaited<ReturnType<MarketingCampaignsRouter["create"]>>),
     update: publicProcedure
       .input(updateCampaignInput)
       .mutation(async () => "PLACEHOLDER_DO_NOT_REMOVE" as unknown as Awaited<ReturnType<MarketingCampaignsRouter["update"]>>),
+    duplicate: publicProcedure
+      .input(idInput)
+      .mutation(async () => "PLACEHOLDER_DO_NOT_REMOVE" as unknown as Awaited<ReturnType<MarketingCampaignsRouter["duplicate"]>>),
+    saveNodeAsTemplate: publicProcedure
+      .input(idInput)
+      .mutation(async () => "PLACEHOLDER_DO_NOT_REMOVE" as unknown as Awaited<ReturnType<MarketingCampaignsRouter["saveNodeAsTemplate"]>>),
     writeGraph: publicProcedure
       .input(writeGraphInput)
       .mutation(async () => "PLACEHOLDER_DO_NOT_REMOVE" as unknown as Awaited<ReturnType<MarketingCampaignsRouter["writeGraph"]>>),
@@ -480,6 +494,9 @@ const appRouter = t.router({
     removeAttachment: publicProcedure
       .input(idInput)
       .mutation(async () => "PLACEHOLDER_DO_NOT_REMOVE" as unknown as Awaited<ReturnType<MarketingCampaignsRouter["removeAttachment"]>>),
+    sendTest: publicProcedure
+      .input(sendTestNodeInput)
+      .mutation(async () => "PLACEHOLDER_DO_NOT_REMOVE" as unknown as Awaited<ReturnType<MarketingCampaignsRouter["sendTest"]>>),
     sendDirect: publicProcedure
       .input(sendDirectInput)
       .mutation(async () => "PLACEHOLDER_DO_NOT_REMOVE" as unknown as Awaited<ReturnType<MarketingCampaignsRouter["sendDirect"]>>),
@@ -499,6 +516,9 @@ const appRouter = t.router({
     preview: publicProcedure
       .input(previewSegmentInput)
       .query(async () => "PLACEHOLDER_DO_NOT_REMOVE" as unknown as Awaited<ReturnType<MarketingSegmentsRouter["preview"]>>),
+    people: publicProcedure
+      .input(segmentPageInput)
+      .query(async () => "PLACEHOLDER_DO_NOT_REMOVE" as unknown as Awaited<ReturnType<MarketingSegmentsRouter["people"]>>),
     create: publicProcedure
       .input(createSegmentInput)
       .mutation(async () => "PLACEHOLDER_DO_NOT_REMOVE" as unknown as Awaited<ReturnType<MarketingSegmentsRouter["create"]>>),
@@ -535,6 +555,9 @@ const appRouter = t.router({
     preview: publicProcedure
       .input(previewTemplateInput)
       .query(async () => "PLACEHOLDER_DO_NOT_REMOVE" as unknown as Awaited<ReturnType<MarketingTemplatesRouter["preview"]>>),
+    uploadImage: publicProcedure
+      .input(uploadImageInput)
+      .mutation(async () => "PLACEHOLDER_DO_NOT_REMOVE" as unknown as Awaited<ReturnType<MarketingTemplatesRouter["uploadImage"]>>),
     create: publicProcedure
       .input(createTemplateInput)
       .mutation(async () => "PLACEHOLDER_DO_NOT_REMOVE" as unknown as Awaited<ReturnType<MarketingTemplatesRouter["create"]>>),

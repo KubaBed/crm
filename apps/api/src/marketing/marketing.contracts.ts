@@ -11,6 +11,11 @@ export const idInput = z.object({ id: z.string().min(1) });
 
 export const saveKeyInput = z.object({ key: z.string().min(1).max(200) });
 
+export const connectFinishInput = z.object({
+	code: z.string().min(1).max(4096),
+	state: z.string().min(1).max(512),
+});
+
 export const saveIdentityInput = z.object({
 	fromName: z.string().max(120).default(""),
 	fromAddress: z.string().min(3).max(320),
@@ -45,17 +50,23 @@ export const campaignListInput = listInput.extend({
 	status: z.string().default(""),
 });
 
+const segmentIds = z.array(z.string().min(1)).max(20);
+
 export const createCampaignInput = z.object({
 	name: z.string().min(1).max(160),
 	kind: z.enum(["BLAST", "DRIP"]),
-	segmentId: z.string().nullish(),
+	segmentIds: segmentIds.optional(),
+	excludeSegmentIds: segmentIds.optional(),
 });
 
 export const updateCampaignInput = z.object({
 	id: z.string().min(1),
 	name: z.string().min(1).max(160).optional(),
-	segmentId: z.string().nullish(),
+	segmentIds: segmentIds.optional(),
+	excludeSegmentIds: segmentIds.optional(),
+	fromName: z.string().max(120).nullish(),
 	replyTo: z.string().max(320).nullish(),
+	entryMode: z.enum(["MANUAL", "CONTINUOUS"]).optional(),
 	entryDefinition: ruleTree.nullish(),
 	exitDefinition: ruleTree.nullish(),
 	reentryCooldownDays: z.number().int().min(0).max(3650).nullish(),
@@ -106,8 +117,21 @@ export const archiveCampaignInput = z.object({
 	mode: z.enum(["refuse", "drain", "stop"]).default("refuse"),
 });
 
+export const RECIPIENT_STATES = [
+	"all",
+	"opened",
+	"clicked",
+	"replied",
+	"bounced",
+	"unsubscribed",
+	"skipped",
+] as const;
+
+export const ENROLMENT_STATES = ["all", "active", "stuck", "exited"] as const;
+
 export const campaignPageInput = listInput.extend({
 	campaignId: z.string().min(1),
+	state: z.string().default("all"),
 });
 
 export const enrolInput = z.object({
@@ -157,6 +181,10 @@ export const updateSegmentInput = z.object({
 
 export const previewSegmentInput = z.object({ definition: ruleTree });
 
+export const segmentPageInput = listInput.extend({
+	segmentId: z.string().min(1),
+});
+
 export const memberInput = z.object({
 	segmentId: z.string().min(1),
 	contactId: z.string().min(1),
@@ -173,6 +201,12 @@ export const savePartialInput = z.object({
 	document: z.unknown().optional(),
 });
 
+export const uploadImageInput = z.object({
+	filename: z.string().min(1).max(200),
+	mimeType: z.string().min(1).max(120),
+	contentBase64: z.string().min(1),
+});
+
 export const createTemplateInput = z.object({
 	name: z.string().min(1).max(160),
 	subject: z.string().max(200).default(""),
@@ -183,6 +217,13 @@ export const updateTemplateInput = z.object({
 	id: z.string().min(1),
 	name: z.string().min(1).max(160).optional(),
 	subject: z.string().max(200).optional(),
+	preheader: z.string().max(300).nullish(),
+	document: z.unknown().optional(),
+});
+
+export const sendTestNodeInput = z.object({
+	nodeId: z.string().min(1),
+	subject: z.string().max(200).nullish(),
 	preheader: z.string().max(300).nullish(),
 	document: z.unknown().optional(),
 });

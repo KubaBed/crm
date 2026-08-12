@@ -78,6 +78,15 @@ export function SetupWizard({ step }: { step: string }) {
 		}),
 	);
 
+	const connect = useMutation(
+		trpc.marketing.connectStart.mutationOptions({
+			onSuccess: (result) => {
+				window.location.href = result.url;
+			},
+			onError: (error) => toast.error(error.message),
+		}),
+	);
+
 	const saveIdentity = useMutation(
 		trpc.marketing.saveIdentity.mutationOptions({
 			onSuccess: async () => {
@@ -223,21 +232,37 @@ export function SetupWizard({ step }: { step: string }) {
 			</header>
 
 			<main className="flex min-h-0 flex-1 justify-center overflow-y-auto px-6 py-14">
-				<div className="w-full max-w-xl">
+				<div className={cn("w-full max-w-xl", step === "test" && "m-auto")}>
 					{step === "connect" ? (
 						<Step
 							title="Connect Resend"
-							blurb="Resend carries the mail and reports what happened to it. Paste an API key with sending access."
+							blurb="Resend carries the mail and reports what happened to it. Sign in and grant access, or paste an API key."
 						>
+							<Button
+								className="self-start"
+								disabled={connect.isPending}
+								onClick={() => connect.mutate()}
+							>
+								{connect.isPending ? <Spinner /> : null}
+								{data.connection === "oauth"
+									? "Sign in to Resend again"
+									: "Sign in to Resend"}
+							</Button>
+
+							<span className="text-muted-foreground text-xs">
+								{data.connection === "oauth"
+									? "Signed in. You can revoke this in Resend at any time."
+									: "You grant access on Resend's own screen, and you can revoke it there at any time."}
+							</span>
+
 							<Field>
-								<FieldLabel htmlFor={keyId}>API key</FieldLabel>
+								<FieldLabel htmlFor={keyId}>Or paste an API key</FieldLabel>
 								<Input
 									id={keyId}
 									value={key}
 									placeholder={data.apiKeyMask ?? "re_…"}
 									onChange={(event) => setKey(event.target.value)}
 									autoComplete="off"
-									autoFocus
 								/>
 							</Field>
 						</Step>
@@ -246,7 +271,7 @@ export function SetupWizard({ step }: { step: string }) {
 					{step === "identity" ? (
 						<Step
 							title="Who it comes from"
-							blurb="The postal address is required by law on marketing email, and the compiler puts it on every send."
+							blurb="The postal address is required by law on marketing email. It goes on every send."
 						>
 							<Field>
 								<FieldLabel htmlFor={fromNameId}>From name</FieldLabel>
@@ -318,7 +343,7 @@ export function SetupWizard({ step }: { step: string }) {
 					{step === "test" ? (
 						<Step
 							title="Send yourself one"
-							blurb="Nothing goes to a customer until you schedule a campaign. This proves the shell, the footer and the unsubscribe link all render."
+							blurb="Nothing goes to a customer until you schedule a campaign. This proves your header, your footer and the unsubscribe link all render."
 						>
 							{data.sendable.ok ? (
 								<>

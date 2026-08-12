@@ -9,6 +9,7 @@ import {
 	type CampaignGraph,
 	type NewKind,
 	withNode,
+	withoutNode,
 } from "@/lib/campaign-graph";
 
 function node(
@@ -115,5 +116,83 @@ describe("adding a step from the canvas", () => {
 		expect(next.edges.find((edge) => edge.toId === added?.id)?.fromId).toBe(
 			"b",
 		);
+	});
+});
+
+function chain(): CampaignGraph {
+	return {
+		nodes: [node("a", "EMAIL"), node("w", "WAIT"), node("b", "EMAIL")],
+		edges: [
+			{ fromId: "a", toId: "w", handle: "next", label: null, weight: 100 },
+			{ fromId: "w", toId: "b", handle: "next", label: null, weight: 100 },
+		],
+	};
+}
+
+function branching(): CampaignGraph {
+	return {
+		nodes: [
+			node("a", "EMAIL"),
+			node("br", "BRANCH"),
+			node("yes", "EMAIL"),
+			node("no", "EXIT"),
+		],
+		edges: [
+			{ fromId: "a", toId: "br", handle: "next", label: null, weight: 100 },
+			{ fromId: "br", toId: "yes", handle: "yes", label: null, weight: 100 },
+			{ fromId: "br", toId: "no", handle: "no", label: null, weight: 100 },
+		],
+	};
+}
+
+function errorsIn(next: { nodes: unknown[]; edges: unknown[] }) {
+	return graphErrors(
+		validateGraph(next.nodes as GraphNode[], next.edges as GraphEdge[], {
+			openTracking: true,
+		}),
+	);
+}
+
+describe("deleting a step from the canvas", () => {
+	test("stitches the neighbours together and still runs", () => {
+		const next = withoutNode(chain(), "w");
+		if (!next) throw new Error("the wait should be removable");
+
+		expect(next.nodes.map((one) => one.id)).toEqual(["a", "b"]);
+		expect(next.edges).toHaveLength(1);
+		expect(next.edges[0]).toMatchObject({ fromId: "a", toId: "b" });
+		expect(next.orphaned).toBe(0);
+		expect(errorsIn(next)).toEqual([]);
+	});
+
+	test("the last node cannot go, because a campaign with none cannot save", () => {
+		expect(withoutNode({ nodes: [node("a", "EMAIL")], edges: [] }, "a")).toBe(
+			null,
+		);
+	});
+
+	test("deleting the first step leaves one root", () => {
+		const next = withoutNode(chain(), "a");
+		if (!next) throw new Error("the first email should be removable");
+
+		expect(next.nodes.map((one) => one.id)).toEqual(["w", "b"]);
+		expect(errorsIn(next)).toEqual([]);
+	});
+
+	test("deleting a branch takes the arms nothing else reaches, and says how many", () => {
+		const next = withoutNode(branching(), "br");
+		if (!next) throw new Error("the branch should be removable");
+
+		expect(next.nodes.map((one) => one.id)).toEqual(["a"]);
+		expect(next.orphaned).toBe(2);
+		expect(errorsIn(next)).toEqual([]);
+	});
+
+	test("deleting one arm leaves the branch and the other arm", () => {
+		const next = withoutNode(branching(), "yes");
+		if (!next) throw new Error("the arm should be removable");
+
+		expect(next.nodes.map((one) => one.id)).toEqual(["a", "br", "no"]);
+		expect(next.orphaned).toBe(0);
 	});
 });

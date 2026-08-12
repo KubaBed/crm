@@ -26,10 +26,31 @@ export const MARKETING = {
 	defer: { maxHours: 48 },
 	split: { minPerArm: 100 },
 	retention: { batch: 10_000, maxPasses: 50 },
+	enrolment: { stuckAfterMs: 6 * 60 * 60_000 },
+	image: { maxBytes: 2 * 1024 * 1024 },
+} as const;
+
+export const RESEND_OAUTH = {
+	issuer: "https://api.resend.com",
+	authorize: "https://api.resend.com/oauth/authorize",
+	token: "https://api.resend.com/oauth/token",
+	register: "https://api.resend.com/oauth/register",
+	revoke: "https://api.resend.com/oauth/revoke",
+	scope: "full_access",
+	clientName: "Comp AI CRM",
+	callbackPath: "/api/marketing/resend/callback",
+	refreshSkewMs: 60_000,
 } as const;
 
 export type MarketingSettings = {
 	resendApiKey: string | null;
+	resendClientId: string | null;
+	resendClientSecret: string | null;
+	resendAccessToken: string | null;
+	resendRefreshToken: string | null;
+	resendTokenExpires: Date | null;
+	resendAuthState: string | null;
+	resendAuthVerifier: string | null;
 	resendDomainId: string | null;
 	sendingDomain: string | null;
 	fromName: string | null;
@@ -48,6 +69,13 @@ export type MarketingSettings = {
 
 const SELECT = {
 	marketingResendApiKey: true,
+	marketingResendClientId: true,
+	marketingResendClientSecret: true,
+	marketingResendAccessToken: true,
+	marketingResendRefreshToken: true,
+	marketingResendTokenExpires: true,
+	marketingResendAuthState: true,
+	marketingResendAuthVerifier: true,
 	marketingResendDomainId: true,
 	marketingSendingDomain: true,
 	marketingFromName: true,
@@ -74,6 +102,13 @@ export async function readMarketingSettings(
 
 	return {
 		resendApiKey: row?.marketingResendApiKey ?? null,
+		resendClientId: row?.marketingResendClientId ?? null,
+		resendClientSecret: row?.marketingResendClientSecret ?? null,
+		resendAccessToken: row?.marketingResendAccessToken ?? null,
+		resendRefreshToken: row?.marketingResendRefreshToken ?? null,
+		resendTokenExpires: row?.marketingResendTokenExpires ?? null,
+		resendAuthState: row?.marketingResendAuthState ?? null,
+		resendAuthVerifier: row?.marketingResendAuthVerifier ?? null,
 		resendDomainId: row?.marketingResendDomainId ?? null,
 		sendingDomain: row?.marketingSendingDomain ?? null,
 		fromName: row?.marketingFromName ?? null,
@@ -95,6 +130,13 @@ export async function writeMarketingSettings(
 	db: Db,
 	patch: Partial<{
 		resendApiKey: string | null;
+		resendClientId: string | null;
+		resendClientSecret: string | null;
+		resendAccessToken: string | null;
+		resendRefreshToken: string | null;
+		resendTokenExpires: Date | null;
+		resendAuthState: string | null;
+		resendAuthVerifier: string | null;
 		resendDomainId: string | null;
 		sendingDomain: string | null;
 		fromName: string | null;
@@ -114,6 +156,27 @@ export async function writeMarketingSettings(
 	const data = {
 		...(patch.resendApiKey !== undefined && {
 			marketingResendApiKey: patch.resendApiKey,
+		}),
+		...(patch.resendClientId !== undefined && {
+			marketingResendClientId: patch.resendClientId,
+		}),
+		...(patch.resendClientSecret !== undefined && {
+			marketingResendClientSecret: patch.resendClientSecret,
+		}),
+		...(patch.resendAccessToken !== undefined && {
+			marketingResendAccessToken: patch.resendAccessToken,
+		}),
+		...(patch.resendRefreshToken !== undefined && {
+			marketingResendRefreshToken: patch.resendRefreshToken,
+		}),
+		...(patch.resendTokenExpires !== undefined && {
+			marketingResendTokenExpires: patch.resendTokenExpires,
+		}),
+		...(patch.resendAuthState !== undefined && {
+			marketingResendAuthState: patch.resendAuthState,
+		}),
+		...(patch.resendAuthVerifier !== undefined && {
+			marketingResendAuthVerifier: patch.resendAuthVerifier,
 		}),
 		...(patch.resendDomainId !== undefined && {
 			marketingResendDomainId: patch.resendDomainId,
@@ -160,11 +223,20 @@ export type Sendable =
 	| { ok: true }
 	| { ok: false; missing: SetupStep[]; reason: string };
 
+export type ResendConnection = "oauth" | "key" | null;
+
+export function resendConnection(
+	settings: MarketingSettings,
+): ResendConnection {
+	if (settings.resendRefreshToken || settings.resendAccessToken) return "oauth";
+	return settings.resendApiKey ? "key" : null;
+}
+
 export async function assertSendable(db: Db): Promise<Sendable> {
 	const settings = await readMarketingSettings(db);
 	const missing: SetupStep[] = [];
 
-	if (!settings.resendApiKey) missing.push("connect");
+	if (!resendConnection(settings)) missing.push("connect");
 	if (!settings.fromAddress || !settings.postalAddress)
 		missing.push("identity");
 	if (!settings.sendingDomain) missing.push("domain");

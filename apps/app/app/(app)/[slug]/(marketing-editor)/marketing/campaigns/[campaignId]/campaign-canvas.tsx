@@ -1,10 +1,21 @@
 "use client";
 
+import {
+	AlertDialog,
+	AlertDialogAction,
+	AlertDialogCancel,
+	AlertDialogContent,
+	AlertDialogDescription,
+	AlertDialogFooter,
+	AlertDialogHeader,
+	AlertDialogTitle,
+} from "@crm/ui/components/alert-dialog";
 import { Button } from "@crm/ui/components/button";
 import {
 	ContextMenuContent,
 	ContextMenuItem,
 	ContextMenuLabel,
+	ContextMenuSeparator,
 } from "@crm/ui/components/context-menu";
 import {
 	FlowCanvas,
@@ -15,26 +26,31 @@ import { Spinner } from "@crm/ui/components/spinner";
 import { ToggleGroup, ToggleGroupItem } from "@crm/ui/components/toggle-group";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { parseAsStringLiteral, useQueryState } from "nuqs";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { CampaignKind } from "@/components/marketing/campaign-kind";
 import { CopilotRail } from "@/components/marketing/copilot-rail";
 import { MarketingEditorShell } from "@/components/marketing/editor-shell";
 import {
 	ENTRY,
+	entryDetail,
 	entryLabel,
 	entryX,
 	NEW_LABEL,
 	withNode,
+	withoutNode,
 } from "@/lib/campaign-graph";
 import { useTRPC } from "@/lib/trpc/client";
 import type { RouterOutputs } from "@/lib/trpc/types";
 import { useWorkspaceUrl } from "@/lib/use-workspace-url";
 import { CampaignStatus } from "../../../../(marketing)/marketing/campaign-status";
+import { AudienceSheet } from "./audience-sheet";
 import { BlastComposer } from "./blast-composer";
 import { CampaignActions } from "./campaign-actions";
+import { CampaignEnrolments } from "./campaign-enrolments";
+import { CampaignRecipients } from "./campaign-recipients";
 import { CampaignResults } from "./campaign-results";
-import { DripSettings } from "./drip-settings";
+import { CampaignSettings } from "./campaign-settings";
 import { LogicSheet } from "./logic-sheet";
 import { NodeSheet } from "./node-sheet";
 
@@ -45,6 +61,24 @@ const KIND_LABEL: Record<string, string> = {
 	BRANCH: "Branch",
 	SPLIT: "A/B split",
 };
+
+export const CAMPAIGN_VIEWS = [
+	"flow",
+	"results",
+	"recipients",
+	"enrolments",
+] as const;
+
+const VIEW_LABEL: Record<(typeof CAMPAIGN_VIEWS)[number], string> = {
+	flow: "Flow",
+	results: "Results",
+	recipients: "Recipients",
+	enrolments: "Enrolments",
+};
+
+function nameOf(node: Campaign["nodes"][number]): string {
+	return node.label ?? KIND_LABEL[node.kind] ?? node.kind.toLowerCase();
+}
 
 function nodeTypeFor(kind: string): string {
 	if (kind === "EMAIL") return "email";
@@ -127,13 +161,29 @@ function toFlow(
 	const root = campaign.nodes.find((node) => !targeted.has(node.id));
 
 	if (root) {
+		const included = campaign.segments.filter(
+			(link) => link.mode === "INCLUDE",
+		);
+		const chosen = included.length > 0 || Boolean(campaign.entryDefinition);
+
 		nodes.unshift({
 			id: ENTRY.id,
 			type: "entry",
 			position: { x: entryX(root), y: root.y - ENTRY.gapY },
 			draggable: false,
-			selectable: false,
-			data: { label: entryLabel(campaign.segment?.name ?? null) },
+			selected: selectedId === ENTRY.id,
+			data: {
+				label: entryLabel(
+					included.map((link) => link.name).join(", ") || null,
+					Boolean(campaign.entryDefinition),
+				),
+				detail: entryDetail({
+					automatic: campaign.entryMode === "CONTINUOUS",
+					chosen,
+					held: campaign.segments.length - included.length,
+					hasExitRule: Boolean(campaign.exitDefinition),
+				}),
+			},
 		});
 
 		edges.unshift({
@@ -156,9 +206,11 @@ export function CampaignCanvas({ campaignId }: { campaignId: string }) {
 	const queryClient = useQueryClient();
 	const workspaceUrl = useWorkspaceUrl();
 	const [selectedId, setSelectedId] = useQueryState("node");
+	const [targetId, setTargetId] = useState<string | null>(null);
+	const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
 	const [view, setView] = useQueryState(
 		"view",
-		parseAsStringLiteral(["flow", "results"] as const).withDefault("flow"),
+		parseAsStringLiteral(CAMPAIGN_VIEWS).withDefault("flow"),
 	);
 
 	const campaign = useQuery(
@@ -202,7 +254,7 @@ export function CampaignCanvas({ campaignId }: { campaignId: string }) {
 		trpc.marketingCampaigns.activate.mutationOptions({
 			onSuccess: () => {
 				toast.success(
-					"The drip is live. People start entering on the next tick.",
+					"The sequence is live. People start entering on the next tick.",
 				);
 				void invalidate();
 			},
@@ -240,11 +292,18 @@ export function CampaignCanvas({ campaignId }: { campaignId: string }) {
 
 	if (data.kind === "BLAST") {
 		return (
-			<BlastComposer campaign={data} onChanged={() => void invalidate()} />
+			<BlastComposer
+				campaign={data}
+				view={view}
+				onViewChange={(next) => void setView(next)}
+				onChanged={() => void invalidate()}
+			/>
 		);
 	}
 
 	const selected = data.nodes.find((node) => node.id === selectedId) ?? null;
+	const target = data.nodes.find((node) => node.id === targetId) ?? null;
+	const removal = target ? withoutNode(data, target.id) : null;
 	const activatable = data.kind === "DRIP" && data.status === "DRAFT";
 
 	return (
@@ -279,8 +338,11 @@ export function CampaignCanvas({ campaignId }: { campaignId: string }) {
 						</Button>
 					) : null}
 
-					<DripSettings
+					<CampaignSettings
 						campaignId={campaignId}
+						kind="DRIP"
+						fromName={data.fromName}
+						replyTo={data.replyTo}
 						cooldownDays={data.reentryCooldownDays}
 						maxPasses={data.maxPasses}
 						onChanged={() => void invalidate()}
@@ -299,19 +361,29 @@ export function CampaignCanvas({ campaignId }: { campaignId: string }) {
 					type="single"
 					size="sm"
 					value={view}
-					onValueChange={(next) =>
-						void setView(next === "results" ? "results" : "flow")
-					}
+					onValueChange={(next) => {
+						const chosen = CAMPAIGN_VIEWS.find((option) => option === next);
+						void setView(chosen ?? "flow");
+					}}
 				>
-					<ToggleGroupItem value="flow">Flow</ToggleGroupItem>
-					<ToggleGroupItem value="results">Results</ToggleGroupItem>
+					{CAMPAIGN_VIEWS.map((option) => (
+						<ToggleGroupItem key={option} value={option}>
+							{VIEW_LABEL[option]}
+						</ToggleGroupItem>
+					))}
 				</ToggleGroup>
 			}
 			rail={
-				view === "results" ? (
+				view !== "flow" ? (
 					<CopilotRail
 						record={{ kind: "campaign", id: campaignId }}
 						onFinish={() => void invalidate()}
+					/>
+				) : selectedId === ENTRY.id ? (
+					<AudienceSheet
+						campaign={data}
+						onClose={() => void setSelectedId(null)}
+						onChanged={() => void invalidate()}
 					/>
 				) : selected && selected.kind !== "EMAIL" ? (
 					<LogicSheet
@@ -347,15 +419,17 @@ export function CampaignCanvas({ campaignId }: { campaignId: string }) {
 		>
 			{view === "results" ? (
 				<CampaignResults campaign={data} />
+			) : view === "recipients" ? (
+				<CampaignRecipients campaignId={campaignId} />
+			) : view === "enrolments" ? (
+				<CampaignEnrolments campaignId={campaignId} />
 			) : (
 				<div className="relative flex min-h-0 min-w-0 flex-1">
 					<FlowCanvas
 						menu={
 							<ContextMenuContent>
 								<ContextMenuLabel>
-									{selected
-										? `Add after ${selected.label ?? "this step"}`
-										: "Add a step"}
+									{target ? `Add after ${nameOf(target)}` : "Add a step"}
 								</ContextMenuLabel>
 								{(["EMAIL", "WAIT", "BRANCH", "EXIT"] as const).map((kind) => (
 									<ContextMenuItem
@@ -364,13 +438,35 @@ export function CampaignCanvas({ campaignId }: { campaignId: string }) {
 										onSelect={() =>
 											addNode.mutate({
 												campaignId,
-												...withNode(data, kind, selectedId),
+												...withNode(data, kind, target?.id ?? null),
 											})
 										}
 									>
 										{NEW_LABEL[kind]}
 									</ContextMenuItem>
 								))}
+
+								{target ? (
+									<>
+										<ContextMenuSeparator />
+										<ContextMenuItem
+											variant="destructive"
+											disabled={addNode.isPending || removal === null}
+											onSelect={() => {
+												if (!removal) return;
+												if (removal.orphaned > 0) {
+													setConfirmDelete(target.id);
+													return;
+												}
+												addNode.mutate({ campaignId, ...removal });
+											}}
+										>
+											{removal === null
+												? "A campaign keeps one step"
+												: `Delete ${nameOf(target)}`}
+										</ContextMenuItem>
+									</>
+								) : null}
 							</ContextMenuContent>
 						}
 						nodes={flow.nodes}
@@ -378,12 +474,46 @@ export function CampaignCanvas({ campaignId }: { campaignId: string }) {
 						selectedId={selectedId}
 						fitKey={`${data.nodes.length}-${data.edges.length}`}
 						onNodeClick={(_event, node) => void setSelectedId(node.id)}
+						onNodeContextMenu={(_event, node) =>
+							setTargetId(node.id === ENTRY.id ? null : node.id)
+						}
+						onPaneContextMenu={() => setTargetId(null)}
 						onNodeMoved={(id, position) =>
 							moveNode.mutate({ nodeId: id, x: position.x, y: position.y })
 						}
 					/>
 
-					{selected ? (
+					<AlertDialog
+						open={confirmDelete !== null}
+						onOpenChange={(open) => !open && setConfirmDelete(null)}
+					>
+						<AlertDialogContent>
+							<AlertDialogHeader>
+								<AlertDialogTitle>
+									Delete {target ? nameOf(target) : "this step"}
+								</AlertDialogTitle>
+								<AlertDialogDescription>
+									{removal?.orphaned ?? 0} step
+									{removal?.orphaned === 1 ? "" : "s"} below it can only be
+									reached through it, so they go too. Anybody already past this
+									point stays where they are.
+								</AlertDialogDescription>
+							</AlertDialogHeader>
+							<AlertDialogFooter>
+								<AlertDialogCancel>Cancel</AlertDialogCancel>
+								<AlertDialogAction
+									onClick={() => {
+										if (removal) addNode.mutate({ campaignId, ...removal });
+										setConfirmDelete(null);
+									}}
+								>
+									Delete them
+								</AlertDialogAction>
+							</AlertDialogFooter>
+						</AlertDialogContent>
+					</AlertDialog>
+
+					{selectedId ? (
 						<button
 							type="button"
 							aria-label="Close the step"

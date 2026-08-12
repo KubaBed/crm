@@ -9,14 +9,38 @@ export default defineTool({
 	inputSchema: z.object({
 		name: z.string().min(1).max(160),
 		kind: z.enum(["BLAST", "DRIP"]),
-		segmentId: z.string().optional(),
+		segmentIds: z
+			.array(z.string().min(1))
+			.max(20)
+			.optional()
+			.describe(
+				"Segments whose people receive this. Everybody in any of them.",
+			),
+		excludeSegmentIds: z
+			.array(z.string().min(1))
+			.max(20)
+			.optional()
+			.describe(
+				"Segments held out. Anybody in one of these never receives it.",
+			),
 	}),
 	async execute(input) {
+		const segments = [
+			...(input.segmentIds ?? []).map((segmentId) => ({
+				segmentId,
+				mode: "INCLUDE" as const,
+			})),
+			...(input.excludeSegmentIds ?? []).map((segmentId) => ({
+				segmentId,
+				mode: "EXCLUDE" as const,
+			})),
+		];
+
 		const campaign = await db.marketingCampaign.create({
 			data: {
 				name: input.name,
 				kind: input.kind,
-				segmentId: input.segmentId ?? null,
+				segments: { create: segments },
 				entryMode: input.kind === "DRIP" ? "CONTINUOUS" : "MANUAL",
 				nodes: {
 					create: {

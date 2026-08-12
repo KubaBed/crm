@@ -16,6 +16,22 @@ code downstream handles a campaign with no nodes.
 `pass` is what lets somebody walk a drip a second time; without it the second
 walk silently sends nothing, which looks exactly like success.
 
+## A campaign takes many segments, and an exclusion always wins
+
+`MarketingCampaignSegment` is the join, with a `mode` of `INCLUDE` or `EXCLUDE`.
+There is no `segmentId` column on the campaign, because two ways to say who gets
+an email is one way too many.
+
+**`campaignAudienceWhere()` in `@crm/db/marketing/audience.ts` is the only
+answer.** It is `OR(includes) AND NOT OR(excludes)`, and the blast, the drip
+entry sweep and the count on the screen all call it. Write a second one and a
+marketer sees a number the send does not agree with.
+
+A campaign with no included segment sends to nobody. `materialise` and
+`sweepEntries` both return `0` rather than guessing, and `activate` refuses a
+`CONTINUOUS` drip that has neither a segment nor an `entryDefinition` — a live
+drip that enrols nobody looks identical to a working one.
+
 ## One compiler, and it must stay one
 
 `@crm/db/marketing/segments.ts` exports **two functions and no more**.
@@ -55,6 +71,49 @@ picks a template and edits **body copy only**.
 `renderEmail()` is called on the server for the preview and for the transport.
 There is no second renderer, and there must not be — the day they drift is the
 day somebody sends the drift to nine thousand people.
+
+## The preview shows the email at its real width
+
+`EmailPreview` in `@crm/ui/components/email-preview` is the only preview. The
+composers, the template editor, the shell editor and the standalone preview page
+all use it, so the device toggle and the frame stay the same everywhere.
+
+The frame is `EMAIL_WIDTH` wide, imported from `@crm/email/theme`. **Never give
+the frame a percentage width.** The email is a 600px table and it does not
+shrink, so a narrow frame hides the right edge inside the iframe. The pane
+scrolls sideways instead, which a person can see and act on.
+
+An editor column beside the preview is `overflow-x-hidden`. One wide child used
+to shear the whole column sideways and clip every label.
+
+## Connecting Resend is OAuth first, a pasted key second
+
+`ResendOauthService` registers this workspace with Resend at runtime — RFC 7591
+dynamic registration, no client id in `.env` — then runs PKCE S256 as a public
+client. **There is no Resend app to provision and no new environment variable**,
+which is what keeps a self-hoster able to connect at all.
+
+The endpoints come from Resend's discovery document
+(`https://api.resend.com/.well-known/oauth-authorization-server`) and are frozen
+in `RESEND_OAUTH` in `@crm/db/marketing`. Do not hand-write one somewhere else.
+
+`redirect_uri` is built from **`API_URL`**, never `APP_URL`, matching
+`ssoCallbackBase()` and the rule in `docs/environment.md`. The callback is a Nest
+controller at `/api/marketing/resend/callback`, which the app's `/api/*` proxy
+already forwards, so there is no Next route to keep in step. Moving `API_URL`
+invalidates the registered client — reconnect after.
+
+**The API key path stays.** `resendConnection()` answers `"oauth" | "key" | null`
+and `ResendService.client()` prefers the token, refreshing it a minute before it
+expires. An access token lives 15 minutes; only the refresh token matters.
+
+**A refused refresh is read, not swallowed.** `invalid_grant`, `invalid_client`
+and `unauthorized_client` mean the grant is gone at Resend, so the tokens are
+cleared and `resendConnection()` drops to the API key or to `null` — a screen
+that says "connected" while every send fails is worse than one that says
+nothing. Any other status keeps the tokens, because Resend being down for a
+minute is not a disconnect. The token write retries once, and a second failure
+is logged at `error` naming what a person has to do.
 
 ## Resend's answer beats ours
 
@@ -147,6 +206,33 @@ Approval is an eve policy, not a flag: a draft edit is silent, a live-drip edit
 asks a person, and an autonomous principal is **denied with a reason** rather
 than parked in a run nobody can answer.
 
+## A send freezes what it was going to say
+
+`subject`, `preheader`, `document`, `fromName` and `replyTo` are copied onto
+`MarketingSend` when it is queued, not read back from the node when it goes.
+Editing touch three tomorrow must not change the email that was queued today.
+
+`fromName` and `replyTo` are per campaign and fall back to the workspace. **The
+from-address is never per campaign** — it has to sit inside the verified Resend
+domain, and a second address is a deliverability problem wearing a feature's
+clothes.
+
+## A send reaches the timeline, and never bumps the clock
+
+`MarketingActivityService.file()` writes one `Activity` per **successful** send,
+so a rep opening a contact sees the marketing email beside the sales one. A
+queued or skipped send writes nothing.
+
+**It must never call `ActivityStampService.touch`.** `lastActivityAt` feeds the
+`activity.within` and `activity.notWithin` facets, and one of the four default
+segments is *Quiet for 60 days*. An email we sent is not the contact being
+active, and bumping the clock would let a nurture drip keep somebody out of the
+very segment that feeds it. `marketing-activity.integration.spec.ts` asserts it.
+
+The author is the contact's owner, falling back to any user, matching
+`tracking-filing.service.ts`. Every row carries
+`meta: { automated: true, source: "marketing" }`.
+
 ## Quiet hours hold, the cap skips
 
 `deferQuiet` pushes every due `CAMPAIGN` and `DRIP` send to the next open hour.
@@ -155,7 +241,12 @@ test that silently does nothing at 3am is a broken first run.
 
 `skipOverCap` counts what a recipient has already had in the last 24 hours and
 marks the rest `SKIPPED` with `skipReason: "daily-cap"`. It runs after the claim,
-so one place covers a blast, a drip touch and a one-off alike.
+so one place covers a blast and a drip touch alike.
+
+**The cap reads the origin, for the same reason the quiet hours do.** Only
+`CAMPAIGN` and `DRIP` are counted. A marketer testing an email twenty times must
+not have the twenty-first vanish into `daily-cap`, and `ClaimedSend.origin`
+exists so the skip can tell the difference.
 
 Both read `marketingQuietStart`, `marketingQuietEnd`, `marketingTimeZone` and
 `marketingDailyCap`, and all four are editable on the settings page. A setting

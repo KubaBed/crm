@@ -1,7 +1,9 @@
-import type { Db, Prisma } from "@crm/db";
+import { type Db, Prisma } from "@crm/db";
 import {
 	assertSendable,
 	autoLayout,
+	campaignAudienceWhere,
+	campaignSegments,
 	enrolContact,
 	type GraphEdge,
 	type GraphNode,
@@ -11,10 +13,10 @@ import {
 	PAUSE_SKIP_REASONS,
 	queueDirect,
 	readMarketingSettings,
-	segmentWhere,
+	setCampaignSegments,
 	validateGraph,
 } from "@crm/db/marketing";
-import { EMPTY_DOCUMENT, lintEmail } from "@crm/email";
+import { documentProblems, EMPTY_DOCUMENT, lintEmail } from "@crm/email";
 import {
 	BadRequestException,
 	ConflictException,
@@ -23,13 +25,80 @@ import {
 } from "@nestjs/common";
 import { blankToNull } from "../crm/values";
 import { InjectDatabase } from "../database/database.constants";
-import { type ListInput, paginate, resolveOrderBy } from "../trpc/list-input";
+import {
+	countsByKey,
+	type ListInput,
+	paginate,
+	resolveOrderBy,
+} from "../trpc/list-input";
 import { MarketingTemplatesService } from "./marketing-templates.service";
 import { ResendService } from "./resend.service";
 
 type Json = Record<string, unknown> | null;
 
 const MANUAL_EXIT_REASON = "a rep removed them";
+
+const STUCK_AFTER_MS = MARKETING.enrolment.stuckAfterMs;
+
+const LIVE_ONLY: Prisma.MarketingCampaignWhereInput = {
+	status: { not: "ARCHIVED" },
+};
+
+const CAMPAIGN_STATUS_FILTERS: Record<
+	string,
+	Prisma.MarketingCampaignWhereInput
+> = {
+	"": LIVE_ONLY,
+	all: LIVE_ONLY,
+	DRAFT: { status: "DRAFT" },
+	ACTIVE: { status: "ACTIVE" },
+	PAUSED: { status: "PAUSED" },
+	SENT: { status: { in: ["SENT", "SENDING"] } },
+	ARCHIVED: { status: "ARCHIVED" },
+};
+
+const RECIPIENT_FILTERS: Record<string, Prisma.MarketingSendWhereInput> = {
+	all: {},
+	opened: { openedAt: { not: null } },
+	clicked: { clickedAt: { not: null } },
+	replied: { repliedAt: { not: null } },
+	bounced: { status: { in: ["BOUNCED", "COMPLAINED", "FAILED"] } },
+	unsubscribed: { recipient: { status: "UNSUBSCRIBED" } },
+	skipped: { status: "SKIPPED" },
+};
+
+function enrolmentFilter(
+	state: string,
+): Prisma.MarketingEnrolmentWhereInput | undefined {
+	if (state === "active") return { status: "ACTIVE" };
+	if (state === "exited") return { status: "EXITED" };
+
+	if (state === "stuck") {
+		return {
+			status: "ACTIVE",
+			nextDueAt: { lt: new Date(Date.now() - STUCK_AFTER_MS) },
+		};
+	}
+
+	return undefined;
+}
+
+function linkedSegments(input: {
+	segmentIds?: string[];
+	excludeSegmentIds?: string[];
+}): { segmentId: string; mode: "INCLUDE" | "EXCLUDE" }[] {
+	const chosen = new Map<string, "INCLUDE" | "EXCLUDE">();
+
+	for (const segmentId of input.segmentIds ?? []) {
+		chosen.set(segmentId, "INCLUDE");
+	}
+
+	for (const segmentId of input.excludeSegmentIds ?? []) {
+		chosen.set(segmentId, "EXCLUDE");
+	}
+
+	return [...chosen].map(([segmentId, mode]) => ({ segmentId, mode }));
+}
 
 export type NodeStats = {
 	nodeId: string;
@@ -53,12 +122,20 @@ export class MarketingCampaignsService {
 
 	async list(input: ListInput & { kind?: string; status?: string }) {
 		const where: Prisma.MarketingCampaignWhereInput = {
-			status: { not: "ARCHIVED" },
-			...(input.q && { name: { contains: input.q, mode: "insensitive" } }),
+			...CAMPAIGN_STATUS_FILTERS[input.status ?? ""],
+			...(input.q && {
+				OR: [
+					{ name: { contains: input.q, mode: "insensitive" } },
+					{
+						nodes: {
+							some: { subject: { contains: input.q, mode: "insensitive" } },
+						},
+					},
+				],
+			}),
 			...(input.kind === "BLAST" || input.kind === "DRIP"
 				? { kind: input.kind }
 				: {}),
-			...(input.status === "DRAFT" ? { status: "DRAFT" } : {}),
 		};
 
 		const orderBy =
@@ -84,43 +161,42 @@ export class MarketingCampaignsService {
 					scheduledAt: true,
 					activatedAt: true,
 					updatedAt: true,
-					segment: { select: { id: true, name: true } },
+					segments: {
+						where: { mode: "INCLUDE" },
+						select: { segment: { select: { name: true } } },
+						orderBy: { addedAt: "asc" },
+					},
 					_count: { select: { nodes: true } },
 				},
 			}),
 			this.db.marketingCampaign.count({ where }),
 		]);
 
-		const stats = await this.db.marketingSend.groupBy({
-			by: ["campaignId"],
-			where: { campaignId: { in: rows.map((row) => row.id) } },
-			_count: { _all: true },
-		});
+		const ids = rows.map((row) => row.id);
 
-		const engagement = await Promise.all(
-			rows.map(async (row) => {
-				const [sent, opened, clicked, replied] = await Promise.all([
-					this.db.marketingSend.count({
-						where: {
-							campaignId: row.id,
-							status: { in: ["SENT", "DELIVERED"] },
-						},
-					}),
-					this.db.marketingSend.count({
-						where: { campaignId: row.id, openedAt: { not: null } },
-					}),
-					this.db.marketingSend.count({
-						where: { campaignId: row.id, clickedAt: { not: null } },
-					}),
-					this.db.marketingSend.count({
-						where: { campaignId: row.id, repliedAt: { not: null } },
-					}),
-				]);
-				return { id: row.id, sent, opened, clicked, replied };
+		const [kinds, sent, opened, clicked, replied] = await Promise.all([
+			this.db.marketingCampaign.groupBy({
+				by: ["kind"],
+				where,
+				_count: { _all: true },
 			}),
-		);
+			this.countByCampaign(ids, { status: { in: ["SENT", "DELIVERED"] } }),
+			this.countByCampaign(ids, { openedAt: { not: null } }),
+			this.countByCampaign(ids, { clickedAt: { not: null } }),
+			this.countByCampaign(ids, { repliedAt: { not: null } }),
+		]);
 
-		const byId = new Map(engagement.map((row) => [row.id, row]));
+		const byId = new Map(
+			ids.map((id) => [
+				id,
+				{
+					sent: sent.get(id) ?? 0,
+					opened: opened.get(id) ?? 0,
+					clicked: clicked.get(id) ?? 0,
+					replied: replied.get(id) ?? 0,
+				},
+			]),
+		);
 
 		return {
 			rows: rows.map((row) => {
@@ -135,9 +211,10 @@ export class MarketingCampaignsService {
 					touches,
 					subtitle:
 						row.kind === "DRIP"
-							? `Drip · ${touches} node${touches === 1 ? "" : "s"}`
+							? `Sequence · ${touches} step${touches === 1 ? "" : "s"}`
 							: "Blast",
-					segment: row.segment?.name ?? null,
+					segment:
+						row.segments.map((link) => link.segment.name).join(", ") || null,
 					sent: numbers?.sent ?? 0,
 					opened: numbers?.opened ?? 0,
 					clicked: numbers?.clicked ?? 0,
@@ -148,12 +225,29 @@ export class MarketingCampaignsService {
 				};
 			}),
 			total,
-			facetCounts: {
-				kind: Object.fromEntries(
-					stats.map((row) => [row.campaignId ?? "none", row._count._all]),
-				),
-			},
+			facetCounts: { kind: countsByKey(kinds, "kind") },
 		};
+	}
+
+	private async countByCampaign(
+		ids: string[],
+		filter: Prisma.MarketingSendWhereInput,
+	): Promise<Map<string, number>> {
+		if (ids.length === 0) return new Map();
+
+		const groups = await this.db.marketingSend.groupBy({
+			by: ["campaignId"],
+			where: { campaignId: { in: ids }, ...filter },
+			_count: { _all: true },
+		});
+
+		return new Map(
+			groups.flatMap((group) =>
+				group.campaignId
+					? [[group.campaignId, group._count._all] as const]
+					: [],
+			),
+		);
 	}
 
 	async overview() {
@@ -222,7 +316,6 @@ export class MarketingCampaignsService {
 				name: true,
 				kind: true,
 				status: true,
-				segmentId: true,
 				entryMode: true,
 				entryDefinition: true,
 				exitDefinition: true,
@@ -237,7 +330,6 @@ export class MarketingCampaignsService {
 				createdById: true,
 				createdAt: true,
 				updatedAt: true,
-				segment: { select: { id: true, name: true } },
 				nodes: {
 					select: {
 						id: true,
@@ -268,18 +360,21 @@ export class MarketingCampaignsService {
 
 		if (!campaign) throw new NotFoundException("No such campaign.");
 
-		const [stats, health, enrolled, inFlight, audience] = await Promise.all([
-			this.nodeStats(id),
-			this.health(id),
-			this.db.marketingEnrolment.count({ where: { campaignId: id } }),
-			this.db.marketingEnrolment.count({
-				where: { campaignId: id, status: "ACTIVE" },
-			}),
-			this.audience(campaign.segmentId),
-		]);
+		const [stats, health, enrolled, inFlight, audience, segments] =
+			await Promise.all([
+				this.nodeStats(id),
+				this.health(id),
+				this.db.marketingEnrolment.count({ where: { campaignId: id } }),
+				this.db.marketingEnrolment.count({
+					where: { campaignId: id, status: "ACTIVE" },
+				}),
+				this.audience(id),
+				campaignSegments(this.db, id),
+			]);
 
 		return {
 			...campaign,
+			segments,
 			entryDefinition: campaign.entryDefinition as Json,
 			exitDefinition: campaign.exitDefinition as Json,
 			nodes: campaign.nodes.map((node) => ({
@@ -316,22 +411,67 @@ export class MarketingCampaignsService {
 		});
 	}
 
-	private async audience(
-		segmentId: string | null,
-	): Promise<{ total: number; sendable: number; excluded: number }> {
-		if (!segmentId) return { total: 0, sendable: 0, excluded: 0 };
+	async sendTest(input: {
+		nodeId: string;
+		subject?: string | null;
+		preheader?: string | null;
+		document?: unknown;
+		userId: string;
+	}) {
+		const sendable = await assertSendable(this.db);
+		if (!sendable.ok) throw new BadRequestException(sendable.reason);
 
-		const segment = await this.db.marketingSegment.findUnique({
-			where: { id: segmentId },
-			select: {
-				definition: true,
-				members: { select: { contactId: true, mode: true } },
-			},
+		const node = await this.db.marketingCampaignNode.findUnique({
+			where: { id: input.nodeId },
+			select: { subject: true, preheader: true, document: true },
 		});
 
-		if (!segment) return { total: 0, sendable: 0, excluded: 0 };
+		if (!node) throw new NotFoundException("No such node.");
 
-		const where = segmentWhere(segment);
+		const user = await this.db.user.findUnique({
+			where: { id: input.userId },
+			select: { email: true },
+		});
+
+		if (!user?.email) {
+			throw new BadRequestException("Your account has no email address.");
+		}
+
+		const document = input.document ?? node.document ?? EMPTY_DOCUMENT;
+		const subject = input.subject ?? node.subject ?? "";
+
+		const problems = documentProblems(document);
+		if (problems.length > 0) {
+			throw new BadRequestException(
+				`This email cannot be rendered. ${problems[0]?.message ?? ""}`.trim(),
+			);
+		}
+
+		const result = await queueDirect(this.db, {
+			address: user.email,
+			subject: `[test] ${subject || "No subject yet"}`,
+			document,
+			origin: "TEST",
+			requestedById: input.userId,
+			preheader: input.preheader ?? node.preheader,
+		});
+
+		if (!result.ok) {
+			throw new BadRequestException(
+				result.reason === "unsubscribed"
+					? "Your own address is unsubscribed, so nothing can go to it. Resubscribe it first."
+					: `The test was refused: ${result.reason}.`,
+			);
+		}
+
+		return { to: user.email };
+	}
+
+	private async audience(
+		campaignId: string,
+	): Promise<{ total: number; sendable: number; excluded: number }> {
+		const where = await campaignAudienceWhere(this.db, campaignId);
+		if (!where) return { total: 0, sendable: 0, excluded: 0 };
 
 		const [total, sendable] = await Promise.all([
 			this.db.contact.count({ where }),
@@ -447,7 +587,8 @@ export class MarketingCampaignsService {
 	async create(input: {
 		name: string;
 		kind: "BLAST" | "DRIP";
-		segmentId?: string | null;
+		segmentIds?: string[];
+		excludeSegmentIds?: string[];
 		userId: string;
 	}) {
 		const name = blankToNull(input.name);
@@ -458,7 +599,7 @@ export class MarketingCampaignsService {
 				data: {
 					name,
 					kind: input.kind,
-					segmentId: input.segmentId ?? null,
+					segments: { create: linkedSegments(input) },
 					createdById: input.userId,
 					entryMode: input.kind === "DRIP" ? "CONTINUOUS" : "MANUAL",
 				},
@@ -481,30 +622,198 @@ export class MarketingCampaignsService {
 		});
 	}
 
+	async duplicate(id: string, userId: string) {
+		const source = await this.db.marketingCampaign.findUnique({
+			where: { id },
+			select: {
+				name: true,
+				kind: true,
+				entryMode: true,
+				entryDefinition: true,
+				exitDefinition: true,
+				reentryCooldownDays: true,
+				maxPasses: true,
+				fromName: true,
+				fromAddress: true,
+				replyTo: true,
+				segments: { select: { segmentId: true, mode: true } },
+				nodes: {
+					select: {
+						id: true,
+						kind: true,
+						label: true,
+						templateId: true,
+						subject: true,
+						preheader: true,
+						document: true,
+						delayHours: true,
+						condition: true,
+						x: true,
+						y: true,
+					},
+				},
+				edges: {
+					select: {
+						fromId: true,
+						toId: true,
+						handle: true,
+						label: true,
+						weight: true,
+					},
+				},
+			},
+		});
+
+		if (!source) throw new NotFoundException("No such campaign.");
+
+		return this.db.$transaction(async (tx) => {
+			const copy = await tx.marketingCampaign.create({
+				data: {
+					name: `${source.name} copy`,
+					kind: source.kind,
+					status: "DRAFT",
+					entryMode: source.entryMode,
+					entryDefinition:
+						source.entryDefinition === null
+							? Prisma.DbNull
+							: (source.entryDefinition as Prisma.InputJsonValue),
+					exitDefinition:
+						source.exitDefinition === null
+							? Prisma.DbNull
+							: (source.exitDefinition as Prisma.InputJsonValue),
+					reentryCooldownDays: source.reentryCooldownDays,
+					maxPasses: source.maxPasses,
+					fromName: source.fromName,
+					fromAddress: source.fromAddress,
+					replyTo: source.replyTo,
+					createdById: userId,
+					segments: { create: source.segments },
+				},
+				select: { id: true },
+			});
+
+			const made = new Map<string, string>();
+
+			for (const node of source.nodes) {
+				const row = await tx.marketingCampaignNode.create({
+					data: {
+						campaignId: copy.id,
+						kind: node.kind,
+						label: node.label,
+						templateId: node.templateId,
+						subject: node.subject,
+						preheader: node.preheader,
+						document:
+							node.document === null
+								? Prisma.DbNull
+								: (node.document as Prisma.InputJsonValue),
+						delayHours: node.delayHours,
+						condition:
+							node.condition === null
+								? Prisma.DbNull
+								: (node.condition as Prisma.InputJsonValue),
+						x: node.x,
+						y: node.y,
+					},
+					select: { id: true },
+				});
+
+				made.set(node.id, row.id);
+			}
+
+			const edges = source.edges.flatMap((edge) => {
+				const fromId = made.get(edge.fromId);
+				const toId = made.get(edge.toId);
+				if (!fromId || !toId) return [];
+
+				return [
+					{
+						campaignId: copy.id,
+						fromId,
+						toId,
+						handle: edge.handle,
+						label: edge.label,
+						weight: edge.weight,
+					},
+				];
+			});
+
+			if (edges.length > 0) {
+				await tx.marketingCampaignEdge.createMany({ data: edges });
+			}
+
+			return copy;
+		});
+	}
+
+	async saveNodeAsTemplate(nodeId: string) {
+		const node = await this.db.marketingCampaignNode.findUnique({
+			where: { id: nodeId },
+			select: {
+				label: true,
+				subject: true,
+				preheader: true,
+				document: true,
+				campaign: { select: { name: true } },
+			},
+		});
+
+		if (!node) throw new NotFoundException("No such node.");
+		if (!node.document) {
+			throw new BadRequestException("This email has no body to save.");
+		}
+
+		return this.templates.create({
+			name: `${node.campaign.name} — ${node.label ?? "Email"}`,
+			subject: node.subject ?? "",
+			preheader: node.preheader,
+			document: node.document,
+		});
+	}
+
 	async update(input: {
 		id: string;
 		name?: string;
-		segmentId?: string | null;
+		segmentIds?: string[];
+		excludeSegmentIds?: string[];
+		fromName?: string | null;
 		replyTo?: string | null;
+		entryMode?: "MANUAL" | "CONTINUOUS";
 		entryDefinition?: unknown;
 		exitDefinition?: unknown;
 		reentryCooldownDays?: number | null;
 		maxPasses?: number;
 		scheduledAt?: Date | null;
 	}) {
+		if (
+			input.segmentIds !== undefined ||
+			input.excludeSegmentIds !== undefined
+		) {
+			await setCampaignSegments(this.db, input.id, linkedSegments(input));
+		}
+
 		return this.db.marketingCampaign.update({
 			where: { id: input.id },
 			data: {
 				...(input.name && { name: input.name }),
-				...(input.segmentId !== undefined && { segmentId: input.segmentId }),
-				...(input.replyTo !== undefined && { replyTo: input.replyTo }),
+				...(input.fromName !== undefined && {
+					fromName: blankToNull(input.fromName ?? ""),
+				}),
+				...(input.replyTo !== undefined && {
+					replyTo: blankToNull(input.replyTo ?? ""),
+				}),
+				...(input.entryMode !== undefined && { entryMode: input.entryMode }),
 				...(input.entryDefinition !== undefined && {
-					entryDefinition: (input.entryDefinition ??
-						undefined) as Prisma.InputJsonValue,
+					entryDefinition:
+						input.entryDefinition === null
+							? Prisma.DbNull
+							: (input.entryDefinition as Prisma.InputJsonValue),
 				}),
 				...(input.exitDefinition !== undefined && {
-					exitDefinition: (input.exitDefinition ??
-						undefined) as Prisma.InputJsonValue,
+					exitDefinition:
+						input.exitDefinition === null
+							? Prisma.DbNull
+							: (input.exitDefinition as Prisma.InputJsonValue),
 				}),
 				...(input.reentryCooldownDays !== undefined && {
 					reentryCooldownDays: input.reentryCooldownDays,
@@ -691,16 +1000,16 @@ export class MarketingCampaignsService {
 			where: { id: input.id },
 			select: {
 				kind: true,
-				segmentId: true,
+				_count: { select: { segments: true } },
 				nodes: { select: { subject: true, document: true, kind: true } },
 			},
 		});
 
 		if (!campaign) throw new NotFoundException("No such campaign.");
 		if (campaign.kind !== "BLAST") {
-			throw new BadRequestException("A drip is activated, not scheduled.");
+			throw new BadRequestException("A sequence is activated, not scheduled.");
 		}
-		if (!campaign.segmentId) {
+		if (campaign._count.segments === 0) {
 			throw new BadRequestException("Choose who this goes to first.");
 		}
 
@@ -727,7 +1036,7 @@ export class MarketingCampaignsService {
 
 		const result = await materialise(this.db, input.id, { dueAt: at });
 
-		return { scheduledAt: at, ...result };
+		return { scheduledAt: at, at: input.at, ...result };
 	}
 
 	async setKind(id: string, kind: "BLAST" | "DRIP") {
@@ -745,7 +1054,7 @@ export class MarketingCampaignsService {
 
 		if (campaign.status !== "DRAFT") {
 			throw new BadRequestException(
-				"Only a draft can change between a blast and a drip.",
+				"Only a draft can change between a blast and a sequence.",
 			);
 		}
 
@@ -757,7 +1066,7 @@ export class MarketingCampaignsService {
 
 		if (kind === "BLAST" && campaign._count.nodes > 1) {
 			throw new BadRequestException(
-				"A blast is one email. Delete the extra steps first, or leave it a drip.",
+				"A blast is one email. Delete the extra steps first, or leave it a sequence.",
 			);
 		}
 
@@ -784,7 +1093,11 @@ export class MarketingCampaignsService {
 				scheduledAt: true,
 				pausedReason: true,
 				updatedAt: true,
-				segment: { select: { id: true, name: true } },
+				segments: {
+					where: { mode: "INCLUDE" },
+					select: { segment: { select: { id: true, name: true } } },
+					orderBy: { addedAt: "asc" },
+				},
 				_count: { select: { nodes: true } },
 			},
 		});
@@ -796,7 +1109,7 @@ export class MarketingCampaignsService {
 			at: row.scheduledAt,
 			note: row.pausedReason,
 			nodes: row._count.nodes,
-			segment: row.segment,
+			segment: row.segments[0]?.segment ?? null,
 			stagedAt: row.updatedAt,
 		}));
 	}
@@ -857,6 +1170,9 @@ export class MarketingCampaignsService {
 			where: { id },
 			select: {
 				kind: true,
+				entryMode: true,
+				entryDefinition: true,
+				_count: { select: { segments: true } },
 				nodes: {
 					select: {
 						id: true,
@@ -883,6 +1199,14 @@ export class MarketingCampaignsService {
 		if (!campaign) throw new NotFoundException("No such campaign.");
 		if (campaign.kind !== "DRIP") {
 			throw new BadRequestException("A blast is scheduled, not activated.");
+		}
+
+		const hasAudience =
+			campaign._count.segments > 0 || Boolean(campaign.entryDefinition);
+		if (campaign.entryMode === "CONTINUOUS" && !hasAudience) {
+			throw new BadRequestException(
+				"Nobody enters this campaign. Click the top of the flow and choose a segment, or switch it to manual entry.",
+			);
 		}
 
 		const settings = await readMarketingSettings(this.db);
@@ -1036,12 +1360,25 @@ export class MarketingCampaignsService {
 		return { status: "CANCELLED" };
 	}
 
-	async recipients(input: ListInput & { campaignId: string }) {
-		const where: Prisma.MarketingSendWhereInput = {
+	async recipients(input: ListInput & { campaignId: string; state: string }) {
+		const scoped: Prisma.MarketingSendWhereInput = {
 			campaignId: input.campaignId,
 		};
 
-		const [rows, total] = await Promise.all([
+		const where: Prisma.MarketingSendWhereInput = {
+			...scoped,
+			...RECIPIENT_FILTERS[input.state],
+			...(input.q && {
+				OR: [
+					{
+						recipient: { address: { contains: input.q, mode: "insensitive" } },
+					},
+					{ subject: { contains: input.q, mode: "insensitive" } },
+				],
+			}),
+		};
+
+		const [rows, total, counts] = await Promise.all([
 			this.db.marketingSend.findMany({
 				where,
 				...paginate(input),
@@ -1054,22 +1391,81 @@ export class MarketingCampaignsService {
 					openedAt: true,
 					clickedAt: true,
 					repliedAt: true,
-					recipient: { select: { address: true } },
+					subject: true,
 					contactId: true,
+					recipient: { select: { address: true, status: true } },
+					node: { select: { id: true, label: true } },
 				},
 			}),
 			this.db.marketingSend.count({ where }),
+			this.stateCounts(scoped),
 		]);
 
-		return { rows, total, facetCounts: {} };
+		const people = await this.db.contact.findMany({
+			where: {
+				id: {
+					in: rows
+						.map((row) => row.contactId)
+						.filter((id): id is string => id !== null),
+				},
+			},
+			select: { id: true, firstName: true, lastName: true },
+		});
+
+		const names = new Map(
+			people.map((person) => [
+				person.id,
+				[person.firstName, person.lastName].filter(Boolean).join(" ") || null,
+			]),
+		);
+
+		return {
+			rows: rows.map((row) => ({
+				...row,
+				name: row.contactId ? (names.get(row.contactId) ?? null) : null,
+			})),
+			total,
+			facetCounts: { state: counts },
+		};
 	}
 
-	async enrolments(input: ListInput & { campaignId: string }) {
+	private async stateCounts(
+		scoped: Prisma.MarketingSendWhereInput,
+	): Promise<Record<string, number>> {
+		const states = Object.keys(RECIPIENT_FILTERS);
+
+		const totals = await Promise.all(
+			states.map((state) =>
+				this.db.marketingSend.count({
+					where: { ...scoped, ...RECIPIENT_FILTERS[state] },
+				}),
+			),
+		);
+
+		const counts: Record<string, number> = {};
+		states.forEach((state, at) => {
+			counts[state] = totals[at] ?? 0;
+		});
+
+		return counts;
+	}
+
+	async enrolments(input: ListInput & { campaignId: string; state: string }) {
 		const where: Prisma.MarketingEnrolmentWhereInput = {
 			campaignId: input.campaignId,
+			...enrolmentFilter(input.state),
+			...(input.q && {
+				contact: {
+					OR: [
+						{ firstName: { contains: input.q, mode: "insensitive" } },
+						{ lastName: { contains: input.q, mode: "insensitive" } },
+						{ email: { contains: input.q, mode: "insensitive" } },
+					],
+				},
+			}),
 		};
 
-		const [rows, total] = await Promise.all([
+		const [rows, total, nodes] = await Promise.all([
 			this.db.marketingEnrolment.findMany({
 				where,
 				...paginate(input),
@@ -1089,9 +1485,109 @@ export class MarketingCampaignsService {
 				},
 			}),
 			this.db.marketingEnrolment.count({ where }),
+			this.db.marketingCampaignNode.findMany({
+				where: { campaignId: input.campaignId },
+				select: { id: true, label: true, kind: true },
+			}),
 		]);
 
-		return { rows, total, facetCounts: {} };
+		const labels = new Map(
+			nodes.map((node) => [node.id, node.label ?? node.kind]),
+		);
+
+		const now = new Date();
+
+		return {
+			rows: rows.map((row) => ({
+				...row,
+				nodeLabel: row.currentNodeId
+					? (labels.get(row.currentNodeId) ?? null)
+					: null,
+				stuck:
+					row.status === "ACTIVE" &&
+					row.nextDueAt !== null &&
+					row.nextDueAt < new Date(now.getTime() - STUCK_AFTER_MS),
+			})),
+			total,
+			facetCounts: {},
+		};
+	}
+
+	async forContact(contactId: string) {
+		const [recipient, enrolments, sends] = await Promise.all([
+			this.db.marketingRecipient.findFirst({
+				where: { contactId },
+				select: {
+					address: true,
+					status: true,
+					statusReason: true,
+					statusAt: true,
+				},
+			}),
+			this.db.marketingEnrolment.findMany({
+				where: { contactId },
+				orderBy: { enrolledAt: "desc" },
+				take: 50,
+				select: {
+					id: true,
+					status: true,
+					pass: true,
+					nextDueAt: true,
+					exitReason: true,
+					enrolledAt: true,
+					currentNodeId: true,
+					campaign: { select: { id: true, name: true, status: true } },
+				},
+			}),
+			this.db.marketingSend.findMany({
+				where: { contactId },
+				orderBy: { createdAt: "desc" },
+				take: 50,
+				select: {
+					id: true,
+					subject: true,
+					status: true,
+					skipReason: true,
+					sentAt: true,
+					openedAt: true,
+					clickedAt: true,
+					repliedAt: true,
+					campaign: { select: { id: true, name: true } },
+				},
+			}),
+		]);
+
+		const nodes = await this.db.marketingCampaignNode.findMany({
+			where: {
+				id: {
+					in: enrolments
+						.map((row) => row.currentNodeId)
+						.filter((id): id is string => id !== null),
+				},
+			},
+			select: { id: true, label: true, kind: true },
+		});
+
+		const labels = new Map(
+			nodes.map((node) => [node.id, node.label ?? node.kind]),
+		);
+
+		const overdue = new Date(Date.now() - STUCK_AFTER_MS);
+
+		return {
+			recipient,
+			enrolments: enrolments.map((row) => ({
+				...row,
+				nodeLabel: row.currentNodeId
+					? (labels.get(row.currentNodeId) ?? null)
+					: null,
+				stuck:
+					row.status === "ACTIVE" &&
+					row.nextDueAt !== null &&
+					row.nextDueAt < overdue,
+			})),
+			sends,
+		};
 	}
 
 	async enrol(campaignId: string, contactId: string) {

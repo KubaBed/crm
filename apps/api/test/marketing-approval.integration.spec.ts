@@ -58,7 +58,7 @@ beforeEach(async () => {
 			name: `${TAG} staged`,
 			kind: "DRIP",
 			status: "PENDING_APPROVAL",
-			segmentId,
+			segments: { create: [{ segmentId, mode: "INCLUDE" }] },
 			pausedReason: "The agent built this overnight.",
 			nodes: {
 				create: [{ kind: "EMAIL", subject: "Hello", x: 0, y: 0 }],
