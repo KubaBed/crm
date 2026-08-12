@@ -5,7 +5,7 @@ import { writeShell } from "../lib/marketing";
 
 export default defineTool({
 	description:
-		"Rewrite the header or the footer every email wears. Every template and every campaign node picks it up on the next send, so this reaches mail somebody already wrote. The postal address and the unsubscribe link are added by the compiler and are not blocks — you cannot add or remove them. Free.",
+		"Read the `writing-an-email` skill first: the block document shape is not guessable. Rewrite the header or the footer every email wears. Every template and every campaign node picks it up on the next send, so this reaches mail somebody already wrote. The postal address and the unsubscribe link are added by the compiler and are not blocks — you cannot add or remove them. Free.",
 	inputSchema: z.object({
 		shellId: z
 			.string()

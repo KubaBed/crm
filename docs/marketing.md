@@ -113,6 +113,19 @@ editor a template does, and the co-pilot has `read_shell` and `write_shell`.
 `write_shell` always asks a person first and is denied to an unattended run: it
 reaches every email anybody has already written.
 
+## A refused write says which field
+
+`documentProblems()` reports the Zod path and message for every issue, and the
+block union is discriminated on `type` so the report names the failing branch
+rather than "Invalid input". `write_template`, `write_campaign_graph` and
+`write_shell` return those problems alongside `BLOCK_SHAPES`, the whole
+vocabulary, so one corrected call is the expectation.
+
+The shape is unguessable — every `text` field is an array of runs, not a
+string — so it is written down in the `writing-an-email` skill and every write
+tool names that skill in its first sentence. An agent that probes the linter
+ten times is a documentation failure, not a model failure.
+
 ## The agent writes rows, never bytes
 
 Fourteen tools in `apps/agent/agent/tools/`, all through `@crm/db/marketing`.

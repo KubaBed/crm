@@ -41,7 +41,7 @@ const edge = z.object({
 
 export default defineTool({
 	description:
-		"Write a campaign's whole graph — every node and every edge — in one call. Do not send coordinates; the server lays it out. The graph must run forwards only, have one starting point, and give every branch both arms. Anything wrong comes back as problems for you to fix rather than being saved. This never activates anything.",
+		"Read the `writing-an-email` skill first: the block document shape is not guessable. Write a campaign's whole graph — every node and every edge — in one call. Do not send coordinates; the server lays it out. The graph must run forwards only, have one starting point, and give every branch both arms. Anything wrong comes back as problems for you to fix rather than being saved. This never activates anything.",
 	inputSchema: z.object({
 		campaignId: z.string().min(1),
 		nodes: z.array(node).min(1).max(60),

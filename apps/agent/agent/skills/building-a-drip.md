@@ -4,6 +4,10 @@ description: Use when writing a marketing campaign, an email template or a segme
 
 # Building a drip
 
+**Read `writing-an-email` before you write any body.** The block document shape
+is not guessable — every "text" field is an array of runs, not a string — and a
+wrong shape is refused and saves nothing.
+
 A drip is entry rules, a graph of touches, and exit rules. You write the graph
 and the copy. A person activates it. There is no tool that activates a campaign,
 and that is deliberate.

@@ -12,7 +12,11 @@ import {
 	validateGraph,
 } from "@crm/db/marketing";
 import { readWorkspaceIdentity } from "@crm/db/workspace";
-import { readDocument } from "@crm/email/document";
+import {
+	BLOCK_SHAPES,
+	documentProblems,
+	readDocument,
+} from "@crm/email/document";
 import { type LintFinding, lintEmail } from "@crm/email/lint";
 
 export const MARKETING_AGENT = {
@@ -185,7 +189,9 @@ export async function writeTemplate(input: {
 
 	if (!document) {
 		return {
-			error: "That email document cannot be read. Check the block shapes.",
+			error: "That email document cannot be read.",
+			problems: documentProblems(input.document),
+			shapes: BLOCK_SHAPES,
 		};
 	}
 
@@ -279,7 +285,11 @@ export async function writeShell(input: {
 	const document = readDocument(input.document);
 
 	if (!document) {
-		return { error: "That document cannot be read. Check the block shapes." };
+		return {
+			error: "That document cannot be read.",
+			problems: documentProblems(input.document),
+			shapes: BLOCK_SHAPES,
+		};
 	}
 
 	const updated = await db.marketingPartial.update({
@@ -358,7 +368,7 @@ export async function readCampaign(id: string) {
 	return { ...campaign, stats };
 }
 
-function documentProblems(nodes: GraphNode[]): ToolProblem[] {
+function nodeDocumentProblems(nodes: GraphNode[]): ToolProblem[] {
 	const problems: ToolProblem[] = [];
 
 	for (const node of nodes) {
@@ -368,12 +378,14 @@ function documentProblems(nodes: GraphNode[]): ToolProblem[] {
 		const document = readDocument(node.document);
 
 		if (!document) {
-			problems.push({
-				level: "error",
-				code: "email-unreadable-document",
-				nodeId: node.id,
-				message: "This email's content cannot be read. Check the block shapes.",
-			});
+			for (const issue of documentProblems(node.document)) {
+				problems.push({
+					level: "error",
+					code: "email-unreadable-document",
+					nodeId: node.id,
+					message: `${issue.path}: ${issue.message}`,
+				});
+			}
 			continue;
 		}
 
@@ -430,12 +442,20 @@ export async function writeCampaignGraph(input: {
 		openTracking: Boolean(settings.resendDomainId),
 	});
 
-	const errors = [...graphErrors(problems), ...documentProblems(input.nodes)];
+	const errors = [
+		...graphErrors(problems),
+		...nodeDocumentProblems(input.nodes),
+	];
 
 	if (errors.length > 0) {
 		return {
 			error: "This graph will not run. Fix these and call again.",
 			problems: errors,
+			shapes: errors.some(
+				(problem) => problem.code === "email-unreadable-document",
+			)
+				? BLOCK_SHAPES
+				: undefined,
 		};
 	}
 

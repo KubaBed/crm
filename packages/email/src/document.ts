@@ -74,7 +74,7 @@ export type Block =
 	| z.infer<typeof spacer>
 	| { type: "columns"; columns: Block[][] };
 
-const leafBlock = z.union([
+const leafBlock = z.discriminatedUnion("type", [
 	heading,
 	text,
 	button,
@@ -87,8 +87,14 @@ const leafBlock = z.union([
 function blockWithin(nesting: number): z.ZodType<Block> {
 	if (nesting <= 0) return leafBlock;
 
-	return z.union([
-		leafBlock,
+	return z.discriminatedUnion("type", [
+		heading,
+		text,
+		button,
+		image,
+		quote,
+		divider,
+		spacer,
 		z.object({
 			type: z.literal("columns"),
 			columns: z
@@ -143,6 +149,32 @@ export function parseDocument(value: unknown): EmailDocument {
 
 	return parsed.data;
 }
+
+export type DocumentProblem = { path: string; message: string };
+
+export function documentProblems(value: unknown): DocumentProblem[] {
+	const parsed = emailDocument.safeParse(value);
+	if (parsed.success) return [];
+
+	return parsed.error.issues.slice(0, 8).map((issue) => ({
+		path: issue.path.length > 0 ? issue.path.join(".") : "document",
+		message: issue.message,
+	}));
+}
+
+export const BLOCK_SHAPES = {
+	heading:
+		'{ "type": "heading", "level": 1 | 2 | 3, "text": [{ "text": "…" }] }',
+	text: '{ "type": "text", "text": [{ "text": "…" }] }',
+	button: '{ "type": "button", "label": "…", "href": "https://…" }',
+	image: '{ "type": "image", "src": "https://…", "alt": "…", "width": 160 }',
+	quote: '{ "type": "quote", "text": [{ "text": "…" }] }',
+	divider: '{ "type": "divider" }',
+	spacer: '{ "type": "spacer", "size": "sm" | "md" | "lg" }',
+	document: '{ "version": 1, "blocks": [ … ] }',
+	inline:
+		'Every "text" field is an ARRAY of runs, not a string: [{ "text": "Hi" }, { "text": "there", "bold": true }]. A run may carry bold, italic, href.',
+} as const;
 
 export function readDocument(value: unknown): EmailDocument | null {
 	const parsed = emailDocument.safeParse(value);

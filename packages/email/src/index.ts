@@ -1,5 +1,8 @@
 export {
+	BLOCK_SHAPES,
 	type Block,
+	type DocumentProblem,
+	documentProblems,
 	EMAIL_DOCUMENT_LIMITS,
 	EMPTY_DOCUMENT,
 	type EmailDocument,
