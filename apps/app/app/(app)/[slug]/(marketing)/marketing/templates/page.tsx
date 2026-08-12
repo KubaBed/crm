@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Suspense } from "react";
 import {
 	PageShell,
+	PageShellActions,
 	PageShellContent,
 	PageShellDescription,
 	PageShellHeader,
@@ -11,6 +12,7 @@ import {
 } from "@/components/page-shell";
 import { HydrateClient } from "@/lib/trpc/hydrate";
 import { getServerQueryClient, getServerTrpc } from "@/lib/trpc/server";
+import { CreateTemplateSheet } from "./create-template-sheet";
 import { TemplatesTable } from "./templates-table";
 
 export const metadata: Metadata = { title: "Templates" };
@@ -25,6 +27,9 @@ export default function TemplatesPage() {
 						The shell every email wears, and the copy it starts from.
 					</PageShellDescription>
 				</PageShellHeading>
+				<PageShellActions>
+					<CreateTemplateSheet />
+				</PageShellActions>
 			</PageShellHeader>
 
 			<PageShellContent className="min-h-0">

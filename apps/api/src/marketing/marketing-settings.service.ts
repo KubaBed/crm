@@ -116,9 +116,11 @@ export class MarketingSettingsService {
 		const settings = await readMarketingSettings(this.db);
 		const domain = settings.sendingDomain;
 
-		if (domain && !fromAddress.endsWith(`@${domain}`)) {
+		const host = fromAddress.split("@")[1] ?? "";
+
+		if (domain && host !== domain && !host.endsWith(`.${domain}`)) {
 			throw new BadRequestException(
-				`The from address must sit on ${domain}, or Resend will refuse the send.`,
+				`Resend will only send from ${domain}. Use something@${domain}, or change the sending domain first.`,
 			);
 		}
 

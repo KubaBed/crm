@@ -59,6 +59,12 @@ export function SetupWizard({ step }: { step: string }) {
 		setPostalAddress(data.postalAddress ?? "");
 	}, [data]);
 
+	useEffect(() => {
+		if (step !== "identity" || fromAddress !== "" || !data?.sendingDomain)
+			return;
+		setFromAddress(`hello@${data.sendingDomain}`);
+	}, [step, fromAddress, data?.sendingDomain]);
+
 	const index = STEPS.findIndex((candidate) => candidate.id === step);
 	const goto = (next: number) => {
 		const target = STEPS[Math.max(0, Math.min(STEPS.length - 1, next))];
@@ -309,8 +315,17 @@ export function SetupWizard({ step }: { step: string }) {
 									id={fromAddressId}
 									value={fromAddress}
 									onChange={(event) => setFromAddress(event.target.value)}
-									placeholder="hello@send.example.com"
+									placeholder={
+										data.sendingDomain
+											? `hello@${data.sendingDomain}`
+											: "hello@send.example.com"
+									}
 								/>
+								{data.sendingDomain ? (
+									<span className="text-muted-foreground text-xs">
+										Resend will only send from {data.sendingDomain}.
+									</span>
+								) : null}
 							</Field>
 							<Field>
 								<FieldLabel htmlFor={postalId}>Postal address</FieldLabel>

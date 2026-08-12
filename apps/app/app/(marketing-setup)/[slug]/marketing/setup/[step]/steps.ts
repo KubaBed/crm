@@ -1,7 +1,7 @@
 export const STEPS = [
 	{ id: "connect", title: "Connect" },
-	{ id: "identity", title: "Identity" },
 	{ id: "domain", title: "Domain" },
+	{ id: "identity", title: "Identity" },
 	{ id: "test", title: "Test" },
 ] as const;
 

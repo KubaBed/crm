@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Suspense } from "react";
 import {
 	PageShell,
+	PageShellActions,
 	PageShellContent,
 	PageShellDescription,
 	PageShellHeader,
@@ -11,6 +12,7 @@ import {
 } from "@/components/page-shell";
 import { HydrateClient } from "@/lib/trpc/hydrate";
 import { getServerQueryClient, getServerTrpc } from "@/lib/trpc/server";
+import { CreateSegmentSheet } from "./create-segment-sheet";
 import { SegmentsTable } from "./segments-table";
 
 export const metadata: Metadata = { title: "Segments" };
@@ -25,6 +27,9 @@ export default function SegmentsPage() {
 						Rules, people added by hand, or both. Every campaign shares them.
 					</PageShellDescription>
 				</PageShellHeading>
+				<PageShellActions>
+					<CreateSegmentSheet />
+				</PageShellActions>
 			</PageShellHeader>
 
 			<PageShellContent className="min-h-0">
