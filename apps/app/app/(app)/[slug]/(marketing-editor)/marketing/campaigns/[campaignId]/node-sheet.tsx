@@ -251,7 +251,7 @@ export function NodeSheet({
 				</div>
 
 				<div className="flex min-h-0 min-w-0 flex-1 flex-col border-l bg-muted">
-					<div className="flex h-12 shrink-0 items-center gap-2 border-b px-4">
+					<div className="flex h-12 shrink-0 items-center gap-2 border-b bg-background px-4">
 						<div className="flex items-center gap-0.5 rounded-md bg-muted p-0.5">
 							{(["desktop", "mobile", "text"] as const).map((mode) => (
 								<Button

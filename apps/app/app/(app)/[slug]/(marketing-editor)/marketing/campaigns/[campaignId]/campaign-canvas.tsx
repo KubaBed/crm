@@ -2,28 +2,31 @@
 
 import { Button } from "@crm/ui/components/button";
 import {
-	DropdownMenu,
-	DropdownMenuContent,
-	DropdownMenuItem,
-	DropdownMenuTrigger,
-} from "@crm/ui/components/dropdown-menu";
+	ContextMenuContent,
+	ContextMenuItem,
+	ContextMenuLabel,
+} from "@crm/ui/components/context-menu";
 import {
 	FlowCanvas,
 	type FlowEdge,
 	type FlowNode,
 } from "@crm/ui/components/flow-canvas";
 import { Spinner } from "@crm/ui/components/spinner";
+import { ToggleGroup, ToggleGroupItem } from "@crm/ui/components/toggle-group";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useQueryState } from "nuqs";
+import { parseAsStringLiteral, useQueryState } from "nuqs";
 import { useMemo } from "react";
 import { toast } from "sonner";
 import { CampaignKind } from "@/components/marketing/campaign-kind";
 import { CopilotRail } from "@/components/marketing/copilot-rail";
+import { MarketingEditorShell } from "@/components/marketing/editor-shell";
 import {
-	MarketingEditorMeta,
-	MarketingEditorShell,
-} from "@/components/marketing/editor-shell";
-import { NEW_LABEL, withNode } from "@/lib/campaign-graph";
+	ENTRY,
+	entryLabel,
+	entryX,
+	NEW_LABEL,
+	withNode,
+} from "@/lib/campaign-graph";
 import { useTRPC } from "@/lib/trpc/client";
 import type { RouterOutputs } from "@/lib/trpc/types";
 import { useWorkspaceUrl } from "@/lib/use-workspace-url";
@@ -235,30 +238,6 @@ export function CampaignCanvas({ campaignId }: { campaignId: string }) {
 			}
 			actions={
 				<>
-					<DropdownMenu>
-						<DropdownMenuTrigger asChild>
-							<Button variant="outline" size="sm" disabled={addNode.isPending}>
-								{addNode.isPending ? <Spinner /> : null}
-								Add step
-							</Button>
-						</DropdownMenuTrigger>
-						<DropdownMenuContent align="end">
-							{(["EMAIL", "WAIT", "BRANCH", "EXIT"] as const).map((kind) => (
-								<DropdownMenuItem
-									key={kind}
-									onSelect={() =>
-										addNode.mutate({
-											campaignId,
-											...withNode(data, kind, selectedId),
-										})
-									}
-								>
-									{NEW_LABEL[kind]}
-								</DropdownMenuItem>
-							))}
-						</DropdownMenuContent>
-					</DropdownMenu>
-
 					{activatable ? (
 						<Button
 							size="sm"
@@ -331,6 +310,29 @@ export function CampaignCanvas({ campaignId }: { campaignId: string }) {
 			}
 		>
 			<FlowCanvas
+				menu={
+					<ContextMenuContent>
+						<ContextMenuLabel>
+							{selected
+								? `Add after ${selected.label ?? "this step"}`
+								: "Add a step"}
+						</ContextMenuLabel>
+						{(["EMAIL", "WAIT", "BRANCH", "EXIT"] as const).map((kind) => (
+							<ContextMenuItem
+								key={kind}
+								disabled={addNode.isPending}
+								onSelect={() =>
+									addNode.mutate({
+										campaignId,
+										...withNode(data, kind, selectedId),
+									})
+								}
+							>
+								{NEW_LABEL[kind]}
+							</ContextMenuItem>
+						))}
+					</ContextMenuContent>
+				}
 				nodes={flow.nodes}
 				edges={flow.edges}
 				selectedId={selectedId}

@@ -13,11 +13,13 @@ import {
 	ReactFlowProvider,
 	useReactFlow,
 } from "@xyflow/react";
-import { useEffect } from "react";
+import { type ReactNode, useEffect } from "react";
+import { ContextMenu, ContextMenuTrigger } from "./context-menu";
 import { FLOW_NODE_TYPES } from "./flow-nodes";
 import { cn } from "../lib/utils";
 
 export type FlowCanvasProps = {
+	menu?: ReactNode;
 	nodes: Node[];
 	edges: Edge[];
 	selectedId?: string | null;
@@ -47,8 +49,9 @@ function Canvas({
 	onNodeMoved,
 	className,
 	fitKey,
+	menu,
 }: FlowCanvasProps) {
-	return (
+	const surface = (
 		<div className={cn("crm-flow relative min-h-0 min-w-0 flex-1", className)}>
 			<ReactFlow
 				nodes={nodes}
@@ -70,6 +73,15 @@ function Canvas({
 				<Fitter fitKey={fitKey} />
 			</ReactFlow>
 		</div>
+	);
+
+	if (!menu) return surface;
+
+	return (
+		<ContextMenu>
+			<ContextMenuTrigger asChild>{surface}</ContextMenuTrigger>
+			{menu}
+		</ContextMenu>
 	);
 }
 

@@ -57,7 +57,7 @@ export function SendingDomainActions() {
 				{domains.isFetching ? <Spinner /> : null}
 				Refresh
 			</Button>
-			<Button variant="outline" size="sm" asChild>
+			<Button variant="ghost" size="sm" asChild>
 				<a href={RESEND_DOMAINS_URL} target="_blank" rel="noreferrer">
 					Open Resend
 				</a>
@@ -101,7 +101,7 @@ export function SendingDomains() {
 							{statusLabel(row.status)}
 						</span>
 						{row.selected ? (
-							<span className="text-xs">Sending from this</span>
+							<span className="text-xs">In use</span>
 						) : (
 							<Button
 								variant="outline"

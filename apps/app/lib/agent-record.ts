@@ -95,7 +95,8 @@ const COPY: Record<AgentRecordKind, RecordCopy> = {
 		header: "x-crm-segment",
 		field: "segmentId",
 		title: "Describe who is in this segment",
-		blurb: "It writes the rules. You can still drag them afterwards.",
+		blurb:
+			"Say it in plain English. The agent writes the rules on the left, and you can still edit every one by hand.",
 		placeholder: "People who hit pricing twice and never replied.",
 		suggestions: [
 			"Everyone who visited pricing and has no open deal",

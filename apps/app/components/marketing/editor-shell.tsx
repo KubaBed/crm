@@ -34,6 +34,7 @@ export function MarketingEditorShell({
 	name,
 	onNameChange,
 	badges,
+	tabs,
 	actions,
 	meta,
 	rail,
@@ -44,6 +45,7 @@ export function MarketingEditorShell({
 	name: string;
 	onNameChange?: (name: string) => void;
 	badges?: ReactNode;
+	tabs?: ReactNode;
 	actions?: ReactNode;
 	meta?: ReactNode;
 	rail?: ReactNode;
@@ -81,6 +83,8 @@ export function MarketingEditorShell({
 					{badges}
 
 					<div className="flex-1" />
+
+					{tabs}
 
 					{actions}
 				</div>

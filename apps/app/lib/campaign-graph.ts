@@ -23,6 +23,29 @@ export type CampaignGraph = {
 	}[];
 };
 
+export const ENTRY = {
+	id: "__entry",
+	width: 320,
+	gapY: 92,
+	nodeWidth: {
+		EMAIL: 264,
+		WAIT: 140,
+		BRANCH: 224,
+		SPLIT: 224,
+		EXIT: 140,
+	},
+} as const;
+
+export function entryLabel(segment: string | null): string {
+	return segment
+		? `Anyone in ${segment} starts here`
+		: "No segment yet — nobody starts here";
+}
+
+export function entryX(root: { kind: NodeKind; x: number }): number {
+	return root.x + ENTRY.nodeWidth[root.kind] / 2 - ENTRY.width / 2;
+}
+
 export type NewKind = "EMAIL" | "WAIT" | "BRANCH" | "EXIT";
 
 export const NEW_LABEL: Record<NewKind, string> = {
