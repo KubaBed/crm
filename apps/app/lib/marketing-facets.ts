@@ -22,7 +22,17 @@ export const FACETS: FacetSpec[] = [
 		id: "contact.source",
 		group: "Contact",
 		label: "Came from",
-		field: { kind: "text", key: "source", placeholder: "website" },
+		field: {
+			kind: "choice",
+			key: "source",
+			options: [
+				{ value: "MANUAL", label: "Added by hand" },
+				{ value: "IMPORT", label: "An import" },
+				{ value: "EMAIL", label: "Email" },
+				{ value: "CALENDAR", label: "Calendar" },
+				{ value: "TRACKING", label: "The website" },
+			],
+		},
 	},
 	{
 		id: "contact.titleContains",
