@@ -1030,4 +1030,83 @@ export class MarketingCampaignsService {
 
 		return result;
 	}
+
+	async sendCompany(input: {
+		companyId: string;
+		templateId: string;
+		userId: string;
+		replyTo?: string | null;
+	}): Promise<{
+		queued: number;
+		skipped: Record<string, number>;
+		total: number;
+	}> {
+		const sendable = await assertSendable(this.db);
+		if (!sendable.ok) throw new BadRequestException(sendable.reason);
+
+		const [contacts, template] = await Promise.all([
+			this.db.contact.findMany({
+				where: { companyId: input.companyId, email: { not: null } },
+				select: { id: true, email: true },
+			}),
+			this.db.marketingTemplate.findUnique({
+				where: { id: input.templateId },
+				select: { subject: true, document: true },
+			}),
+		]);
+
+		if (!template) throw new NotFoundException("No such template.");
+
+		if (contacts.length === 0) {
+			throw new BadRequestException(
+				"Nobody at that company has an email address.",
+			);
+		}
+
+		const skipped: Record<string, number> = {};
+		let queued = 0;
+
+		for (const contact of contacts) {
+			const result = await queueDirect(this.db, {
+				address: contact.email as string,
+				contactId: contact.id,
+				subject: template.subject,
+				document: template.document,
+				replyTo: input.replyTo ?? null,
+				requestedById: input.userId,
+			});
+
+			if (result.ok) queued += 1;
+			else skipped[result.reason] = (skipped[result.reason] ?? 0) + 1;
+		}
+
+		return { queued, skipped, total: contacts.length };
+	}
+
+	async enrolCompany(
+		campaignId: string,
+		companyId: string,
+	): Promise<{ enrolled: number; refused: number; total: number }> {
+		const contacts = await this.db.contact.findMany({
+			where: { companyId, email: { not: null } },
+			select: { id: true },
+		});
+
+		if (contacts.length === 0) {
+			throw new BadRequestException(
+				"Nobody at that company has an email address.",
+			);
+		}
+
+		let enrolled = 0;
+		let refused = 0;
+
+		for (const contact of contacts) {
+			const result = await enrolContact(this.db, campaignId, contact.id);
+			if (result.ok) enrolled += 1;
+			else refused += 1;
+		}
+
+		return { enrolled, refused, total: contacts.length };
+	}
 }

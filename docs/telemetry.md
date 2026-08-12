@@ -193,13 +193,13 @@ sent.
 
 ### The setup funnel
 
-Eight events, each sent once per install, ever. Each carries the timestamp of the thing it
+Nine events, each sent once per install, ever. Each carries the timestamp of the thing it
 records rather than the moment it was noticed, so the funnel reads true even though a nightly
 job is what sends it.
 
 `migrations_applied` → `first_sign_in` → `google_oauth_configured` → `first_mailbox_sync` →
 `first_non_seed_contact` → `first_agent_task_claimed` → `first_agent_task_completed` →
-`first_fact_applied`
+`first_fact_applied` → `first_campaign_sent`
 
 They carry no properties of their own beyond the common ones — version, days since install,
 whether this is Vercel.
@@ -214,6 +214,10 @@ the cron, so an install that arrives configured is stamped on its first boot.
 `observedAt` of any fact the agent applied itself, whichever came first. Facts that were
 applied and later superseded still count — being replaced later does not make the first
 application not have happened.
+
+`first_campaign_sent` is the earliest `sentAt` of a send a campaign or a drip produced. A test
+to yourself and a one-off to one person do not count: the step records that marketing reached a
+list, not that the wiring works.
 
 **The step is claimed before it is sent, and handed back if the send fails.** The claim is the
 insert itself — `telemetryMilestone.step` is the primary key, so of two processes sweeping at the

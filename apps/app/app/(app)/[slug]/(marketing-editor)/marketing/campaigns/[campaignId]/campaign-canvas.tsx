@@ -11,7 +11,8 @@ import { Icon } from "@crm/ui/components/icon";
 import { Spinner } from "@crm/ui/components/spinner";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useQueryState } from "nuqs";
+import { useMemo } from "react";
 import { toast } from "sonner";
 import { CopilotRail } from "@/components/marketing/copilot-rail";
 import { useTRPC } from "@/lib/trpc/client";
@@ -116,7 +117,7 @@ export function CampaignCanvas({ campaignId }: { campaignId: string }) {
 	const trpc = useTRPC();
 	const queryClient = useQueryClient();
 	const workspaceUrl = useWorkspaceUrl();
-	const [selectedId, setSelectedId] = useState<string | null>(null);
+	const [selectedId, setSelectedId] = useQueryState("node");
 
 	const campaign = useQuery(
 		trpc.marketingCampaigns.byId.queryOptions({ id: campaignId }),
@@ -256,7 +257,7 @@ export function CampaignCanvas({ campaignId }: { campaignId: string }) {
 					edges={flow.edges}
 					selectedId={selectedId}
 					fitKey={`${data.nodes.length}-${data.edges.length}`}
-					onNodeClick={(_event, node) => setSelectedId(node.id)}
+					onNodeClick={(_event, node) => void setSelectedId(node.id)}
 					onNodeMoved={(id, position) =>
 						moveNode.mutate({ nodeId: id, x: position.x, y: position.y })
 					}
@@ -267,7 +268,7 @@ export function CampaignCanvas({ campaignId }: { campaignId: string }) {
 						node={selected}
 						campaign={data}
 						stats={stats}
-						onClose={() => setSelectedId(null)}
+						onClose={() => void setSelectedId(null)}
 						onChanged={() => void invalidate()}
 					/>
 				) : selected ? (
@@ -276,7 +277,7 @@ export function CampaignCanvas({ campaignId }: { campaignId: string }) {
 						campaignId={campaignId}
 						recipients={data.inFlight}
 						stats={stats.get(selected.id) ?? null}
-						onClose={() => setSelectedId(null)}
+						onClose={() => void setSelectedId(null)}
 						onSaved={() => invalidate()}
 					/>
 				) : (

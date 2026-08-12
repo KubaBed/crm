@@ -23,7 +23,7 @@ import { dashboardSummaryInput } from "../dashboard/dashboard.contracts";
 import { dealListInput, dealIdInput, dealCreateInput, dealUpdateArgs, setStageInput, dealContactsInput, dealAttachContactInput, dealDetachContactInput, dealContactRoleInput, dealBulkOwnerInput, dealBulkStageInput, dealBulkInput } from "../deals/deals.contracts";
 import { fieldListInput, fieldByKeyInput, fieldIdInput, fieldCreateInput, fieldUpdateArgs, fieldReorderInput } from "../fields/fields.contracts";
 import { setAutoCreateInput, suppressDomainInput, threadInput, calendarEventInput } from "../google/google.contracts";
-import { idInput, setDomainInput, saveKeyInput, saveIdentityInput, saveSendingInput, campaignListInput, previewNodeInput, campaignPageInput, createCampaignInput, updateCampaignInput, writeGraphInput, updateNodeInput, scheduleInput, pauseInput, resumeInput, archiveCampaignInput, enrolInput, winnerInput, addAttachmentInput, sendDirectInput, previewSegmentInput, createSegmentInput, updateSegmentInput, memberInput, previewTemplateInput, createTemplateInput, updateTemplateInput } from "../marketing/marketing.contracts";
+import { idInput, setDomainInput, saveKeyInput, saveIdentityInput, saveSendingInput, campaignListInput, previewNodeInput, campaignPageInput, createCampaignInput, updateCampaignInput, writeGraphInput, updateNodeInput, scheduleInput, pauseInput, resumeInput, archiveCampaignInput, enrolInput, enrolCompanyInput, winnerInput, addAttachmentInput, sendDirectInput, sendCompanyInput, previewSegmentInput, createSegmentInput, updateSegmentInput, memberInput, previewTemplateInput, createTemplateInput, updateTemplateInput } from "../marketing/marketing.contracts";
 import { listInput } from "../marketing/../trpc/list-input";
 import { setOutlookAutoCreateInput } from "../microsoft/microsoft.contracts";
 import { setAgentModelInput, setResearchKeyInput } from "../settings/settings.contracts";
@@ -448,6 +448,9 @@ const appRouter = t.router({
     enrol: publicProcedure
       .input(enrolInput)
       .mutation(async () => "PLACEHOLDER_DO_NOT_REMOVE" as unknown as Awaited<ReturnType<MarketingCampaignsRouter["enrol"]>>),
+    enrolCompany: publicProcedure
+      .input(enrolCompanyInput)
+      .mutation(async () => "PLACEHOLDER_DO_NOT_REMOVE" as unknown as Awaited<ReturnType<MarketingCampaignsRouter["enrolCompany"]>>),
     unenrol: publicProcedure
       .input(idInput)
       .mutation(async () => "PLACEHOLDER_DO_NOT_REMOVE" as unknown as Awaited<ReturnType<MarketingCampaignsRouter["unenrol"]>>),
@@ -465,7 +468,10 @@ const appRouter = t.router({
       .mutation(async () => "PLACEHOLDER_DO_NOT_REMOVE" as unknown as Awaited<ReturnType<MarketingCampaignsRouter["removeAttachment"]>>),
     sendDirect: publicProcedure
       .input(sendDirectInput)
-      .mutation(async () => "PLACEHOLDER_DO_NOT_REMOVE" as unknown as Awaited<ReturnType<MarketingCampaignsRouter["sendDirect"]>>)
+      .mutation(async () => "PLACEHOLDER_DO_NOT_REMOVE" as unknown as Awaited<ReturnType<MarketingCampaignsRouter["sendDirect"]>>),
+    sendCompany: publicProcedure
+      .input(sendCompanyInput)
+      .mutation(async () => "PLACEHOLDER_DO_NOT_REMOVE" as unknown as Awaited<ReturnType<MarketingCampaignsRouter["sendCompany"]>>)
     }),
   marketingSegments: t.router({
     list: publicProcedure

@@ -12,6 +12,18 @@ export const FACETS: FacetSpec[] = [
 		field: { kind: "none" },
 	},
 	{
+		id: "contact.owner",
+		group: "Contact",
+		label: "Owned by",
+		field: { kind: "choice", key: "userId", options: [] },
+	},
+	{
+		id: "contact.source",
+		group: "Contact",
+		label: "Came from",
+		field: { kind: "text", key: "source", placeholder: "website" },
+	},
+	{
 		id: "contact.titleContains",
 		group: "Contact",
 		label: "Job title contains",
@@ -182,4 +194,24 @@ function toRule(value: unknown, index: number): RuleRow | null {
 		facet: id,
 		value: raw === null || raw === undefined ? "" : String(raw),
 	};
+}
+
+export function facetsWithOwners(
+	owners: { id: string; name?: string | null; email?: string | null }[],
+): FacetSpec[] {
+	return FACETS.map((facet) =>
+		facet.id === "contact.owner"
+			? {
+					...facet,
+					field: {
+						kind: "choice" as const,
+						key: "userId",
+						options: owners.map((owner) => ({
+							value: owner.id,
+							label: owner.name || owner.email || "Somebody",
+						})),
+					},
+				}
+			: facet,
+	);
 }

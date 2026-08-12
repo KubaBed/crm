@@ -1,1 +1,6 @@
-export { FACETS, fromDefinition, toDefinition } from "@/lib/marketing-facets";
+export {
+	FACETS,
+	facetsWithOwners,
+	fromDefinition,
+	toDefinition,
+} from "@/lib/marketing-facets";

@@ -19,6 +19,7 @@ import {
 	createCampaignInput,
 	createSegmentInput,
 	createTemplateInput,
+	enrolCompanyInput,
 	enrolInput,
 	idInput,
 	memberInput,
@@ -31,6 +32,7 @@ import {
 	saveKeyInput,
 	saveSendingInput,
 	scheduleInput,
+	sendCompanyInput,
 	sendDirectInput,
 	setDomainInput,
 	updateCampaignInput,
@@ -242,6 +244,11 @@ export class MarketingCampaignsRouter {
 		return this.campaigns.enrol(input.campaignId, input.contactId);
 	}
 
+	@Mutation({ input: enrolCompanyInput })
+	async enrolCompany(@Input() input: z.infer<typeof enrolCompanyInput>) {
+		return this.campaigns.enrolCompany(input.campaignId, input.companyId);
+	}
+
 	@Mutation({ input: idInput })
 	async unenrol(@Input() input: z.infer<typeof idInput>) {
 		return this.campaigns.unenrol(input.id);
@@ -276,6 +283,14 @@ export class MarketingCampaignsRouter {
 		@Input() input: z.infer<typeof sendDirectInput>,
 	) {
 		return this.campaigns.sendDirect({ ...input, userId: ctx.user.id });
+	}
+
+	@Mutation({ input: sendCompanyInput })
+	async sendCompany(
+		@Ctx() ctx: AuthedTrpcContext,
+		@Input() input: z.infer<typeof sendCompanyInput>,
+	) {
+		return this.campaigns.sendCompany({ ...input, userId: ctx.user.id });
 	}
 }
 

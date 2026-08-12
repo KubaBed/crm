@@ -32,7 +32,15 @@ const SELECT = {
 	lastCountedAt: true,
 	createdAt: true,
 	updatedAt: true,
-	members: { select: { contactId: true, mode: true } },
+	members: {
+		select: {
+			contactId: true,
+			mode: true,
+			contact: {
+				select: { id: true, firstName: true, lastName: true, email: true },
+			},
+		},
+	},
 } as const;
 
 @Injectable()
@@ -181,7 +189,16 @@ export class MarketingSegmentsService {
 			kind: row.kind,
 			counts: { ...counts, sendable, suppressed: excluded.length },
 			usedBy: row.campaigns,
-			members: row.members,
+			members: row.members.map((member) => ({
+				contactId: member.contactId,
+				mode: member.mode,
+				name:
+					[member.contact.firstName, member.contact.lastName]
+						.filter(Boolean)
+						.join(" ") ||
+					(member.contact.email ?? "Somebody"),
+				email: member.contact.email,
+			})),
 			sample: sample.map((contact) => ({
 				id: contact.id,
 				name: [contact.firstName, contact.lastName].filter(Boolean).join(" "),

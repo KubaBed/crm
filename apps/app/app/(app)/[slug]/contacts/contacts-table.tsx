@@ -24,6 +24,7 @@ import { useTRPC } from "@/lib/trpc/client";
 import type { RouterOutputs } from "@/lib/trpc/types";
 import { ContactsBulkActions } from "./contacts-bulk-actions";
 import { contactsSearchParams } from "./contacts-search-params";
+import { SaveAsSegment } from "./save-as-segment";
 
 type ContactRow = RouterOutputs["contacts"]["list"]["rows"][number];
 
@@ -187,6 +188,14 @@ export function ContactsTable() {
 	return (
 		<DataTable
 			query={query}
+			actions={
+				<SaveAsSegment
+					filters={{
+						owner: input.owner,
+						company: input.company,
+					}}
+				/>
+			}
 			search={<ListSearch placeholder="Search by name, email or company…" />}
 			columns={columns}
 			rows={rows}

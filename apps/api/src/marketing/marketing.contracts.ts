@@ -105,6 +105,11 @@ export const enrolInput = z.object({
 	contactId: z.string().min(1),
 });
 
+export const enrolCompanyInput = z.object({
+	campaignId: z.string().min(1),
+	companyId: z.string().min(1),
+});
+
 export const winnerInput = z.object({
 	nodeId: z.string().min(1),
 	winningEdgeId: z.string().min(1),
@@ -112,6 +117,12 @@ export const winnerInput = z.object({
 
 export const sendDirectInput = z.object({
 	contactId: z.string().min(1),
+	templateId: z.string().min(1),
+	replyTo: z.string().max(320).nullish(),
+});
+
+export const sendCompanyInput = z.object({
+	companyId: z.string().min(1),
 	templateId: z.string().min(1),
 	replyTo: z.string().max(320).nullish(),
 });

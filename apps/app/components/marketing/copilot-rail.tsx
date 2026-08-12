@@ -3,7 +3,7 @@
 import ChevronRight from "@carbon/icons-react/es/ChevronRight";
 import { Button } from "@crm/ui/components/button";
 import { Icon } from "@crm/ui/components/icon";
-import { useState } from "react";
+import { parseAsBoolean, useQueryState } from "nuqs";
 import { AgentPanel } from "@/components/crm/agent-panel";
 import type { AgentRecord } from "@/lib/agent-record";
 
@@ -14,7 +14,10 @@ export function CopilotRail({
 	record: AgentRecord;
 	onFinish?: () => void;
 }) {
-	const [open, setOpen] = useState(true);
+	const [open, setOpen] = useQueryState(
+		"copilot",
+		parseAsBoolean.withDefault(true),
+	);
 
 	if (!open) {
 		return (
@@ -22,7 +25,7 @@ export function CopilotRail({
 				<Button
 					variant="ghost"
 					size="icon"
-					onClick={() => setOpen(true)}
+					onClick={() => void setOpen(true)}
 					aria-label="Open the co-pilot"
 				>
 					<Icon icon={ChevronRight} className="rotate-180" />
@@ -40,7 +43,7 @@ export function CopilotRail({
 					variant="ghost"
 					size="sm"
 					className="h-7 gap-1 px-2 font-normal text-muted-foreground text-xs"
-					onClick={() => setOpen(false)}
+					onClick={() => void setOpen(false)}
 				>
 					Collapse
 					<Icon icon={ChevronRight} className="size-3.5" />

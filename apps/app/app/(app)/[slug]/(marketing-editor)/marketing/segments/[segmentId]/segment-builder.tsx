@@ -1,24 +1,35 @@
 "use client";
 
 import ArrowLeft from "@carbon/icons-react/es/ArrowLeft";
+import Close from "@carbon/icons-react/es/Close";
+import OverflowMenuVertical from "@carbon/icons-react/es/OverflowMenuVertical";
 import { Button } from "@crm/ui/components/button";
+import { Combobox } from "@crm/ui/components/combobox";
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuTrigger,
+} from "@crm/ui/components/dropdown-menu";
 import { Icon } from "@crm/ui/components/icon";
 import { Input } from "@crm/ui/components/input";
 import { RuleTree, type RuleTreeValue } from "@crm/ui/components/rule-tree";
 import { Spinner } from "@crm/ui/components/spinner";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { CopilotRail } from "@/components/marketing/copilot-rail";
 import { useTRPC } from "@/lib/trpc/client";
 import { useWorkspaceUrl } from "@/lib/use-workspace-url";
-import { FACETS, fromDefinition, toDefinition } from "./facets";
+import { facetsWithOwners, fromDefinition, toDefinition } from "./facets";
 
 export function SegmentBuilder({ segmentId }: { segmentId: string }) {
 	const trpc = useTRPC();
 	const queryClient = useQueryClient();
 	const workspaceUrl = useWorkspaceUrl();
+	const router = useRouter();
 
 	const segment = useQuery(
 		trpc.marketingSegments.byId.queryOptions({ id: segmentId }),
@@ -30,6 +41,7 @@ export function SegmentBuilder({ segmentId }: { segmentId: string }) {
 		rules: [],
 	});
 	const [dirty, setDirty] = useState(false);
+	const [search, setSearch] = useState("");
 
 	const data = segment.data;
 
@@ -40,6 +52,12 @@ export function SegmentBuilder({ segmentId }: { segmentId: string }) {
 	}, [data, dirty]);
 
 	const definition = useMemo(() => toDefinition(rules), [rules]);
+
+	const users = useQuery(trpc.users.list.queryOptions());
+	const facets = useMemo(
+		() => facetsWithOwners(users.data ?? []),
+		[users.data],
+	);
 
 	const previewOptions = trpc.marketingSegments.preview.queryOptions({
 		definition: (definition ?? {
@@ -63,6 +81,50 @@ export function SegmentBuilder({ segmentId }: { segmentId: string }) {
 				await queryClient.invalidateQueries({
 					queryKey: trpc.marketingSegments.byId.queryKey({ id: segmentId }),
 				});
+			},
+			onError: (error) => toast.error(error.message),
+		}),
+	);
+
+	const reload = () =>
+		queryClient.invalidateQueries({
+			queryKey: trpc.marketingSegments.byId.queryKey({ id: segmentId }),
+		});
+
+	const people = useQuery({
+		...trpc.contacts.list.queryOptions({
+			q: search,
+			sort: "updatedAt",
+			dir: "desc",
+			page: 1,
+			pageSize: 20,
+		}),
+		enabled: search.trim().length > 0,
+		placeholderData: (previous) => previous,
+	});
+
+	const addMember = useMutation(
+		trpc.marketingSegments.addMember.mutationOptions({
+			onSuccess: async () => {
+				setSearch("");
+				await reload();
+			},
+			onError: (error) => toast.error(error.message),
+		}),
+	);
+
+	const removeMember = useMutation(
+		trpc.marketingSegments.removeMember.mutationOptions({
+			onSuccess: () => reload(),
+			onError: (error) => toast.error(error.message),
+		}),
+	);
+
+	const archive = useMutation(
+		trpc.marketingSegments.archive.mutationOptions({
+			onSuccess: () => {
+				toast.success("Archived.");
+				router.push(workspaceUrl("/marketing/segments"));
 			},
 			onError: (error) => toast.error(error.message),
 		}),
@@ -103,6 +165,22 @@ export function SegmentBuilder({ segmentId }: { segmentId: string }) {
 							</Link>
 						</Button>
 						<span className="flex-1" />
+						<DropdownMenu>
+							<DropdownMenuTrigger asChild>
+								<Button variant="ghost" size="icon" aria-label="More">
+									<Icon icon={OverflowMenuVertical} />
+								</Button>
+							</DropdownMenuTrigger>
+							<DropdownMenuContent align="end">
+								<DropdownMenuItem
+									variant="destructive"
+									disabled={archive.isPending}
+									onSelect={() => archive.mutate({ id: segmentId })}
+								>
+									Archive
+								</DropdownMenuItem>
+							</DropdownMenuContent>
+						</DropdownMenu>
 						<Button
 							disabled={save.isPending || !dirty}
 							onClick={() => save.mutate({ id: segmentId, name, definition })}
@@ -134,12 +212,85 @@ export function SegmentBuilder({ segmentId }: { segmentId: string }) {
 				<div className="flex min-w-0 flex-1 flex-col gap-6 px-6 pb-8">
 					<RuleTree
 						value={rules}
-						facets={FACETS}
+						facets={facets}
 						onChange={(next) => {
 							setRules(next);
 							setDirty(true);
 						}}
 					/>
+
+					<div className="flex flex-col gap-3 overflow-clip rounded-lg border">
+						<div className="flex items-center justify-between border-b bg-muted px-4 py-2.5">
+							<span className="font-medium text-xs">Added by hand</span>
+							<span className="text-muted-foreground text-xs">
+								They stay in even when the rules stop matching them.
+							</span>
+						</div>
+
+						<div className="px-4">
+							<Combobox
+								options={(people.data?.rows ?? []).map((person) => ({
+									value: person.id,
+									label:
+										[person.firstName, person.lastName]
+											.filter(Boolean)
+											.join(" ") ||
+										(person.email ?? "Somebody"),
+									hint: person.email ?? undefined,
+								}))}
+								value=""
+								onValueChange={(contactId) =>
+									addMember.mutate({ segmentId, contactId })
+								}
+								search={search}
+								onSearchChange={setSearch}
+								placeholder="Add somebody"
+								searchPlaceholder="Search contacts…"
+								empty={
+									search.trim() ? "Nobody matches." : "Type a name to search."
+								}
+							/>
+						</div>
+
+						{data.members.length === 0 ? (
+							<p className="px-4 pb-4 text-muted-foreground text-xs">
+								Nobody yet. Everybody here comes from the rules.
+							</p>
+						) : (
+							<div className="flex flex-col pb-1">
+								{data.members.map((member) => (
+									<div
+										key={member.contactId}
+										className="flex items-center gap-3 border-t px-4 py-2.5 text-xs"
+									>
+										<span className="min-w-0 flex-1 truncate">
+											{member.name}
+										</span>
+										<span className="min-w-0 flex-1 truncate text-muted-foreground">
+											{member.email ?? "No address"}
+										</span>
+										<span className="text-muted-foreground">
+											{member.mode === "EXCLUDE" ? "Held out" : "Added"}
+										</span>
+										<Button
+											variant="ghost"
+											size="icon"
+											aria-label="Remove"
+											disabled={removeMember.isPending}
+											onClick={() =>
+												removeMember.mutate({
+													segmentId,
+													contactId: member.contactId,
+												})
+											}
+										>
+											<Icon icon={Close} className="size-3.5" />
+										</Button>
+									</div>
+								))}
+							</div>
+						)}
+					</div>
 
 					<div className="grid gap-6 lg:grid-cols-[1fr_320px]">
 						<div className="flex flex-col overflow-clip rounded-lg border">
