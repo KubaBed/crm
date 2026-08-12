@@ -25,7 +25,7 @@ export function CopilotRail({ campaignId }: { campaignId: string }) {
 	}
 
 	return (
-		<aside className="flex w-[360px] shrink-0 flex-col border-l bg-background">
+		<aside className="flex w-[440px] shrink-0 flex-col overflow-hidden border-l bg-background">
 			<header className="flex h-11 shrink-0 items-center gap-2 border-b pr-3 pl-4">
 				<span className="font-medium text-xs">Co-pilot</span>
 				<div className="flex-1" />

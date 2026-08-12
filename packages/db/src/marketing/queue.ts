@@ -318,6 +318,75 @@ export async function settle(
 	}
 }
 
+export type Health = {
+	sent: number;
+	delivered: number;
+	bounced: number;
+	complained: number;
+	bounceRate: number;
+	complaintRate: number;
+};
+
+export async function healthOf(db: Db, campaignId: string): Promise<Health> {
+	const [sent, delivered, bounced, complained] = await Promise.all([
+		db.marketingSend.count({
+			where: {
+				campaignId,
+				status: { in: ["SENT", "DELIVERED", "BOUNCED", "COMPLAINED"] },
+			},
+		}),
+		db.marketingSend.count({ where: { campaignId, status: "DELIVERED" } }),
+		db.marketingSend.count({ where: { campaignId, status: "BOUNCED" } }),
+		db.marketingSend.count({ where: { campaignId, status: "COMPLAINED" } }),
+	]);
+
+	return {
+		sent,
+		delivered,
+		bounced,
+		complained,
+		bounceRate: sent > 0 ? bounced / sent : 0,
+		complaintRate: sent > 0 ? complained / sent : 0,
+	};
+}
+
+export async function pauseUnhealthy(db: Db): Promise<string[]> {
+	const live = await db.marketingCampaign.findMany({
+		where: { status: { in: ["SENDING", "ACTIVE"] } },
+		select: { id: true, status: true },
+	});
+
+	const paused: string[] = [];
+
+	for (const campaign of live) {
+		const health = await healthOf(db, campaign.id);
+		if (health.sent < MARKETING.deliverability.floor) continue;
+
+		const reason =
+			health.bounceRate >= MARKETING.deliverability.bouncePause
+				? `Paused on its own: ${(health.bounceRate * 100).toFixed(1)}% of these bounced. That damages the domain every other campaign shares, and the damage outlasts this one.`
+				: health.complaintRate >= MARKETING.deliverability.complaintPause
+					? `Paused on its own: ${(health.complaintRate * 100).toFixed(2)}% marked this as spam, which is past what Google tolerates from a sender.`
+					: null;
+
+		if (!reason) continue;
+
+		await db.marketingCampaign.update({
+			where: { id: campaign.id },
+			data: { status: "PAUSED", pausedReason: reason },
+		});
+
+		await db.marketingSend.updateMany({
+			where: { campaignId: campaign.id, status: "QUEUED" },
+			data: { status: "SKIPPED", skipReason: "the campaign paused itself" },
+		});
+
+		paused.push(campaign.id);
+	}
+
+	return paused;
+}
+
 export async function finishCampaigns(db: Db): Promise<void> {
 	const sending = await db.marketingCampaign.findMany({
 		where: { kind: "BLAST", status: "SENDING" },

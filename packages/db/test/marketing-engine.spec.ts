@@ -7,7 +7,12 @@ import {
 	sweepEntries,
 	sweepExits,
 } from "../src/marketing/drips";
-import { claimDueSends, materialise, settle } from "../src/marketing/queue";
+import {
+	claimDueSends,
+	materialise,
+	pauseUnhealthy,
+	settle,
+} from "../src/marketing/queue";
 
 const TAG = `mktest${Date.now()}`;
 
@@ -391,5 +396,79 @@ describe("a blast", () => {
 
 		expect(rows).toBe(1);
 		expect(second.total).toBe(first.total);
+	});
+});
+
+describe("deliverability", () => {
+	async function blastWith(
+		outcomes: ("DELIVERED" | "BOUNCED" | "COMPLAINED")[],
+	) {
+		seq += 1;
+		const campaign = await db.marketingCampaign.create({
+			data: { name: `${TAG} health ${seq}`, kind: "BLAST", status: "SENDING" },
+			select: { id: true },
+		});
+
+		const node = await db.marketingCampaignNode.create({
+			data: {
+				campaignId: campaign.id,
+				kind: "EMAIL",
+				subject: "s",
+				document: { version: 1, blocks: [] },
+			},
+			select: { id: true },
+		});
+
+		for (const [index, status] of outcomes.entries()) {
+			const recipient = await db.marketingRecipient.create({
+				data: { address: `h${index}.${TAG}x${seq}@example.test` },
+				select: { id: true },
+			});
+
+			await db.marketingSend.create({
+				data: {
+					campaignId: campaign.id,
+					nodeId: node.id,
+					recipientId: recipient.id,
+					status,
+					dueAt: new Date(),
+				},
+			});
+		}
+
+		return campaign.id;
+	}
+
+	test("pauses a campaign bouncing over five per cent, and says why", async () => {
+		const bad = Array.from({ length: 100 }, (_unused, index) =>
+			index < 8 ? ("BOUNCED" as const) : ("DELIVERED" as const),
+		);
+		const campaignId = await blastWith(bad);
+
+		const paused = await pauseUnhealthy(db);
+		expect(paused).toContain(campaignId);
+
+		const campaign = await db.marketingCampaign.findUniqueOrThrow({
+			where: { id: campaignId },
+			select: { status: true, pausedReason: true },
+		});
+
+		expect(campaign.status).toBe("PAUSED");
+		expect(campaign.pausedReason).toContain("bounced");
+	});
+
+	test("leaves a healthy campaign alone", async () => {
+		const good = Array.from({ length: 100 }, () => "DELIVERED" as const);
+		const campaignId = await blastWith(good);
+
+		const paused = await pauseUnhealthy(db);
+		expect(paused).not.toContain(campaignId);
+	});
+
+	test("does not judge a campaign that has barely sent anything", async () => {
+		const campaignId = await blastWith(["BOUNCED", "BOUNCED", "DELIVERED"]);
+
+		const paused = await pauseUnhealthy(db);
+		expect(paused).not.toContain(campaignId);
 	});
 });

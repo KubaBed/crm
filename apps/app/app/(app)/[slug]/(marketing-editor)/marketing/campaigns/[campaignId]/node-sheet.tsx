@@ -114,7 +114,7 @@ export function NodeSheet({
 		whole === 0 ? "—" : `${Math.round((part / whole) * 100)}%`;
 
 	return (
-		<aside className="flex w-[1000px] max-w-[70vw] shrink-0 flex-col border-l bg-background">
+		<aside className="flex w-[1000px] max-w-[70vw] shrink-0 flex-col overflow-hidden border-l bg-background">
 			<header className="flex h-13 shrink-0 items-center gap-2 border-b px-4 py-3">
 				<Icon
 					icon={Email}
@@ -149,7 +149,7 @@ export function NodeSheet({
 				</div>
 			) : null}
 
-			<div className="flex min-h-0 flex-1">
+			<div className="flex min-h-0 flex-1 overflow-hidden">
 				<div className="flex w-[400px] shrink-0 flex-col gap-4 overflow-y-auto p-4">
 					<div className="flex flex-col gap-1.5">
 						<Label

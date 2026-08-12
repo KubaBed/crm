@@ -7,6 +7,7 @@ import {
 	finishCampaigns,
 	linkReplies,
 	MARKETING,
+	pauseUnhealthy,
 	readMarketingSettings,
 	settle,
 	startDueCampaigns,
@@ -80,6 +81,14 @@ export class MarketingDrainService implements OnModuleInit, OnModuleDestroy {
 			await startDueCampaigns(this.db);
 
 			const { sent, failed } = await this.drainSends();
+
+			const paused = await pauseUnhealthy(this.db);
+			for (const campaignId of paused) {
+				this.logger.warn({
+					message: "A campaign paused itself on deliverability",
+					campaignId,
+				});
+			}
 
 			await finishCampaigns(this.db);
 

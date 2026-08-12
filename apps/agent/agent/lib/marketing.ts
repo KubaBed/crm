@@ -20,7 +20,7 @@ export type ToolProblem = {
 	nodeId?: string;
 };
 
-export async function listSegments() {
+export async function listSegments(limit = 50) {
 	const rows = await db.marketingSegment.findMany({
 		where: { archivedAt: null },
 		select: {
@@ -31,7 +31,7 @@ export async function listSegments() {
 			members: { select: { contactId: true, mode: true } },
 		},
 		orderBy: { updatedAt: "desc" },
-		take: 100,
+		take: limit,
 	});
 
 	return {
@@ -138,12 +138,12 @@ export async function writeSegment(input: {
 	return { id: segment.id, people, changed: [segment.id] };
 }
 
-export async function listTemplates() {
+export async function listTemplates(limit = 50) {
 	const rows = await db.marketingTemplate.findMany({
 		where: { archivedAt: null },
 		select: { id: true, name: true, subject: true },
 		orderBy: { updatedAt: "desc" },
-		take: 100,
+		take: limit,
 	});
 
 	return { templates: rows };
