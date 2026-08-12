@@ -1,4 +1,4 @@
-import { db } from "@crm/db";
+import { db, type Prisma } from "@crm/db";
 import {
 	autoLayout,
 	filterSchema,
@@ -353,6 +353,106 @@ export async function writeCampaignGraph(input: {
 		ok: true,
 		warnings: problems.filter((problem) => problem.level === "warning"),
 		changed: input.nodes.map((node) => node.id),
+	};
+}
+
+export async function updateCampaignNode(input: {
+	nodeId: string;
+	label?: string;
+	subject?: string;
+	preheader?: string;
+	document?: Record<string, unknown>;
+	delayHours?: number;
+	condition?: Record<string, unknown>;
+}) {
+	const node = await db.marketingCampaignNode.findUnique({
+		where: { id: input.nodeId },
+		select: { id: true, kind: true, campaign: { select: { status: true } } },
+	});
+
+	if (!node) return { error: "No node with that id." };
+
+	if (input.condition !== undefined && node.kind !== "BRANCH") {
+		return { error: "Only a BRANCH holds a condition." };
+	}
+
+	if (input.delayHours !== undefined && node.kind !== "WAIT") {
+		return { error: "Only a WAIT holds a delay." };
+	}
+
+	const wantsCopy =
+		input.subject !== undefined ||
+		input.preheader !== undefined ||
+		input.document !== undefined;
+
+	if (wantsCopy && node.kind !== "EMAIL") {
+		return { error: "Only an EMAIL holds a subject, a preheader or a body." };
+	}
+
+	const updated = await db.marketingCampaignNode.update({
+		where: { id: input.nodeId },
+		data: {
+			...(input.label !== undefined && { label: input.label }),
+			...(input.subject !== undefined && { subject: input.subject }),
+			...(input.preheader !== undefined && { preheader: input.preheader }),
+			...(input.document !== undefined && {
+				document: input.document as Prisma.InputJsonValue,
+			}),
+			...(input.delayHours !== undefined && { delayHours: input.delayHours }),
+			...(input.condition !== undefined && {
+				condition: input.condition as Prisma.InputJsonValue,
+			}),
+		},
+		select: { id: true, kind: true, label: true },
+	});
+
+	return { ok: true, node: updated, live: node.campaign.status === "ACTIVE" };
+}
+
+export async function stageCampaign(input: {
+	campaignId: string;
+	at?: Date | null;
+	note: string;
+}) {
+	const campaign = await db.marketingCampaign.findUnique({
+		where: { id: input.campaignId },
+		select: {
+			kind: true,
+			status: true,
+			segmentId: true,
+			_count: { select: { nodes: true } },
+		},
+	});
+
+	if (!campaign) return { error: "No campaign with that id." };
+
+	if (campaign.status !== "DRAFT" && campaign.status !== "PENDING_APPROVAL") {
+		return {
+			error: `That campaign is ${campaign.status}. Only a draft can be staged for approval.`,
+		};
+	}
+
+	if (!campaign.segmentId) {
+		return { error: "It has no segment, so nobody would receive it." };
+	}
+
+	if (campaign._count.nodes === 0) {
+		return { error: "It has no nodes yet." };
+	}
+
+	await db.marketingCampaign.update({
+		where: { id: input.campaignId },
+		data: {
+			status: "PENDING_APPROVAL",
+			scheduledAt: input.at ?? null,
+			pausedReason: input.note,
+		},
+	});
+
+	return {
+		ok: true,
+		status: "PENDING_APPROVAL",
+		waitingOn: "a person clicking Approve in Marketing",
 	};
 }
 

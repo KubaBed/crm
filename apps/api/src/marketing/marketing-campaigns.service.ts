@@ -714,6 +714,82 @@ export class MarketingCampaignsService {
 		return { scheduledAt: at, ...result };
 	}
 
+	async pending() {
+		const rows = await this.db.marketingCampaign.findMany({
+			where: { status: "PENDING_APPROVAL" },
+			orderBy: { updatedAt: "desc" },
+			select: {
+				id: true,
+				name: true,
+				kind: true,
+				scheduledAt: true,
+				pausedReason: true,
+				updatedAt: true,
+				segment: { select: { id: true, name: true } },
+				_count: { select: { nodes: true } },
+			},
+		});
+
+		return rows.map((row) => ({
+			id: row.id,
+			name: row.name,
+			kind: row.kind,
+			at: row.scheduledAt,
+			note: row.pausedReason,
+			nodes: row._count.nodes,
+			segment: row.segment,
+			stagedAt: row.updatedAt,
+		}));
+	}
+
+	async approve(id: string) {
+		const campaign = await this.db.marketingCampaign.findUnique({
+			where: { id },
+			select: { kind: true, status: true, scheduledAt: true },
+		});
+
+		if (!campaign) throw new NotFoundException("No such campaign.");
+
+		if (campaign.status !== "PENDING_APPROVAL") {
+			throw new BadRequestException(
+				"Nothing is waiting on that campaign — it is not pending approval.",
+			);
+		}
+
+		await this.db.marketingCampaign.update({
+			where: { id },
+			data: { status: "DRAFT", pausedReason: null },
+		});
+
+		return campaign.kind === "DRIP"
+			? this.activate(id)
+			: this.schedule({ id, at: campaign.scheduledAt });
+	}
+
+	async reject(id: string, reason?: string) {
+		const campaign = await this.db.marketingCampaign.findUnique({
+			where: { id },
+			select: { status: true },
+		});
+
+		if (campaign?.status !== "PENDING_APPROVAL") {
+			throw new BadRequestException(
+				"Nothing is waiting on that campaign — it is not pending approval.",
+			);
+		}
+
+		await this.db.marketingCampaign.update({
+			where: { id },
+			data: {
+				status: "DRAFT",
+				scheduledAt: null,
+				pausedReason: reason ?? null,
+			},
+		});
+
+		return { status: "DRAFT" };
+	}
+
 	async activate(id: string) {
 		const sendable = await assertSendable(this.db);
 		if (!sendable.ok) throw new BadRequestException(sendable.reason);

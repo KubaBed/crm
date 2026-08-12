@@ -86,6 +86,11 @@ export const scheduleInput = z.object({
 	at: z.date().nullish(),
 });
 
+export const rejectInput = z.object({
+	id: z.string().min(1),
+	reason: z.string().max(400).optional(),
+});
+
 export const pauseInput = z.object({
 	id: z.string().min(1),
 	reason: z.string().max(200).optional(),

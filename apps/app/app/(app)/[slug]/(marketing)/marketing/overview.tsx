@@ -4,6 +4,7 @@ import { Button } from "@crm/ui/components/button";
 import { Spinner } from "@crm/ui/components/spinner";
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
+import { WaitingForYou } from "@/components/marketing/waiting-for-you";
 import { useTRPC } from "@/lib/trpc/client";
 import { useWorkspaceUrl } from "@/lib/use-workspace-url";
 import { CampaignStatus } from "./campaign-status";
@@ -50,6 +51,8 @@ export function MarketingOverview() {
 
 	return (
 		<div className="flex max-w-4xl flex-col gap-6">
+			<WaitingForYou />
+
 			{data.sendable ? null : (
 				<div className="flex flex-col gap-3 rounded-lg border p-5">
 					<span className="font-medium text-xs">Marketing cannot send yet</span>

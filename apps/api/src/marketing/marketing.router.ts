@@ -27,6 +27,7 @@ import {
 	previewNodeInput,
 	previewSegmentInput,
 	previewTemplateInput,
+	rejectInput,
 	resumeInput,
 	saveIdentityInput,
 	saveKeyInput,
@@ -213,6 +214,21 @@ export class MarketingCampaignsRouter {
 	@Mutation({ input: scheduleInput })
 	async schedule(@Input() input: z.infer<typeof scheduleInput>) {
 		return this.campaigns.schedule({ id: input.id, at: input.at ?? null });
+	}
+
+	@Query()
+	async pending() {
+		return this.campaigns.pending();
+	}
+
+	@Mutation({ input: idInput })
+	async approve(@Input() input: z.infer<typeof idInput>) {
+		return this.campaigns.approve(input.id);
+	}
+
+	@Mutation({ input: rejectInput })
+	async reject(@Input() input: z.infer<typeof rejectInput>) {
+		return this.campaigns.reject(input.id, input.reason);
 	}
 
 	@Mutation({ input: idInput })

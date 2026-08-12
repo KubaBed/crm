@@ -96,6 +96,12 @@ would breach the rule is putting composition, segment reasoning or
 ## The agent writes rows, never bytes
 
 Fourteen tools in `apps/agent/agent/tools/`, all through `@crm/db/marketing`.
+`update_node` changes one node in place — use it for *"make touch three
+shorter"* rather than rewriting a graph and losing every hand-placed position.
+`schedule_campaign` moves a draft to `PENDING_APPROVAL` with a note; it appears
+under **Waiting for you** on the Marketing overview and a person clicks Approve.
+That is the whole of the unattended lane: an overnight run stages, a human
+sends.
 None holds a transport. `write_template` and `write_campaign_graph` **refuse and
 hand the problems back** rather than saving — that loop is why the linter and
 the validator are functions rather than screens.
