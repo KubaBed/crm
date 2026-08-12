@@ -1,4 +1,6 @@
 import type { Db, Prisma } from "@crm/db";
+import { readMarketingSettings } from "@crm/db/marketing";
+import { readWorkspaceIdentity } from "@crm/db/workspace";
 import {
 	EMPTY_DOCUMENT,
 	emailDocument,
@@ -175,6 +177,9 @@ export class MarketingTemplatesService {
 
 		if (!row) return null;
 
+		const settings = await readMarketingSettings(this.db);
+		const workspace = await readWorkspaceIdentity(this.db).catch(() => null);
+
 		return {
 			id: row.id,
 			kind: row.kind,
@@ -183,6 +188,11 @@ export class MarketingTemplatesService {
 			isDefault: row.isDefault,
 			usedBy: row._count.headerFor + row._count.footerFor,
 			updatedAt: row.updatedAt,
+			brandLine: {
+				logoUrl: settings.logoUrl,
+				workspaceName: workspace?.name ?? null,
+				brandColor: settings.brandColor,
+			},
 		};
 	}
 

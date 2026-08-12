@@ -1,10 +1,12 @@
 "use client";
 
+import Locked from "@carbon/icons-react/es/Locked";
 import { Button } from "@crm/ui/components/button";
 import {
 	type EmailBlock,
 	EmailBlockEditor,
 } from "@crm/ui/components/email-blocks";
+import { Icon } from "@crm/ui/components/icon";
 import { Spinner } from "@crm/ui/components/spinner";
 import { useAutosave } from "@crm/ui/hooks/use-autosave";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -135,6 +137,23 @@ export function ShellEditor({ shellId }: { shellId: string }) {
 			rail={<CopilotRail record={{ kind: "shell", id: shellId }} />}
 		>
 			<div className="flex w-[400px] shrink-0 flex-col gap-4 overflow-y-auto border-r p-4">
+				{data.kind === "HEADER" ? (
+					<div className="flex items-center gap-2 rounded-md bg-muted px-2.5 py-2">
+						<Icon
+							icon={Locked}
+							className="size-3 shrink-0 text-muted-foreground"
+						/>
+						<span className="shrink-0 rounded-sm bg-background px-1.5 py-px text-muted-foreground text-xs">
+							Brand line
+						</span>
+						<span className="min-w-0 flex-1 truncate text-muted-foreground text-xs">
+							{data.brandLine.logoUrl
+								? "Your logo, from your brand"
+								: `${data.brandLine.workspaceName ?? "Your workspace name"}, in bold`}
+						</span>
+					</div>
+				) : null}
+
 				<EmailBlockEditor
 					blocks={blocks}
 					selected={selected}
@@ -146,8 +165,9 @@ export function ShellEditor({ shellId }: { shellId: string }) {
 				/>
 
 				<p className="text-muted-foreground text-xs">
-					The postal address and the unsubscribe link are added by the compiler
-					on every send. They are not blocks and nothing here can remove them.
+					{data.kind === "HEADER"
+						? "The brand line is drawn from your logo, and the postal address and the unsubscribe link are added by the compiler. They are not blocks and nothing here can remove them. Anything you add sits under the brand line."
+						: "The postal address and the unsubscribe link are added by the compiler on every send. They are not blocks and nothing here can remove them."}
 				</p>
 			</div>
 

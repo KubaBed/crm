@@ -201,7 +201,7 @@ describe("the header and footer the co-pilot can edit", () => {
 		expect(markdown).toContain(shell.id);
 		expect(markdown).toContain("write_shell");
 		expect(markdown).toContain("read_shell");
-		expect(markdown).toContain("the compiler's");
+		expect(markdown).toContain("An empty document is normal");
 
 		await db.marketingPartial.delete({ where: { id: shell.id } });
 	});

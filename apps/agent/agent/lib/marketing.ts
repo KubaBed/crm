@@ -11,6 +11,7 @@ import {
 	segmentWhere,
 	validateGraph,
 } from "@crm/db/marketing";
+import { readWorkspaceIdentity } from "@crm/db/workspace";
 import { readDocument } from "@crm/email/document";
 import { type LintFinding, lintEmail } from "@crm/email/lint";
 
@@ -244,6 +245,9 @@ export async function readShell(id: string) {
 
 	if (!shell) return { error: "No header or footer with that id." };
 
+	const settings = await readMarketingSettings(db);
+	const workspace = await readWorkspaceIdentity(db).catch(() => null);
+
 	return {
 		id: shell.id,
 		kind: shell.kind,
@@ -251,6 +255,12 @@ export async function readShell(id: string) {
 		isDefault: shell.isDefault,
 		usedBy: shell._count.headerFor + shell._count.footerFor,
 		document: readDocument(shell.document),
+		alreadyDrawn:
+			shell.kind === "HEADER"
+				? settings.logoUrl
+					? `The compiler already draws the logo at the top: ${settings.logoUrl}. It is not a block and you cannot add, move or remove it. Anything in this document sits under it.`
+					: `The compiler already draws "${workspace?.name ?? "the workspace name"}" in bold at the top. It is not a block. Anything in this document sits under it.`
+				: "The compiler already adds the postal address and the unsubscribe link under this document. Neither is a block. Never write a second unsubscribe link.",
 	};
 }
 
