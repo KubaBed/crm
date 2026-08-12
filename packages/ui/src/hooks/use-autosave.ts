@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 
 export type AutosaveState = "idle" | "saving" | "saved";
 
@@ -44,4 +44,31 @@ export function useAutosave<TValue>(
 		},
 		[],
 	);
+}
+
+export function useSaveStatus(pending: boolean, holdMs = 2000): AutosaveState {
+	const [state, setState] = useState<AutosaveState>("idle");
+	const saved = useRef(false);
+
+	useEffect(() => {
+		if (pending) {
+			saved.current = true;
+			setState("saving");
+			return;
+		}
+
+		if (!saved.current) return;
+		saved.current = false;
+		setState("saved");
+
+		const timer = setTimeout(() => setState("idle"), holdMs);
+		return () => clearTimeout(timer);
+	}, [pending, holdMs]);
+
+	return state;
+}
+
+export function saveLabel(state: AutosaveState): string {
+	if (state === "saving") return "Saving…";
+	return state === "saved" ? "Saved" : "";
 }

@@ -8,7 +8,11 @@ import {
 } from "@crm/ui/components/email-blocks";
 import { Icon } from "@crm/ui/components/icon";
 import { Spinner } from "@crm/ui/components/spinner";
-import { useAutosave } from "@crm/ui/hooks/use-autosave";
+import {
+	saveLabel,
+	useAutosave,
+	useSaveStatus,
+} from "@crm/ui/hooks/use-autosave";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
@@ -74,6 +78,8 @@ export function ShellEditor({ shellId }: { shellId: string }) {
 		}),
 	);
 
+	const status = useSaveStatus(save.isPending);
+
 	useAutosave(
 		{ name, blocks },
 		(draft) =>
@@ -120,7 +126,7 @@ export function ShellEditor({ shellId }: { shellId: string }) {
 			}
 			actions={
 				<span className="text-muted-foreground text-xs">
-					{save.isPending ? "Saving…" : dirty ? "Unsaved" : "Saved"}
+					{saveLabel(status)}
 				</span>
 			}
 			meta={

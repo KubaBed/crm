@@ -16,7 +16,11 @@ import { Icon } from "@crm/ui/components/icon";
 import { Input } from "@crm/ui/components/input";
 import { Label } from "@crm/ui/components/label";
 import { Spinner } from "@crm/ui/components/spinner";
-import { useAutosave } from "@crm/ui/hooks/use-autosave";
+import {
+	saveLabel,
+	useAutosave,
+	useSaveStatus,
+} from "@crm/ui/hooks/use-autosave";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -119,6 +123,8 @@ export function TemplateEditor({ templateId }: { templateId: string }) {
 		}),
 	);
 
+	const status = useSaveStatus(save.isPending);
+
 	useAutosave(
 		{ name, subject, preheader, blocks },
 		(draft) =>
@@ -194,7 +200,7 @@ export function TemplateEditor({ templateId }: { templateId: string }) {
 						</DropdownMenuContent>
 					</DropdownMenu>
 					<span className="text-muted-foreground text-xs">
-						{save.isPending ? "Saving…" : dirty ? "Unsaved" : "Saved"}
+						{saveLabel(status)}
 					</span>
 				</>
 			}

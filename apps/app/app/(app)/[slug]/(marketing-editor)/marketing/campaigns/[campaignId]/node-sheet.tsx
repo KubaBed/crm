@@ -12,7 +12,11 @@ import { Icon } from "@crm/ui/components/icon";
 import { Input } from "@crm/ui/components/input";
 import { Label } from "@crm/ui/components/label";
 import { Spinner } from "@crm/ui/components/spinner";
-import { useAutosave } from "@crm/ui/hooks/use-autosave";
+import {
+	saveLabel,
+	useAutosave,
+	useSaveStatus,
+} from "@crm/ui/hooks/use-autosave";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
@@ -104,6 +108,8 @@ export function NodeSheet({
 			onError: (error) => toast.error(error.message),
 		}),
 	);
+
+	const status = useSaveStatus(save.isPending);
 
 	useAutosave(
 		{ subject, preheader, blocks },
@@ -236,7 +242,7 @@ export function NodeSheet({
 
 					<div className="flex items-center gap-2">
 						<span className="text-muted-foreground text-xs">
-							{save.isPending ? "Saving…" : touched ? "Saved" : ""}
+							{saveLabel(status)}
 						</span>
 						<div className="flex-1" />
 						<Button variant="outline" onClick={onClose}>
