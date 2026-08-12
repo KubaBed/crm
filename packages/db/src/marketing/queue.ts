@@ -202,7 +202,7 @@ export type ClaimedSend = {
 
 export async function claimDueSends(
 	db: Db,
-	limit = MARKETING.drain.claimLimit,
+	limit: number = MARKETING.drain.claimLimit,
 ): Promise<ClaimedSend[]> {
 	const leaseCutoff = new Date(Date.now() - MARKETING.drain.leaseMs);
 

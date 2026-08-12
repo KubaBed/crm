@@ -1,0 +1,324 @@
+import type { Db, Prisma } from "@crm/db";
+import { filterSchema, segmentWhere } from "@crm/db/marketing";
+import {
+	BadRequestException,
+	Injectable,
+	NotFoundException,
+} from "@nestjs/common";
+import { blankToNull } from "../crm/values";
+import { InjectDatabase } from "../database/database.constants";
+import { type ListInput, paginate, resolveOrderBy } from "../trpc/list-input";
+
+export type SegmentRow = {
+	id: string;
+	name: string;
+	description: string | null;
+	type: "rule" | "hand" | "both";
+	people: number;
+	byRule: number;
+	byHand: number;
+	usedBy: { id: string; name: string; kind: string; role: string }[];
+	refreshed: string;
+	updatedAt: Date;
+};
+
+const SELECT = {
+	id: true,
+	name: true,
+	description: true,
+	definition: true,
+	kind: true,
+	lastCount: true,
+	lastCountedAt: true,
+	createdAt: true,
+	updatedAt: true,
+	members: { select: { contactId: true, mode: true } },
+} as const;
+
+@Injectable()
+export class MarketingSegmentsService {
+	constructor(@InjectDatabase() private readonly db: Db) {}
+
+	private async count(segment: {
+		definition: unknown;
+		members: { contactId: string; mode: "INCLUDE" | "EXCLUDE" }[];
+	}): Promise<{ total: number; byRule: number; byHand: number }> {
+		const total = await this.db.contact.count({ where: segmentWhere(segment) });
+
+		const byHand = segment.members.filter(
+			(member) => member.mode === "INCLUDE",
+		).length;
+		const byRule = segment.definition
+			? await this.db.contact.count({
+					where: segmentWhere({ definition: segment.definition }),
+				})
+			: 0;
+
+		return { total, byRule, byHand };
+	}
+
+	async list(input: ListInput) {
+		const where: Prisma.MarketingSegmentWhereInput = {
+			archivedAt: null,
+			...(input.q && { name: { contains: input.q, mode: "insensitive" } }),
+		};
+
+		const orderBy =
+			resolveOrderBy<Prisma.MarketingSegmentOrderByWithRelationInput>(
+				input,
+				{
+					name: (dir) => ({ name: dir }),
+					updatedAt: (dir) => ({ updatedAt: dir }),
+				},
+				{ updatedAt: "desc" },
+			);
+
+		const [rows, total] = await Promise.all([
+			this.db.marketingSegment.findMany({
+				where,
+				orderBy,
+				...paginate(input),
+				select: {
+					...SELECT,
+					campaigns: { select: { id: true, name: true, kind: true } },
+				},
+			}),
+			this.db.marketingSegment.count({ where }),
+		]);
+
+		const withCounts = await Promise.all(
+			rows.map(async (row) => {
+				const counts = await this.count(row);
+				const hasRule = row.definition !== null;
+				const hasHands = counts.byHand > 0;
+
+				return {
+					id: row.id,
+					name: row.name,
+					description: row.description,
+					type: (hasRule && hasHands
+						? "both"
+						: hasRule
+							? "rule"
+							: "hand") as SegmentRow["type"],
+					people: counts.total,
+					byRule: counts.byRule,
+					byHand: counts.byHand,
+					usedBy: row.campaigns.map((campaign) => ({
+						id: campaign.id,
+						name: campaign.name,
+						kind: campaign.kind,
+						role: campaign.kind === "DRIP" ? "Entry" : "Audience",
+					})),
+					refreshed: hasRule ? "Live" : row.updatedAt.toISOString(),
+					updatedAt: row.updatedAt,
+				};
+			}),
+		);
+
+		return { rows: withCounts, total, facetCounts: {} };
+	}
+
+	async byId(id: string) {
+		const row = await this.db.marketingSegment.findUnique({
+			where: { id },
+			select: {
+				...SELECT,
+				campaigns: {
+					select: { id: true, name: true, kind: true, status: true },
+				},
+			},
+		});
+
+		if (!row) throw new NotFoundException("No such segment.");
+
+		const counts = await this.count(row);
+
+		const sendable = await this.db.contact.count({
+			where: {
+				AND: [
+					segmentWhere(row),
+					{ email: { not: null } },
+					{
+						OR: [
+							{ marketingRecipients: { none: {} } },
+							{ marketingRecipients: { some: { status: "SUBSCRIBED" } } },
+						],
+					},
+				],
+			},
+		});
+
+		const excluded = await this.db.contact.groupBy({
+			by: ["id"],
+			where: {
+				AND: [
+					segmentWhere(row),
+					{ marketingRecipients: { some: { status: { not: "SUBSCRIBED" } } } },
+				],
+			},
+			_count: { _all: true },
+		});
+
+		const sample = await this.db.contact.findMany({
+			where: segmentWhere(row),
+			select: {
+				id: true,
+				firstName: true,
+				lastName: true,
+				email: true,
+				company: { select: { name: true } },
+			},
+			take: 5,
+			orderBy: { createdAt: "desc" },
+		});
+
+		return {
+			id: row.id,
+			name: row.name,
+			description: row.description,
+			definition: row.definition,
+			kind: row.kind,
+			counts: { ...counts, sendable, suppressed: excluded.length },
+			usedBy: row.campaigns,
+			members: row.members,
+			sample: sample.map((contact) => ({
+				id: contact.id,
+				name: [contact.firstName, contact.lastName].filter(Boolean).join(" "),
+				email: contact.email,
+				company: contact.company?.name ?? null,
+			})),
+		};
+	}
+
+	async preview(definition: unknown) {
+		const parsed = filterSchema.safeParse(definition);
+		if (!parsed.success) {
+			throw new BadRequestException("Those rules cannot be read.");
+		}
+
+		const where = segmentWhere({ definition: parsed.data });
+
+		const [total, sample] = await Promise.all([
+			this.db.contact.count({ where }),
+			this.db.contact.findMany({
+				where,
+				select: {
+					id: true,
+					firstName: true,
+					lastName: true,
+					email: true,
+					company: { select: { name: true } },
+				},
+				take: 20,
+			}),
+		]);
+
+		return {
+			total,
+			sample: sample.map((contact) => ({
+				id: contact.id,
+				name: [contact.firstName, contact.lastName].filter(Boolean).join(" "),
+				email: contact.email,
+				company: contact.company?.name ?? null,
+			})),
+		};
+	}
+
+	async create(input: {
+		name: string;
+		description?: string | null;
+		definition?: unknown;
+	}) {
+		const name = blankToNull(input.name);
+		if (!name) throw new BadRequestException("Give the segment a name.");
+
+		if (input.definition && !filterSchema.safeParse(input.definition).success) {
+			throw new BadRequestException("Those rules cannot be read.");
+		}
+
+		return this.db.marketingSegment.create({
+			data: {
+				name,
+				description: input.description ? blankToNull(input.description) : null,
+				definition: (input.definition ?? undefined) as
+					| Prisma.InputJsonValue
+					| undefined,
+				kind: input.definition ? "DYNAMIC" : "STATIC",
+			},
+			select: { id: true, name: true },
+		});
+	}
+
+	async update(input: {
+		id: string;
+		name?: string;
+		description?: string | null;
+		definition?: unknown;
+	}) {
+		if (input.definition !== undefined && input.definition !== null) {
+			if (!filterSchema.safeParse(input.definition).success) {
+				throw new BadRequestException("Those rules cannot be read.");
+			}
+		}
+
+		return this.db.marketingSegment.update({
+			where: { id: input.id },
+			data: {
+				...(input.name && { name: input.name }),
+				...(input.description !== undefined && {
+					description: input.description
+						? blankToNull(input.description)
+						: null,
+				}),
+				...(input.definition !== undefined && {
+					definition: (input.definition ?? undefined) as
+						| Prisma.InputJsonValue
+						| undefined,
+				}),
+			},
+			select: { id: true },
+		});
+	}
+
+	async archive(id: string) {
+		return this.db.marketingSegment.update({
+			where: { id },
+			data: { archivedAt: new Date() },
+			select: { id: true },
+		});
+	}
+
+	async addMember(segmentId: string, contactId: string, userId: string) {
+		return this.db.marketingSegmentMember.upsert({
+			where: { segmentId_contactId: { segmentId, contactId } },
+			create: { segmentId, contactId, mode: "INCLUDE", addedById: userId },
+			update: { mode: "INCLUDE", addedById: userId },
+			select: { segmentId: true },
+		});
+	}
+
+	async excludeMember(segmentId: string, contactId: string, userId: string) {
+		return this.db.marketingSegmentMember.upsert({
+			where: { segmentId_contactId: { segmentId, contactId } },
+			create: { segmentId, contactId, mode: "EXCLUDE", addedById: userId },
+			update: { mode: "EXCLUDE", addedById: userId },
+			select: { segmentId: true },
+		});
+	}
+
+	async removeMember(segmentId: string, contactId: string) {
+		await this.db.marketingSegmentMember.deleteMany({
+			where: { segmentId, contactId },
+		});
+		return { segmentId };
+	}
+
+	async options() {
+		return this.db.marketingSegment.findMany({
+			where: { archivedAt: null },
+			select: { id: true, name: true },
+			orderBy: { name: "asc" },
+		});
+	}
+}
