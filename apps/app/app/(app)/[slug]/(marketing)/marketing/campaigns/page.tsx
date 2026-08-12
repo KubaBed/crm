@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
+import { CreateCampaignButton } from "@/components/marketing/create-buttons";
 import {
 	PageShell,
 	PageShellActions,
@@ -13,7 +14,6 @@ import {
 import { HydrateClient } from "@/lib/trpc/hydrate";
 import { getServerQueryClient, getServerTrpc } from "@/lib/trpc/server";
 import { CampaignsTable } from "./campaigns-table";
-import { CreateCampaignSheet } from "./create-campaign-sheet";
 
 export const metadata: Metadata = { title: "Campaigns" };
 
@@ -28,7 +28,7 @@ export default function CampaignsPage() {
 					</PageShellDescription>
 				</PageShellHeading>
 				<PageShellActions>
-					<CreateCampaignSheet />
+					<CreateCampaignButton />
 				</PageShellActions>
 			</PageShellHeader>
 

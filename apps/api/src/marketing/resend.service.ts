@@ -105,6 +105,26 @@ export class ResendService {
 		);
 	}
 
+	async setTracking(
+		id: string,
+		tracking: { openTracking?: boolean; clickTracking?: boolean },
+	): Promise<boolean> {
+		const client = await this.client();
+		if (!client) return false;
+
+		const result = await client.domains.update({ id, ...tracking });
+
+		if (result.error) {
+			this.logger.warn({
+				message: "Resend would not change the domain's tracking",
+				reason: result.error.message,
+			});
+			return false;
+		}
+
+		return true;
+	}
+
 	async readDomain(id: string): Promise<DomainState | null> {
 		const client = await this.client();
 		if (!client) return null;

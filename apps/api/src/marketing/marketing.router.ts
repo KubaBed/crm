@@ -35,6 +35,7 @@ import {
 	sendCompanyInput,
 	sendDirectInput,
 	setDomainInput,
+	setTrackingInput,
 	updateCampaignInput,
 	updateNodeInput,
 	updateSegmentInput,
@@ -110,6 +111,11 @@ export class MarketingRouter {
 			quietEnd: input.quietEnd ?? null,
 			timeZone: input.timeZone,
 		});
+	}
+
+	@Mutation({ input: setTrackingInput })
+	async setTracking(@Input() input: z.infer<typeof setTrackingInput>) {
+		return this.settingsService.setTracking(input);
 	}
 
 	@Mutation()

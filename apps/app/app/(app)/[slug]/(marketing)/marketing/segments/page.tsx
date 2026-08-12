@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
+import { CreateSegmentButton } from "@/components/marketing/create-buttons";
 import {
 	PageShell,
 	PageShellActions,
@@ -12,7 +13,6 @@ import {
 } from "@/components/page-shell";
 import { HydrateClient } from "@/lib/trpc/hydrate";
 import { getServerQueryClient, getServerTrpc } from "@/lib/trpc/server";
-import { CreateSegmentSheet } from "./create-segment-sheet";
 import { SegmentsTable } from "./segments-table";
 
 export const metadata: Metadata = { title: "Segments" };
@@ -28,7 +28,7 @@ export default function SegmentsPage() {
 					</PageShellDescription>
 				</PageShellHeading>
 				<PageShellActions>
-					<CreateSegmentSheet />
+					<CreateSegmentButton />
 				</PageShellActions>
 			</PageShellHeader>
 

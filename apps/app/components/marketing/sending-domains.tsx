@@ -48,14 +48,14 @@ export function SendingDomains({ enabled = true }: { enabled?: boolean }) {
 	if (domains.isPending) return <Spinner />;
 
 	return (
-		<div className="flex flex-col gap-2">
+		<div className="flex flex-col">
 			{rows.map((row) => {
 				const verified = row.status === "verified";
 
 				return (
 					<div
 						key={row.id}
-						className="flex items-center gap-3 rounded-md border px-3 py-2"
+						className="flex items-center gap-3 border-b py-2.5 first:pt-0 last:border-b-0"
 					>
 						<span className="min-w-0 flex-1 truncate text-sm">{row.name}</span>
 						<Badge variant={verified ? "secondary" : "outline"}>
@@ -78,13 +78,13 @@ export function SendingDomains({ enabled = true }: { enabled?: boolean }) {
 				);
 			})}
 
-			<p className="text-muted-foreground text-xs">
+			<p className="pt-3 text-muted-foreground text-xs">
 				{rows.length === 0
 					? "Resend has no domains yet. Add one there and verify it, then it shows up here."
 					: "Only a domain Resend has verified can send. Add and verify domains in Resend."}
 			</p>
 
-			<div className="flex items-center gap-2">
+			<div className="flex items-center gap-2 pt-3">
 				<Button variant="outline" size="sm" asChild>
 					<a href={RESEND_DOMAINS_URL} target="_blank" rel="noreferrer">
 						<Icon icon={Launch} />

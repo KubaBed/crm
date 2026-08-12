@@ -26,6 +26,11 @@ export const saveSendingInput = z.object({
 	timeZone: z.string().min(1).max(60).default("UTC"),
 });
 
+export const setTrackingInput = z.object({
+	openTracking: z.boolean().optional(),
+	clickTracking: z.boolean().optional(),
+});
+
 export const setDomainInput = z.object({ name: z.string().min(3).max(253) });
 
 export const addAttachmentInput = z.object({

@@ -242,6 +242,34 @@ export class MarketingSettingsService {
 		return { status: domain.status, name: domain.name };
 	}
 
+	async setTracking(input: {
+		openTracking?: boolean;
+		clickTracking?: boolean;
+	}): Promise<{ openTracking: boolean; clickTracking: boolean }> {
+		const settings = await readMarketingSettings(this.db);
+		if (!settings.resendDomainId) {
+			throw new BadRequestException("Pick a sending domain first.");
+		}
+
+		const done = await this.resend.setTracking(
+			settings.resendDomainId,
+			input,
+		);
+
+		if (!done) {
+			throw new BadRequestException(
+				"Resend would not change tracking on that domain.",
+			);
+		}
+
+		const state = await this.resend.readDomain(settings.resendDomainId);
+
+		return {
+			openTracking: state?.openTracking ?? false,
+			clickTracking: state?.clickTracking ?? false,
+		};
+	}
+
 	async verifyDomain(): Promise<{ status: string }> {
 		const settings = await readMarketingSettings(this.db);
 		if (!settings.resendDomainId) {

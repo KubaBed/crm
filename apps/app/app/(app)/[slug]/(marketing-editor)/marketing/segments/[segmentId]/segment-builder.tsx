@@ -1,6 +1,5 @@
 "use client";
 
-import ArrowLeft from "@carbon/icons-react/es/ArrowLeft";
 import Close from "@carbon/icons-react/es/Close";
 import OverflowMenuVertical from "@carbon/icons-react/es/OverflowMenuVertical";
 import { Button } from "@crm/ui/components/button";
@@ -12,15 +11,17 @@ import {
 	DropdownMenuTrigger,
 } from "@crm/ui/components/dropdown-menu";
 import { Icon } from "@crm/ui/components/icon";
-import { Input } from "@crm/ui/components/input";
 import { RuleTree, type RuleTreeValue } from "@crm/ui/components/rule-tree";
 import { Spinner } from "@crm/ui/components/spinner";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { CopilotRail } from "@/components/marketing/copilot-rail";
+import {
+	MarketingEditorMeta,
+	MarketingEditorShell,
+} from "@/components/marketing/editor-shell";
 import { useTRPC } from "@/lib/trpc/client";
 import { useWorkspaceUrl } from "@/lib/use-workspace-url";
 import { facetsWithOwners, fromDefinition, toDefinition } from "./facets";
@@ -149,66 +150,71 @@ export function SegmentBuilder({ segmentId }: { segmentId: string }) {
 	const total = definition ? (preview.data?.total ?? null) : 0;
 
 	return (
-		<div className="flex min-h-0 min-w-0 flex-1">
+		<MarketingEditorShell
+			backHref={workspaceUrl("/marketing/segments")}
+			backLabel="Segments"
+			name={name}
+			onNameChange={(next) => {
+				setName(next);
+				setDirty(true);
+			}}
+			actions={
+				<>
+					<DropdownMenu>
+						<DropdownMenuTrigger asChild>
+							<Button variant="ghost" size="icon" aria-label="More">
+								<Icon icon={OverflowMenuVertical} />
+							</Button>
+						</DropdownMenuTrigger>
+						<DropdownMenuContent align="end">
+							<DropdownMenuItem
+								variant="destructive"
+								disabled={archive.isPending}
+								onSelect={() => archive.mutate({ id: segmentId })}
+							>
+								Archive
+							</DropdownMenuItem>
+						</DropdownMenuContent>
+					</DropdownMenu>
+					<Button
+						size="sm"
+						disabled={save.isPending || !dirty}
+						onClick={() => save.mutate({ id: segmentId, name, definition })}
+					>
+						{save.isPending ? <Spinner /> : null}
+						Save
+					</Button>
+				</>
+			}
+			meta={
+				<MarketingEditorMeta
+					parts={[
+						`${(total ?? 0).toLocaleString()} match these rules`,
+						`${data.counts.sendable.toLocaleString()} can be emailed today`,
+						data.counts.byHand > 0
+							? `${data.counts.byHand} added by hand`
+							: null,
+						data.usedBy.length > 0
+							? `used by ${data.usedBy.map((campaign) => campaign.name).join(", ")}`
+							: null,
+					]}
+				/>
+			}
+			rail={
+				<CopilotRail
+					record={{ kind: "segment", id: segmentId }}
+					onFinish={() => {
+						void queryClient.invalidateQueries({
+							queryKey: trpc.marketingSegments.byId.queryKey({ id: segmentId }),
+						});
+						void queryClient.invalidateQueries({
+							queryKey: trpc.marketingSegments.preview.pathKey(),
+						});
+					}}
+				/>
+			}
+		>
 			<div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto">
-				<header className="flex shrink-0 flex-col gap-2 px-6 pt-5 pb-4">
-					<div className="flex items-center gap-2">
-						<Button
-							asChild
-							variant="ghost"
-							size="sm"
-							className="-ml-2 gap-1.5 font-normal text-muted-foreground"
-						>
-							<Link href={workspaceUrl("/marketing/segments")} prefetch>
-								<Icon icon={ArrowLeft} className="size-3.5" />
-								Segments
-							</Link>
-						</Button>
-						<span className="flex-1" />
-						<DropdownMenu>
-							<DropdownMenuTrigger asChild>
-								<Button variant="ghost" size="icon" aria-label="More">
-									<Icon icon={OverflowMenuVertical} />
-								</Button>
-							</DropdownMenuTrigger>
-							<DropdownMenuContent align="end">
-								<DropdownMenuItem
-									variant="destructive"
-									disabled={archive.isPending}
-									onSelect={() => archive.mutate({ id: segmentId })}
-								>
-									Archive
-								</DropdownMenuItem>
-							</DropdownMenuContent>
-						</DropdownMenu>
-						<Button
-							disabled={save.isPending || !dirty}
-							onClick={() => save.mutate({ id: segmentId, name, definition })}
-						>
-							{save.isPending ? <Spinner /> : null}
-							Save
-						</Button>
-					</div>
-
-					<Input
-						value={name}
-						onChange={(event) => {
-							setName(event.target.value);
-							setDirty(true);
-						}}
-						className="h-auto border-0 px-0 font-medium text-2xl tracking-tight shadow-none focus-visible:ring-0 md:text-3xl"
-					/>
-
-					<p className="text-muted-foreground text-xs">
-						{data.counts.byHand > 0
-							? `${data.counts.byRule.toLocaleString()} by rule · ${data.counts.byHand} added by hand`
-							: "Rules only. Anybody matching them is in, from now on."}
-						{data.usedBy.length > 0
-							? ` · used by ${data.usedBy.map((campaign) => campaign.name).join(", ")}`
-							: ""}
-					</p>
-				</header>
-
 				<div className="flex min-w-0 flex-1 flex-col gap-6 px-6 pb-8">
 					<RuleTree
 						value={rules}
@@ -292,7 +298,7 @@ export function SegmentBuilder({ segmentId }: { segmentId: string }) {
 						)}
 					</div>
 
-					<div className="grid gap-6 lg:grid-cols-[1fr_320px]">
+					<div className="flex flex-col gap-6">
 						<div className="flex flex-col overflow-clip rounded-lg border">
 							<div className="flex items-center justify-between border-b bg-muted px-4 py-2.5">
 								<span className="font-medium text-xs">
@@ -323,44 +329,9 @@ export function SegmentBuilder({ segmentId }: { segmentId: string }) {
 								</p>
 							) : null}
 						</div>
-
-						<div className="flex h-fit flex-col overflow-clip rounded-lg border">
-							<div className="flex flex-col gap-1 border-b px-4 py-4">
-								<span className="font-medium text-2xl tabular-nums">
-									{total?.toLocaleString() ?? "—"}
-								</span>
-								<span className="text-muted-foreground text-xs">
-									match these rules
-								</span>
-							</div>
-							<div className="flex flex-col gap-1 border-b px-4 py-4">
-								<span className="font-medium text-2xl tabular-nums">
-									{data.counts.sendable.toLocaleString()}
-								</span>
-								<span className="text-muted-foreground text-xs">
-									can be emailed today
-								</span>
-							</div>
-							<p className="px-4 py-3 text-muted-foreground text-xs">
-								Editing these rules changes who enters next. It never removes
-								anybody already in a drip.
-							</p>
-						</div>
 					</div>
 				</div>
 			</div>
-
-			<CopilotRail
-				record={{ kind: "segment", id: segmentId }}
-				onFinish={() => {
-					void queryClient.invalidateQueries({
-						queryKey: trpc.marketingSegments.byId.queryKey({ id: segmentId }),
-					});
-					void queryClient.invalidateQueries({
-						queryKey: trpc.marketingSegments.preview.pathKey(),
-					});
-				}}
-			/>
-		</div>
+		</MarketingEditorShell>
 	);
 }

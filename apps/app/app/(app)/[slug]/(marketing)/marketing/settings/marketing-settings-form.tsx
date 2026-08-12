@@ -3,6 +3,7 @@
 import { Button } from "@crm/ui/components/button";
 import {
 	Card,
+	CardAction,
 	CardContent,
 	CardDescription,
 	CardHeader,
@@ -19,6 +20,7 @@ import {
 	SelectValue,
 } from "@crm/ui/components/select";
 import { Spinner } from "@crm/ui/components/spinner";
+import { Switch } from "@crm/ui/components/switch";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useId, useState } from "react";
 import { toast } from "sonner";
@@ -70,6 +72,8 @@ export function MarketingSettingsForm() {
 	const keyId = useId();
 	const rateId = useId();
 	const capId = useId();
+	const opensId = useId();
+	const clicksId = useId();
 
 	const data = settings.data;
 
@@ -103,6 +107,18 @@ export function MarketingSettingsForm() {
 						: "Saved. Resend did not confirm the key, so watch the first send.",
 				);
 				void invalidate();
+			},
+			onError: (error) => toast.error(error.message),
+		}),
+	);
+
+	const setTracking = useMutation(
+		trpc.marketing.setTracking.mutationOptions({
+			onSuccess: () => {
+				toast.success("Changed it in Resend.");
+				void queryClient.invalidateQueries({
+					queryKey: trpc.marketing.domain.queryKey(),
+				});
 			},
 			onError: (error) => toast.error(error.message),
 		}),
@@ -154,28 +170,27 @@ export function MarketingSettingsForm() {
 					<CardDescription>
 						Resend carries the mail, signs it, and reports what happened to it.
 					</CardDescription>
-				</CardHeader>
-				<CardContent>
-					<FieldGroup>
-						<Field>
-							<FieldLabel htmlFor={keyId}>API key</FieldLabel>
-							<Input
-								id={keyId}
-								value={key}
-								placeholder={data.apiKeyMask ?? "re_…"}
-								onChange={(event) => setKey(event.target.value)}
-								autoComplete="off"
-							/>
-						</Field>
+					<CardAction>
 						<Button
-							className="self-start"
 							disabled={!key.trim() || saveKey.isPending}
 							onClick={() => saveKey.mutate({ key })}
 						>
 							{saveKey.isPending ? <Spinner /> : null}
 							{data.connected ? "Replace key" : "Connect"}
 						</Button>
-					</FieldGroup>
+					</CardAction>
+				</CardHeader>
+				<CardContent>
+					<Field>
+						<FieldLabel htmlFor={keyId}>API key</FieldLabel>
+						<Input
+							id={keyId}
+							value={key}
+							placeholder={data.apiKeyMask ?? "re_…"}
+							onChange={(event) => setKey(event.target.value)}
+							autoComplete="off"
+						/>
+					</Field>
 				</CardContent>
 			</Card>
 
@@ -186,6 +201,22 @@ export function MarketingSettingsForm() {
 						Replies go to whoever sent it. The law wants a postal address on
 						marketing email, so we put yours in the footer.
 					</CardDescription>
+					<CardAction>
+						<Button
+							disabled={saveIdentity.isPending}
+							onClick={() =>
+								saveIdentity.mutate({
+									fromName,
+									fromAddress,
+									replyTo: replyTo || null,
+									postalAddress,
+								})
+							}
+						>
+							{saveIdentity.isPending ? <Spinner /> : null}
+							Save
+						</Button>
+					</CardAction>
 				</CardHeader>
 				<CardContent>
 					<FieldGroup>
@@ -223,21 +254,6 @@ export function MarketingSettingsForm() {
 								placeholder="Comp AI · 2261 Market Street, San Francisco"
 							/>
 						</Field>
-						<Button
-							className="self-start"
-							disabled={saveIdentity.isPending}
-							onClick={() =>
-								saveIdentity.mutate({
-									fromName,
-									fromAddress,
-									replyTo: replyTo || null,
-									postalAddress,
-								})
-							}
-						>
-							{saveIdentity.isPending ? <Spinner /> : null}
-							Save
-						</Button>
 					</FieldGroup>
 				</CardContent>
 			</Card>
@@ -262,6 +278,24 @@ export function MarketingSettingsForm() {
 						Quiet hours hold a campaign until the window opens. They never hold
 						a test or a one-off you send by hand.
 					</CardDescription>
+					<CardAction>
+						<Button
+							disabled={saveSending.isPending}
+							onClick={() =>
+								saveSending.mutate({
+									sendsPerMinute: Number(sendsPerMinute) || 1,
+									dailyCap: Number(dailyCap) || null,
+									quietStart:
+										quietStart === NO_QUIET ? null : Number(quietStart),
+									quietEnd: quietEnd === NO_QUIET ? null : Number(quietEnd),
+									timeZone,
+								})
+							}
+						>
+							{saveSending.isPending ? <Spinner /> : null}
+							Save
+						</Button>
+					</CardAction>
 				</CardHeader>
 				<CardContent>
 					<FieldGroup>
@@ -336,24 +370,6 @@ export function MarketingSettingsForm() {
 								placeholder="Pick a time zone"
 							/>
 						</Field>
-
-						<Button
-							className="self-start"
-							disabled={saveSending.isPending}
-							onClick={() =>
-								saveSending.mutate({
-									sendsPerMinute: Number(sendsPerMinute) || 1,
-									dailyCap: Number(dailyCap) || null,
-									quietStart:
-										quietStart === NO_QUIET ? null : Number(quietStart),
-									quietEnd: quietEnd === NO_QUIET ? null : Number(quietEnd),
-									timeZone,
-								})
-							}
-						>
-							{saveSending.isPending ? <Spinner /> : null}
-							Save
-						</Button>
 					</FieldGroup>
 				</CardContent>
 			</Card>
@@ -362,14 +378,37 @@ export function MarketingSettingsForm() {
 				<CardHeader>
 					<CardTitle>Open and click tracking</CardTitle>
 					<CardDescription>
-						Set both on the Resend domain. Apple Mail opens every email, so the
-						open rate reads high whether or not a person looked.
+						Both live on the Resend domain, and these switches change them
+						there. Apple Mail opens every email, so the open rate reads high
+						whether or not a person looked.
 					</CardDescription>
 				</CardHeader>
 				<CardContent>
+					<Field orientation="horizontal">
+						<FieldLabel htmlFor={opensId}>Track opens</FieldLabel>
+						<Switch
+							id={opensId}
+							checked={domain.data?.openTracking ?? false}
+							disabled={!domain.data?.name || setTracking.isPending}
+							onCheckedChange={(next) =>
+								setTracking.mutate({ openTracking: next })
+							}
+						/>
+					</Field>
+					<Field orientation="horizontal">
+						<FieldLabel htmlFor={clicksId}>Track clicks</FieldLabel>
+						<Switch
+							id={clicksId}
+							checked={domain.data?.clickTracking ?? false}
+							disabled={!domain.data?.name || setTracking.isPending}
+							onCheckedChange={(next) =>
+								setTracking.mutate({ clickTracking: next })
+							}
+						/>
+					</Field>
 					<p className="text-muted-foreground text-xs">
-						Opens {domain.data?.openTracking ? "on" : "off"} · Clicks{" "}
-						{domain.data?.clickTracking ? "on" : "off"}
+						Click tracking rewrites every link in the body. The List-Unsubscribe
+						header is untouched either way.
 					</p>
 				</CardContent>
 			</Card>

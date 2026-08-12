@@ -1,20 +1,21 @@
 "use client";
 
-import ArrowLeft from "@carbon/icons-react/es/ArrowLeft";
 import { Button } from "@crm/ui/components/button";
 import {
 	FlowCanvas,
 	type FlowEdge,
 	type FlowNode,
 } from "@crm/ui/components/flow-canvas";
-import { Icon } from "@crm/ui/components/icon";
 import { Spinner } from "@crm/ui/components/spinner";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import Link from "next/link";
 import { useQueryState } from "nuqs";
 import { useMemo } from "react";
 import { toast } from "sonner";
 import { CopilotRail } from "@/components/marketing/copilot-rail";
+import {
+	MarketingEditorMeta,
+	MarketingEditorShell,
+} from "@/components/marketing/editor-shell";
 import { useTRPC } from "@/lib/trpc/client";
 import type { RouterOutputs } from "@/lib/trpc/types";
 import { useWorkspaceUrl } from "@/lib/use-workspace-url";
@@ -134,6 +135,13 @@ export function CampaignCanvas({ campaignId }: { campaignId: string }) {
 		}),
 	);
 
+	const rename = useMutation(
+		trpc.marketingCampaigns.update.mutationOptions({
+			onSuccess: () => invalidate(),
+			onError: (error) => toast.error(error.message),
+		}),
+	);
+
 	const activate = useMutation(
 		trpc.marketingCampaigns.activate.mutationOptions({
 			onSuccess: () => {
@@ -184,31 +192,23 @@ export function CampaignCanvas({ campaignId }: { campaignId: string }) {
 	const live = data.status === "ACTIVE";
 
 	return (
-		<div className="flex min-h-0 min-w-0 flex-1 flex-col">
-			<header className="flex shrink-0 flex-col gap-1.5 border-b px-6 py-4">
-				<div className="flex items-center gap-2">
-					<Button
-						asChild
-						variant="ghost"
-						size="sm"
-						className="-ml-2 gap-1.5 font-normal text-muted-foreground"
-					>
-						<Link href={workspaceUrl("/marketing/campaigns")} prefetch>
-							<Icon icon={ArrowLeft} className="size-3.5" />
-							Campaigns
-						</Link>
-					</Button>
-					<span className="h-3.5 w-px bg-border" />
-					<h1 className="truncate font-medium text-xs">{data.name}</h1>
-					<span className="shrink-0 rounded-sm border px-1.5 py-px text-xs text-muted-foreground">
+		<MarketingEditorShell
+			backHref={workspaceUrl("/marketing/campaigns")}
+			backLabel="Campaigns"
+			name={data.name}
+			onNameChange={(next) => rename.mutate({ id: campaignId, name: next })}
+			badges={
+				<>
+					<span className="shrink-0 rounded-sm border px-1.5 py-px text-muted-foreground text-xs">
 						{data.kind === "DRIP" ? "Drip" : "Blast"}
 					</span>
 					<span className="shrink-0 text-xs">
 						<CampaignStatus status={data.status} />
 					</span>
-
-					<div className="flex-1" />
-
+				</>
+			}
+			actions={
+				<>
 					{live ? null : (
 						<Button
 							size="sm"
@@ -232,38 +232,22 @@ export function CampaignCanvas({ campaignId }: { campaignId: string }) {
 						inFlight={data.inFlight}
 						onChanged={() => void invalidate()}
 					/>
-				</div>
-
-				<div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
-					<span>{data.enrolled.toLocaleString()} enrolled</span>
-					<span className="size-[3px] rounded-sm bg-border" />
-					<span>{data.inFlight.toLocaleString()} in flight</span>
-					<span className="size-[3px] rounded-sm bg-border" />
-					<span>{data.health.sent.toLocaleString()} sent</span>
-					<span className="size-[3px] rounded-sm bg-border" />
-					<span>{(data.health.deliveredRate * 100).toFixed(1)}% delivered</span>
-					<span className="size-[3px] rounded-sm bg-border" />
-					<span>{(data.health.bounceRate * 100).toFixed(1)}% bounced</span>
-					<span className="size-[3px] rounded-sm bg-border" />
-					<span>
-						{(data.health.complaintRate * 100).toFixed(2)}% complaints
-					</span>
-				</div>
-			</header>
-
-			<div className="flex min-h-0 w-full flex-1">
-				<FlowCanvas
-					nodes={flow.nodes}
-					edges={flow.edges}
-					selectedId={selectedId}
-					fitKey={`${data.nodes.length}-${data.edges.length}`}
-					onNodeClick={(_event, node) => void setSelectedId(node.id)}
-					onNodeMoved={(id, position) =>
-						moveNode.mutate({ nodeId: id, x: position.x, y: position.y })
-					}
+				</>
+			}
+			meta={
+				<MarketingEditorMeta
+					parts={[
+						`${data.enrolled.toLocaleString()} enrolled`,
+						`${data.inFlight.toLocaleString()} in flight`,
+						`${data.health.sent.toLocaleString()} sent`,
+						`${(data.health.deliveredRate * 100).toFixed(1)}% delivered`,
+						`${(data.health.bounceRate * 100).toFixed(1)}% bounced`,
+						`${(data.health.complaintRate * 100).toFixed(2)}% complaints`,
+					]}
 				/>
-
-				{selected && selected.kind !== "EMAIL" ? (
+			}
+			rail={
+				selected && selected.kind !== "EMAIL" ? (
 					<LogicSheet
 						node={selected}
 						campaign={data}
@@ -289,15 +273,21 @@ export function CampaignCanvas({ campaignId }: { campaignId: string }) {
 									id: campaignId,
 								}),
 							});
-							void queryClient.invalidateQueries({
-								queryKey: trpc.marketingCampaigns.nodeStats.queryKey({
-									id: campaignId,
-								}),
-							});
 						}}
 					/>
-				)}
-			</div>
-		</div>
+				)
+			}
+		>
+			<FlowCanvas
+				nodes={flow.nodes}
+				edges={flow.edges}
+				selectedId={selectedId}
+				fitKey={`${data.nodes.length}-${data.edges.length}`}
+				onNodeClick={(_event, node) => void setSelectedId(node.id)}
+				onNodeMoved={(id, position) =>
+					moveNode.mutate({ nodeId: id, x: position.x, y: position.y })
+				}
+			/>
+		</MarketingEditorShell>
 	);
 }

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
+import { CreateTemplateButton } from "@/components/marketing/create-buttons";
 import {
 	PageShell,
 	PageShellActions,
@@ -12,7 +13,6 @@ import {
 } from "@/components/page-shell";
 import { HydrateClient } from "@/lib/trpc/hydrate";
 import { getServerQueryClient, getServerTrpc } from "@/lib/trpc/server";
-import { CreateTemplateSheet } from "./create-template-sheet";
 import { TemplatesTable } from "./templates-table";
 
 export const metadata: Metadata = { title: "Templates" };
@@ -28,7 +28,7 @@ export default function TemplatesPage() {
 					</PageShellDescription>
 				</PageShellHeading>
 				<PageShellActions>
-					<CreateTemplateSheet />
+					<CreateTemplateButton />
 				</PageShellActions>
 			</PageShellHeader>
 
