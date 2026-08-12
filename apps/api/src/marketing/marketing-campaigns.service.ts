@@ -152,6 +152,64 @@ export class MarketingCampaignsService {
 		};
 	}
 
+	async overview() {
+		const [settings, live, recent, health, enrolments, unsubscribed] =
+			await Promise.all([
+				assertSendable(this.db),
+				this.db.marketingCampaign.count({
+					where: { status: { in: ["ACTIVE", "SENDING", "SCHEDULED"] } },
+				}),
+				this.db.marketingCampaign.findMany({
+					where: { status: { not: "ARCHIVED" } },
+					select: {
+						id: true,
+						name: true,
+						kind: true,
+						status: true,
+						updatedAt: true,
+					},
+					orderBy: { updatedAt: "desc" },
+					take: 5,
+				}),
+				this.db.marketingSend.groupBy({
+					by: ["status"],
+					where: {
+						createdAt: { gte: new Date(Date.now() - 30 * 86_400_000) },
+					},
+					_count: { _all: true },
+				}),
+				this.db.marketingEnrolment.count({ where: { status: "ACTIVE" } }),
+				this.db.marketingEvent.count({
+					where: {
+						type: "UNSUBSCRIBED",
+						at: { gte: new Date(Date.now() - 30 * 86_400_000) },
+					},
+				}),
+			]);
+
+		const count = (status: string) =>
+			health.find((row) => row.status === status)?._count._all ?? 0;
+
+		const sent =
+			count("SENT") + count("DELIVERED") + count("BOUNCED") + count("COMPLAINED");
+
+		return {
+			sendable: settings.ok,
+			missing: settings.ok ? [] : settings.missing,
+			live,
+			inFlight: enrolments,
+			recent,
+			thirtyDays: {
+				sent,
+				delivered: count("DELIVERED"),
+				bounced: count("BOUNCED"),
+				complained: count("COMPLAINED"),
+				unsubscribed,
+				bounceRate: sent > 0 ? count("BOUNCED") / sent : 0,
+			},
+		};
+	}
+
 	async byId(id: string) {
 		const campaign = await this.db.marketingCampaign.findUnique({
 			where: { id },

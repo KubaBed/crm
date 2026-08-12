@@ -11,50 +11,42 @@ import {
 } from "@/components/page-shell";
 import { HydrateClient } from "@/lib/trpc/hydrate";
 import { getServerQueryClient, getServerTrpc } from "@/lib/trpc/server";
-import { CampaignsTable } from "./campaigns/campaigns-table";
+import { MarketingOverview } from "./overview";
 
 export const metadata: Metadata = { title: "Marketing" };
 
 export default function MarketingOverviewPage() {
 	return (
-		<PageShell className="min-h-0">
+		<PageShell>
 			<PageShellHeader>
 				<PageShellHeading>
 					<PageShellTitle>Marketing</PageShellTitle>
 					<PageShellDescription>
-						The last thing you sent, and what it did.
+						What is running, and what it did.
 					</PageShellDescription>
 				</PageShellHeading>
 			</PageShellHeader>
 
-			<PageShellContent className="min-h-0">
+			<PageShellContent>
 				<Suspense fallback={<PageShellLoading />}>
-					<Recent />
+					<Overview />
 				</Suspense>
 			</PageShellContent>
 		</PageShell>
 	);
 }
 
-async function Recent() {
+async function Overview() {
 	const queryClient = getServerQueryClient();
 	const trpc = getServerTrpc();
 
 	await queryClient.prefetchQuery(
-		trpc.marketingCampaigns.list.queryOptions({
-			q: "",
-			sort: "updatedAt",
-			dir: "desc",
-			page: 1,
-			pageSize: 25,
-			kind: "",
-			status: "",
-		}),
+		trpc.marketingCampaigns.overview.queryOptions(),
 	);
 
 	return (
 		<HydrateClient>
-			<CampaignsTable />
+			<MarketingOverview />
 		</HydrateClient>
 	);
 }

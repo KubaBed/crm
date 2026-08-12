@@ -12,6 +12,7 @@ import {
 	materialise,
 	pauseUnhealthy,
 	settle,
+	sweepEvents,
 } from "../src/marketing/queue";
 
 const TAG = `mktest${Date.now()}`;
@@ -470,5 +471,100 @@ describe("deliverability", () => {
 
 		const paused = await pauseUnhealthy(db);
 		expect(paused).not.toContain(campaignId);
+	});
+});
+
+describe("retention", () => {
+	test("sweeps old delivery events but keeps the evidence for a suppression", async () => {
+		seq += 1;
+		const recipient = await db.marketingRecipient.create({
+			data: { address: `keep.${TAG}x${seq}@example.test` },
+			select: { id: true },
+		});
+
+		const campaign = await db.marketingCampaign.create({
+			data: { name: `${TAG} retention ${seq}`, kind: "BLAST", status: "SENT" },
+			select: { id: true },
+		});
+
+		const node = await db.marketingCampaignNode.create({
+			data: {
+				campaignId: campaign.id,
+				kind: "EMAIL",
+				subject: "s",
+				document: { version: 1, blocks: [] },
+			},
+			select: { id: true },
+		});
+
+		const send = await db.marketingSend.create({
+			data: {
+				campaignId: campaign.id,
+				nodeId: node.id,
+				recipientId: recipient.id,
+				status: "SENT",
+				dueAt: new Date(),
+			},
+			select: { id: true },
+		});
+
+		const old = new Date(Date.now() - 200 * 86_400_000);
+
+		await db.marketingEvent.createMany({
+			data: [
+				{ sendId: send.id, type: "OPENED", at: old },
+				{ sendId: send.id, type: "CLICKED", at: old },
+				{ sendId: send.id, type: "DELIVERED", at: old },
+				{ sendId: send.id, type: "BOUNCED", at: old },
+				{ sendId: send.id, type: "COMPLAINED", at: old },
+				{ sendId: send.id, type: "UNSUBSCRIBED", at: old },
+			],
+		});
+
+		await sweepEvents(db, new Date(Date.now() - 90 * 86_400_000));
+
+		const left = await db.marketingEvent.findMany({
+			where: { sendId: send.id },
+			select: { type: true },
+		});
+
+		expect(left.map((row) => row.type).sort()).toEqual([
+			"BOUNCED",
+			"COMPLAINED",
+			"UNSUBSCRIBED",
+		]);
+	});
+
+	test("leaves anything inside the window alone", async () => {
+		seq += 1;
+		const recipient = await db.marketingRecipient.create({
+			data: { address: `fresh.${TAG}x${seq}@example.test` },
+			select: { id: true },
+		});
+
+		const campaign = await db.marketingCampaign.create({
+			data: { name: `${TAG} fresh ${seq}`, kind: "BLAST", status: "SENT" },
+			select: { id: true },
+		});
+
+		const send = await db.marketingSend.create({
+			data: {
+				campaignId: campaign.id,
+				recipientId: recipient.id,
+				status: "SENT",
+				dueAt: new Date(),
+			},
+			select: { id: true },
+		});
+
+		await db.marketingEvent.create({
+			data: { sendId: send.id, type: "OPENED", at: new Date() },
+		});
+
+		await sweepEvents(db, new Date(Date.now() - 90 * 86_400_000));
+
+		expect(
+			await db.marketingEvent.count({ where: { sendId: send.id } }),
+		).toBe(1);
 	});
 });

@@ -147,6 +147,11 @@ export class MarketingCampaignsRouter {
 		return this.campaigns.list(input);
 	}
 
+	@Query()
+	async overview() {
+		return this.campaigns.overview();
+	}
+
 	@Query({ input: idInput })
 	async byId(@Input() input: z.infer<typeof idInput>) {
 		return this.campaigns.byId(input.id);

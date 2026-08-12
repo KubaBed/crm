@@ -413,6 +413,35 @@ export async function finishCampaigns(db: Db): Promise<void> {
 	}
 }
 
+export const EVENT_KEEP_FOREVER = [
+	"BOUNCED",
+	"COMPLAINED",
+	"UNSUBSCRIBED",
+] as const;
+
+export async function sweepEvents(
+	db: Db,
+	before: Date,
+	limit = 10_000,
+): Promise<{ removed: number; complete: boolean }> {
+	const stale = await db.marketingEvent.findMany({
+		where: {
+			at: { lt: before },
+			type: { notIn: [...EVENT_KEEP_FOREVER] },
+		},
+		select: { id: true },
+		take: limit,
+	});
+
+	if (stale.length === 0) return { removed: 0, complete: true };
+
+	const result = await db.marketingEvent.deleteMany({
+		where: { id: { in: stale.map((row) => row.id) } },
+	});
+
+	return { removed: result.count, complete: stale.length < limit };
+}
+
 export async function startDueCampaigns(db: Db): Promise<void> {
 	await db.marketingCampaign.updateMany({
 		where: {

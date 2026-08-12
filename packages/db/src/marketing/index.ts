@@ -26,6 +26,7 @@ export {
 	claimDueSends,
 	type DirectResult,
 	type DirectSend,
+	EVENT_KEEP_FOREVER,
 	finishCampaigns,
 	type Health,
 	healthOf,
@@ -37,6 +38,7 @@ export {
 	type SkipReason,
 	settle,
 	startDueCampaigns,
+	sweepEvents,
 } from "./queue";
 export {
 	isSendable,

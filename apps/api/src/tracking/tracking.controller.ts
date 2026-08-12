@@ -1,5 +1,6 @@
 import type { IncomingMessage } from "node:http";
 import type { Db } from "@crm/db";
+import { sweepEvents } from "@crm/db/marketing";
 import {
 	EVENT_RETENTION_DAYS,
 	isSiteId,
@@ -139,6 +140,7 @@ export class TrackingRetentionController {
 		const { removed, complete } = await this.sweepEvents(before);
 		const visitors = await this.sweepVisitors(before);
 		const counters = await this.counters.sweep();
+		const marketing = await sweepEvents(this.db, before, SWEEP_BATCH);
 
 		if (!complete) {
 			this.logger.warn({
@@ -156,10 +158,18 @@ export class TrackingRetentionController {
 			complete,
 			visitors,
 			counters,
+			marketingEvents: marketing.removed,
 			retentionDays: EVENT_RETENTION_DAYS,
 		});
 
-		return { rolled, removed, complete, visitors, counters };
+		return {
+			rolled,
+			removed,
+			complete,
+			visitors,
+			counters,
+			marketingEvents: marketing.removed,
+		};
 	}
 
 	private async sweepEvents(
