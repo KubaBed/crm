@@ -32,6 +32,13 @@ export const createDomainInput = z.object({
 
 export const setDomainInput = z.object({ name: z.string().min(3).max(253) });
 
+export const addAttachmentInput = z.object({
+	campaignId: z.string().min(1),
+	filename: z.string().min(1).max(200),
+	mimeType: z.string().min(1).max(120),
+	contentBase64: z.string().min(1),
+});
+
 export const campaignListInput = listInput.extend({
 	kind: z.string().default(""),
 	status: z.string().default(""),

@@ -12,6 +12,7 @@ import type { AuthedTrpcContext } from "../trpc/context.types";
 import { listInput } from "../trpc/list-input";
 import { AuthMiddleware } from "../trpc/middlewares/auth.middleware";
 import {
+	addAttachmentInput,
 	archiveCampaignInput,
 	campaignListInput,
 	campaignPageInput,
@@ -40,6 +41,7 @@ import {
 	winnerInput,
 	writeGraphInput,
 } from "./marketing.contracts";
+import { MarketingAttachmentsService } from "./marketing-attachments.service";
 import { MarketingCampaignsService } from "./marketing-campaigns.service";
 import { MarketingSegmentsService } from "./marketing-segments.service";
 import { MarketingSettingsService } from "./marketing-settings.service";
@@ -136,6 +138,8 @@ export class MarketingCampaignsRouter {
 	constructor(
 		@Inject(MarketingCampaignsService)
 		private readonly campaigns: MarketingCampaignsService,
+		@Inject(MarketingAttachmentsService)
+		private readonly attachmentsService: MarketingAttachmentsService,
 	) {}
 
 	@Query({ input: campaignListInput })
@@ -247,6 +251,24 @@ export class MarketingCampaignsRouter {
 	@Mutation({ input: winnerInput })
 	async declareWinner(@Input() input: z.infer<typeof winnerInput>) {
 		return this.campaigns.declareWinner(input);
+	}
+
+	@Query({ input: idInput })
+	async attachments(@Input() input: z.infer<typeof idInput>) {
+		return this.attachmentsService.list(input.id);
+	}
+
+	@Mutation({ input: addAttachmentInput })
+	async addAttachment(
+		@Ctx() ctx: AuthedTrpcContext,
+		@Input() input: z.infer<typeof addAttachmentInput>,
+	) {
+		return this.attachmentsService.add({ ...input, userId: ctx.user.id });
+	}
+
+	@Mutation({ input: idInput })
+	async removeAttachment(@Input() input: z.infer<typeof idInput>) {
+		return this.attachmentsService.remove(input.id);
 	}
 
 	@Mutation({ input: sendDirectInput })

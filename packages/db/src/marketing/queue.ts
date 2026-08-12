@@ -198,6 +198,7 @@ export type ClaimedSend = {
 	replyTo: string | null;
 	attempts: number;
 	hasAttachments: boolean;
+	attachments: { filename: string; url: string }[];
 };
 
 export async function claimDueSends(
@@ -243,7 +244,10 @@ export async function claimDueSends(
 			replyTo: true,
 			attempts: true,
 			recipient: { select: { address: true, token: true } },
-			_count: { select: { attachments: true } },
+			attachments: { select: { filename: true, url: true } },
+			campaign: {
+				select: { attachments: { select: { filename: true, url: true } } },
+			},
 		},
 	});
 
@@ -259,7 +263,9 @@ export async function claimDueSends(
 		document: row.document,
 		replyTo: row.replyTo,
 		attempts: row.attempts,
-		hasAttachments: row._count.attachments > 0,
+		hasAttachments:
+			row.attachments.length + (row.campaign?.attachments.length ?? 0) > 0,
+		attachments: [...row.attachments, ...(row.campaign?.attachments ?? [])],
 	}));
 }
 

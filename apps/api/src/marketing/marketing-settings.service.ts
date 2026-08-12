@@ -7,6 +7,7 @@ import {
 	writeMarketingSettings,
 } from "@crm/db/marketing";
 import { BadRequestException, Injectable } from "@nestjs/common";
+import { AgentTriggerService } from "../agent/agent-trigger.service";
 import { blankToNull, normalizeEmail } from "../crm/values";
 import { InjectDatabase } from "../database/database.constants";
 import { MarketingDrainService } from "./marketing-drain.service";
@@ -38,6 +39,7 @@ export class MarketingSettingsService {
 		@InjectDatabase() private readonly db: Db,
 		private readonly resend: ResendService,
 		private readonly drain: MarketingDrainService,
+		private readonly agent: AgentTriggerService,
 	) {}
 
 	async status(): Promise<MarketingStatus> {
@@ -84,6 +86,7 @@ export class MarketingSettingsService {
 		}
 
 		await writeMarketingSettings(this.db, { resendApiKey: trimmed });
+		await this.agent.marketingConnected().catch(() => {});
 
 		return { state: check.state, message: check.message };
 	}

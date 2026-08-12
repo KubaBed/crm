@@ -1,4 +1,5 @@
 import { Module } from "@nestjs/common";
+import { AgentModule } from "../agent/agent.module";
 import { TrpcModule } from "../trpc/trpc.module";
 import {
 	MarketingDrainController,
@@ -10,6 +11,7 @@ import {
 	MarketingSegmentsRouter,
 	MarketingTemplatesRouter,
 } from "./marketing.router";
+import { MarketingAttachmentsService } from "./marketing-attachments.service";
 import { MarketingCampaignsService } from "./marketing-campaigns.service";
 import { MarketingComposeService } from "./marketing-compose.service";
 import { MarketingDrainService } from "./marketing-drain.service";
@@ -19,7 +21,7 @@ import { MarketingTemplatesService } from "./marketing-templates.service";
 import { ResendService } from "./resend.service";
 
 @Module({
-	imports: [TrpcModule],
+	imports: [TrpcModule, AgentModule],
 	controllers: [MarketingDrainController, MarketingPublicController],
 	providers: [
 		ResendService,
@@ -27,6 +29,7 @@ import { ResendService } from "./resend.service";
 		MarketingSettingsService,
 		MarketingSegmentsService,
 		MarketingTemplatesService,
+		MarketingAttachmentsService,
 		MarketingCampaignsService,
 		MarketingDrainService,
 		MarketingRouter,
