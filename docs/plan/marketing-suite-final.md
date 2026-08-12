@@ -7,32 +7,35 @@ rules a future change must read first in [`../marketing.md`](../marketing.md).
 
 Written 12 August 2026, after reading the tree rather than from memory.
 
-**Where it stands:** 26 commits on `lewis/marketing-suite`. A real email has gone
+**Where it stands:** 31 commits on `lewis/marketing-suite`. A real email has gone
 out through Resend. The engine walks a branching drip and the agent can build
-one. 222 specs pass. What follows is everything that is not done, ordered so
+one. 228 specs pass. What follows is everything that is not done, ordered so
 that doing it top to bottom never leaves the product in a worse state than it is
 now.
 
 ---
 
-## Before this can ship at all
+## Done since this list was written
 
-Two lines. Without them a deployment queues mail and silently never sends it.
-
-### 1. Register the drain cron
-
-`apps/api/vercel.json` has cron entries for the other four internal routes and
-none for `/internal/marketing/drain`. Add it at `* * * * *`. The in-process
-30-second timer covers a long-running container; the cron is the serverless
-half, and §3 specified both for exactly this reason.
-
-### 2. Document `RESEND_WEBHOOK_SECRET`
-
-It is read by `MarketingPublicController` and validated in
-`env.validation.ts`, but it is not in `.env.example`. `AGENTS.md` requires every
-new variable to be there with a note on what it does. Without it, a self-hoster
-has no way to learn that delivery events need a secret, and the webhook refuses
-every payload it receives.
+- **The drain cron is registered** at `* * * * *` in `apps/api/vercel.json`.
+- **`RESEND_WEBHOOK_SECRET` is in `.env.example`**, and the `CRON_SECRET` note
+  now names the drain route.
+- **Quiet hours and the daily cap are enforced** in the drain and editable on
+  the settings page, along with the sends-a-minute rate.
+- **The settings page no longer touches DNS.** It lists the domains Resend has
+  verified; open and click tracking are switches that write to Resend.
+- **Every editor shares one shell** — back link, inline-editable name, badges,
+  actions, a meta line and the co-pilot on the right.
+- **New campaign, segment and template create an Untitled record** and open it.
+  The three create sheets are gone.
+- **The co-pilot knows which record is open** and edits it rather than making a
+  second one, its thread survives a refresh, and the canvas repaints when a run
+  finishes.
+- **Company sends and enrolments**, the hand-add panel and archive on a segment,
+  Save as segment on the contacts list, duplicate / archive / send-a-test on a
+  template, and `first_campaign_sent` as the ninth funnel step.
+- **A `building-a-segment` skill** gives the agent every facet and the tool
+  order.
 
 ---
 
@@ -45,20 +48,22 @@ Reported 12 August 2026 from a real session with the co-pilot.
 It took several turns to work out the tool sequence. The facets, the operator
 names and the rule shape are all in the code and none of it is in the agent's
 context.
-Fix: add a segment skill under `.agents/skills/`, and name it from the
-marketing tools the way the other tool groups do.
+Fix: done. `apps/agent/agent/skills/building-a-segment.md` lists every facet,
+the tree shape and the order to call the tools in.
 
 ### 2. The co-pilot forgets the conversation on refresh
 
 Reload the campaign page and the thread is empty. The chat product already
 stores every message and replays it. Marketing must do the same.
-Fix: persist the thread and load it on mount, the way `/chat` does.
+Fix: done. `useSavedConversation` only ever sent `contactId`, `companyId` and
+`dealId`, so the server refused a save with no record and nothing was stored.
 
 ### 3. The canvas does not repaint after the agent writes the graph
 
 The agent reported twelve nodes. React Flow kept the old ones. The rows are in
 the database, so this is a stale client cache, not a lost write.
-Fix: invalidate the campaign query when a tool run finishes writing.
+Fix: done. `AgentPanel` takes eve's `onFinish`, and each editor invalidates its
+own query on it.
 
 ### 4. The React Flow controls were invisible
 
@@ -68,27 +73,6 @@ buttons fell back to the library's light theme, so white icons sat on a white
 button in dark mode, and the nodes had the library's 3px corners.
 Fix: done. The file now names the base tokens (`--foreground`, `--card`), and
 `--radius-sm/lg/xl` are real variables.
-
-## Settings that lie
-
-Three columns are stored, returned in the settings payload, and never read by
-the drain. Somebody who sets them will believe they took effect.
-
-| Setting | §12 says | Reality |
-| --- | --- | --- |
-| `marketingQuietStart` / `QuietEnd` | Push `dueAt` forward rather than dropping the send | Ignored. Mail goes at 3am |
-| `marketingDailyCap` | Skip a recipient over their cap, with the reason on the row | Ignored |
-| `marketingSendsPerMinute` | Throttle the drain | Read by the drain, but **no UI** to change it |
-
-Either enforce them in `drainSends` or take them off the payload. A setting that
-lies is worse than one that is absent.
-
-Note that the **Paper settings board originally had a rate control and a
-reply-to picker** and the implementation dropped both. The design was ahead of
-the code here; I have since made Paper match the code, so if the rate control is
-wanted the fix is in the app.
-
----
 
 ## The unattended half of the agent
 
@@ -108,32 +92,23 @@ the two that make an autonomous run useful.
 
 ## Surfaces where the API is done and nothing calls it
 
-### Segments
-
-- **No way to add somebody by hand.** `addMember`, `excludeMember` and
-  `removeMember` exist, and `segmentWhere` already unions them. §11's "rules and
-  hands, on the same segment" is only half true in the product.
-- **No *Save as segment*** on the contacts list. §11 calls this the cheapest good
-  entry point in the product; it is one button over the existing filter bar.
-- **No archive** from the UI.
-
 ### Templates
 
-- **No duplicate, no archive** — both procedures exist.
-- **No *Send me a test***. §9 lists it as one of four things the preview panel
-  gives, and `marketing.sendTest` is already written; it is wired into the wizard
-  only.
 - **No shell editor.** The locked rows say "edit it once in Templates" and
   Templates has no partial editor. The rows point at a door that is not there —
   either build it or change the copy.
 
+### Segments
+
+- **`excludeMember` has no button.** Adding and removing by hand both work; the
+  hold-out mode is API only.
+
 ### Elsewhere
 
-- **Company sheet** has no marketing action; the contact sheet does.
 - **`EXIT` nodes** cannot be added from the canvas. Only the co-pilot or a seed
   can create one.
-- **`first_campaign_sent`** — the single funnel step in §19, not implemented. The
-  twenty-five daily properties all are.
+- **The campaigns board in Paper still has two-line name cells.** The app is
+  single-line. Paper is behind the code on that one board.
 
 ---
 
@@ -148,9 +123,10 @@ the two that make an autonomous run useful.
 - **`claimDueSends` binds the clock** as a parameter. Using `now()` against a
   naive `timestamp` column resolved through the session timezone and claimed
   nothing. Found by a spec.
-- **222 specs**: 144 in `@crm/db` (engine, re-entry row by row, exit sweeps
+- **228 specs**: 150 in `@crm/db` (engine, re-entry row by row, exit sweeps
   firing between touches, split stability across retries, blast idempotency,
-  deliverability auto-pause, event retention, the graph validator), 61 telemetry,
+  deliverability auto-pause, event retention, quiet hours, the daily cap, the
+  graph validator), 61 telemetry,
   9 email render and lint, 8 canvas node rendering.
 
 ## Known unknowns

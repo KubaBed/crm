@@ -251,10 +251,7 @@ export class MarketingSettingsService {
 			throw new BadRequestException("Pick a sending domain first.");
 		}
 
-		const done = await this.resend.setTracking(
-			settings.resendDomainId,
-			input,
-		);
+		const done = await this.resend.setTracking(settings.resendDomainId, input);
 
 		if (!done) {
 			throw new BadRequestException(

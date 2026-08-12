@@ -27,13 +27,15 @@ const COLUMNS: DataTableColumn<CampaignRow>[] = [
 		sortable: true,
 		hideable: false,
 		width: "w-[26%]",
+		cell: (row) => <span className="truncate font-medium">{row.name}</span>,
+	},
+	{
+		id: "kind",
+		header: "Kind",
+		width: "w-[12%]",
+		hideBelow: "md",
 		cell: (row) => (
-			<span className="flex min-w-0 flex-col gap-0.5">
-				<span className="truncate font-medium">{row.name}</span>
-				<span className="truncate text-muted-foreground text-xs">
-					{row.subtitle}
-				</span>
-			</span>
+			<span className="truncate text-muted-foreground">{row.subtitle}</span>
 		),
 	},
 	{

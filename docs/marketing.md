@@ -56,6 +56,12 @@ open and click tracking. **Never compose a DNS record** and never serve a
 tracking pixel. There is no `/api/m/o/`, no click redirect and no link rewriter
 in this codebase, and adding one is a mistake rather than a feature.
 
+**We never onboard a domain to Resend.** The settings page and the wizard list
+the domains Resend already holds and let a person pick a verified one. There is
+no create-domain call and no DNS record rendered anywhere, because Resend's
+dashboard does that job and does it better. Open and click tracking are two
+switches that write straight to Resend's domain.
+
 `marketingResendDomainId` is the handle. Tracking state is not mirrored into a
 column, because a local copy goes stale the moment somebody changes it in
 Resend's dashboard — which is where we tell them to change it.
@@ -101,6 +107,20 @@ a person clicks Activate on a graph they have looked at.
 Approval is an eve policy, not a flag: a draft edit is silent, a live-drip edit
 asks a person, and an autonomous principal is **denied with a reason** rather
 than parked in a run nobody can answer.
+
+## Quiet hours hold, the cap skips
+
+`deferQuiet` pushes every due `CAMPAIGN` and `DRIP` send to the next open hour.
+It never touches a `TEST` or a `DIRECT` send: a person is waiting on both, and a
+test that silently does nothing at 3am is a broken first run.
+
+`skipOverCap` counts what a recipient has already had in the last 24 hours and
+marks the rest `SKIPPED` with `skipReason: "daily-cap"`. It runs after the claim,
+so one place covers a blast, a drip touch and a one-off alike.
+
+Both read `marketingQuietStart`, `marketingQuietEnd`, `marketingTimeZone` and
+`marketingDailyCap`, and all four are editable on the settings page. A setting
+that is stored, shown and ignored is worse than one that is absent.
 
 ## The drain, in order
 
