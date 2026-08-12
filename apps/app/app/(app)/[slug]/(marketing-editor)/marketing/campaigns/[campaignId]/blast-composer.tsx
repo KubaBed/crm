@@ -74,6 +74,7 @@ export function BlastComposer({
 		nodeId: node?.id ?? "",
 		subject,
 		preheader,
+		document: { version: 1, blocks } as unknown as Record<string, unknown>,
 	});
 
 	const preview = useQuery({

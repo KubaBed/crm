@@ -6,7 +6,8 @@ export type AgentRecordKind =
 	| "deal"
 	| "campaign"
 	| "segment"
-	| "template";
+	| "template"
+	| "shell";
 
 export type AgentRecord = { kind: AgentRecordKind; id: string };
 
@@ -17,6 +18,7 @@ export type AgentRecordFilter = {
 	campaignId?: string;
 	segmentId?: string;
 	templateId?: string;
+	shellId?: string;
 };
 
 type RecordCopy = {
@@ -27,7 +29,8 @@ type RecordCopy = {
 		| "dealId"
 		| "campaignId"
 		| "segmentId"
-		| "templateId";
+		| "templateId"
+		| "shellId";
 	title: string;
 	blurb: string;
 	placeholder: string;
@@ -98,6 +101,19 @@ const COPY: Record<AgentRecordKind, RecordCopy> = {
 			"Everyone who visited pricing and has no open deal",
 			"Signed up but never logged in",
 			"Drop anyone we spoke to this month",
+		],
+	},
+	shell: {
+		header: "x-crm-shell",
+		field: "shellId",
+		title: "Write this header or footer",
+		blurb:
+			"Every email wears it. The postal address and the unsubscribe link are the compiler's and cannot move.",
+		placeholder: "Put our logo at the top and a thin rule under it.",
+		suggestions: [
+			"Put our logo at the top",
+			"Add a line about why they are getting this",
+			"Make the footer shorter",
 		],
 	},
 	template: {

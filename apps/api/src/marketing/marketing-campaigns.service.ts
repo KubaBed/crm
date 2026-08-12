@@ -298,6 +298,7 @@ export class MarketingCampaignsService {
 		nodeId: string;
 		subject?: string | null;
 		preheader?: string | null;
+		document?: unknown;
 	}) {
 		const node = await this.db.marketingCampaignNode.findUnique({
 			where: { id: input.nodeId },
@@ -307,7 +308,7 @@ export class MarketingCampaignsService {
 		if (!node) throw new NotFoundException("No such node.");
 
 		return this.templates.preview({
-			document: node.document,
+			document: input.document ?? node.document,
 			subject: input.subject ?? node.subject,
 			preheader: input.preheader ?? node.preheader,
 			contactId: null,

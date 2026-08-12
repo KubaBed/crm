@@ -49,6 +49,7 @@ async function handler(request: Request): Promise<Response> {
 	const campaignId = request.headers.get("x-crm-campaign");
 	const segmentId = request.headers.get("x-crm-segment");
 	const templateId = request.headers.get("x-crm-template");
+	const shellId = request.headers.get("x-crm-shell");
 	const builderConversationId = request.headers.get(
 		"x-crm-builder-conversation",
 	);
@@ -59,6 +60,7 @@ async function handler(request: Request): Promise<Response> {
 	headers.delete("x-crm-campaign");
 	headers.delete("x-crm-segment");
 	headers.delete("x-crm-template");
+	headers.delete("x-crm-shell");
 	headers.delete("x-crm-builder-conversation");
 
 	if (requestedSession) {
@@ -109,6 +111,7 @@ async function handler(request: Request): Promise<Response> {
 				campaignId: cuid(campaignId),
 				segmentId: cuid(segmentId),
 				templateId: cuid(templateId),
+				shellId: cuid(shellId),
 			},
 		)}`,
 	);

@@ -22,6 +22,7 @@ export async function mintBridgeToken(
 		campaignId?: string;
 		segmentId?: string;
 		templateId?: string;
+		shellId?: string;
 	} = {},
 ): Promise<string> {
 	const secret = process.env.AGENT_BRIDGE_SECRET;
@@ -42,6 +43,7 @@ export async function mintBridgeToken(
 		...(record.campaignId ? { campaignId: record.campaignId } : {}),
 		...(record.segmentId ? { segmentId: record.segmentId } : {}),
 		...(record.templateId ? { templateId: record.templateId } : {}),
+		...(record.shellId ? { shellId: record.shellId } : {}),
 		iat: now,
 		nbf: now - 5,
 		exp: now + TTL_SECONDS,

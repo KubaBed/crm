@@ -1,7 +1,16 @@
 import { afterAll, beforeAll, describe, expect, it } from "bun:test";
 import { db } from "@crm/db";
-import { stageCampaign, updateCampaignNode } from "../agent/lib/marketing";
-import { campaignPreamble, segmentPreamble } from "../agent/lib/preamble";
+import {
+	readShell,
+	stageCampaign,
+	updateCampaignNode,
+	writeShell,
+} from "../agent/lib/marketing";
+import {
+	campaignPreamble,
+	segmentPreamble,
+	shellPreamble,
+} from "../agent/lib/preamble";
 
 const suffix = process.env.TEST_RUN_ID ?? "staging-spec";
 const TAG = `stage-${suffix}`;
@@ -173,5 +182,55 @@ describe("the preamble a rep's co-pilot opens with", () => {
 		expect(markdown).toContain(segmentId);
 		expect(markdown).toContain("write_segment");
 		expect(markdown).toContain("building-a-segment");
+	});
+});
+
+describe("the header and footer the co-pilot can edit", () => {
+	it("names the shell and the tool that writes it", async () => {
+		const shell = await db.marketingPartial.create({
+			data: {
+				kind: "HEADER",
+				name: `${TAG} header`,
+				document: { version: 1, blocks: [] },
+			},
+			select: { id: true },
+		});
+
+		const { markdown } = await shellPreamble(shell.id);
+
+		expect(markdown).toContain(shell.id);
+		expect(markdown).toContain("write_shell");
+		expect(markdown).toContain("read_shell");
+		expect(markdown).toContain("the compiler's");
+
+		await db.marketingPartial.delete({ where: { id: shell.id } });
+	});
+
+	it("writes the blocks and refuses a document it cannot read", async () => {
+		const shell = await db.marketingPartial.create({
+			data: {
+				kind: "FOOTER",
+				name: `${TAG} footer`,
+				document: { version: 1, blocks: [] },
+			},
+			select: { id: true },
+		});
+
+		const written = await writeShell({
+			shellId: shell.id,
+			document: {
+				version: 1,
+				blocks: [{ type: "text", text: [{ text: "Why you got this" }] }],
+			},
+		});
+
+		expect(written).toMatchObject({ ok: true });
+		expect(await readShell(shell.id)).toMatchObject({ kind: "FOOTER" });
+
+		expect(
+			await writeShell({ shellId: shell.id, document: { blocks: "no" } }),
+		).toHaveProperty("error");
+
+		await db.marketingPartial.delete({ where: { id: shell.id } });
 	});
 });

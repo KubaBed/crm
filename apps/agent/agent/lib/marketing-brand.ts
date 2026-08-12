@@ -31,6 +31,10 @@ const EMPTY_SNAPSHOT = {
 	phone: null,
 } as unknown as CompanySnapshot;
 
+function siteUrl(domain: string): string {
+	return /^https?:\/\//.test(domain) ? domain : `https://${domain}`;
+}
+
 function rasterOnly(url: string | null): string | null {
 	if (!url) return null;
 	const clean = url.split("?")[0]?.toLowerCase() ?? "";
@@ -76,22 +80,33 @@ export async function runMarketingBrand(): Promise<BrandPass> {
 		}
 	}
 
-	const header = logoUrl
-		? { version: 1, blocks: [] }
-		: {
-				version: 1,
-				blocks: [
+	const header = {
+		version: 1,
+		blocks: logoUrl
+			? [
+					{
+						type: "image",
+						src: logoUrl,
+						alt: name || "Our logo",
+						width: 160,
+						...(domain ? { href: siteUrl(domain) } : {}),
+					},
+					{ type: "divider" },
+				]
+			: [
 					{
 						type: "heading",
 						level: 3,
 						text: [{ text: name || "Our team" }],
 					},
+					{ type: "divider" },
 				],
-			};
+	};
 
 	const footer = {
 		version: 1,
 		blocks: [
+			{ type: "divider" },
 			{
 				type: "text",
 				text: [

@@ -81,11 +81,17 @@ export function NodeSheet({
 		setPreheader(node.preheader ?? "");
 	}, [node.subject, node.preheader]);
 
+	const [blocks, setBlocks] = useState<EmailBlock[]>(() =>
+		blocksOf(node.document),
+	);
+	const [selected, setSelected] = useState<number | null>(null);
+
 	const preview = useQuery(
 		trpc.marketingCampaigns.previewNode.queryOptions({
 			nodeId: node.id,
 			subject,
 			preheader,
+			document: { version: 1, blocks } as unknown as Record<string, unknown>,
 		}),
 	);
 
@@ -98,11 +104,6 @@ export function NodeSheet({
 			onError: (error) => toast.error(error.message),
 		}),
 	);
-
-	const [blocks, setBlocks] = useState<EmailBlock[]>(() =>
-		blocksOf(node.document),
-	);
-	const [selected, setSelected] = useState<number | null>(null);
 
 	const percent = (part: number, whole: number) =>
 		whole === 0 ? "—" : `${Math.round((part / whole) * 100)}%`;

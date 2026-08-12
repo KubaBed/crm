@@ -220,6 +220,61 @@ export async function writeTemplate(input: {
 	};
 }
 
+export async function readShell(id: string) {
+	const shell = await db.marketingPartial.findUnique({
+		where: { id },
+		select: {
+			id: true,
+			kind: true,
+			name: true,
+			document: true,
+			isDefault: true,
+			_count: { select: { headerFor: true, footerFor: true } },
+		},
+	});
+
+	if (!shell) return { error: "No header or footer with that id." };
+
+	return {
+		id: shell.id,
+		kind: shell.kind,
+		name: shell.name,
+		isDefault: shell.isDefault,
+		usedBy: shell._count.headerFor + shell._count.footerFor,
+		document: readDocument(shell.document),
+	};
+}
+
+export async function writeShell(input: {
+	shellId: string;
+	name?: string;
+	document: unknown;
+}) {
+	const shell = await db.marketingPartial.findUnique({
+		where: { id: input.shellId },
+		select: { kind: true },
+	});
+
+	if (!shell) return { error: "No header or footer with that id." };
+
+	const document = readDocument(input.document);
+
+	if (!document) {
+		return { error: "That document cannot be read. Check the block shapes." };
+	}
+
+	const updated = await db.marketingPartial.update({
+		where: { id: input.shellId },
+		data: {
+			...(input.name && { name: input.name }),
+			document: document as object,
+		},
+		select: { id: true, kind: true, name: true },
+	});
+
+	return { ok: true, shell: updated };
+}
+
 export async function readCampaign(id: string) {
 	const campaign = await db.marketingCampaign.findUnique({
 		where: { id },

@@ -188,6 +188,7 @@ export const updateTemplateInput = z.object({
 });
 
 export const previewNodeInput = z.object({
+	document: z.unknown().optional(),
 	nodeId: z.string().min(1),
 	subject: z.string().max(200).nullish(),
 	preheader: z.string().max(300).nullish(),

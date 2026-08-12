@@ -100,6 +100,19 @@ somebody already wrote; a data vendor forms an opinion about somebody. What
 would breach the rule is putting composition, segment reasoning or
 "who should get this" in Nest — and none of that is there.
 
+## The header and footer are generated, then edited
+
+`runMarketingBrand` writes both the first time marketing is connected. When
+Context.dev returns a raster logo for the workspace domain it is mirrored to
+our own blob and becomes an image block linking to the site; when it does not,
+the header is a wordmark. An SVG or a WebP is refused, because Outlook will not
+draw either.
+
+After that a person owns them. They are rows in Templates, they open the same
+editor a template does, and the co-pilot has `read_shell` and `write_shell`.
+`write_shell` always asks a person first and is denied to an unattended run: it
+reaches every email anybody has already written.
+
 ## The agent writes rows, never bytes
 
 Fourteen tools in `apps/agent/agent/tools/`, all through `@crm/db/marketing`.

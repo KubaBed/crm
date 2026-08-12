@@ -131,7 +131,7 @@ export function ShellEditor({ shellId }: { shellId: string }) {
 					]}
 				/>
 			}
-			rail={<CopilotRail record={{ kind: "template", id: shellId }} />}
+			rail={<CopilotRail record={{ kind: "shell", id: shellId }} />}
 		>
 			<div className="flex w-[400px] shrink-0 flex-col gap-4 overflow-y-auto border-r p-4">
 				<EmailBlockEditor

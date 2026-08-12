@@ -23,6 +23,7 @@ export async function sessionPreamble(
 		campaignId?: string | null;
 		segmentId?: string | null;
 		templateId?: string | null;
+		shellId?: string | null;
 	},
 	opened: Opened,
 ): Promise<Preamble> {
@@ -33,6 +34,7 @@ export async function sessionPreamble(
 	if (record.campaignId) return campaignPreamble(record.campaignId);
 	if (record.segmentId) return segmentPreamble(record.segmentId);
 	if (record.templateId) return templatePreamble(record.templateId);
+	if (record.shellId) return shellPreamble(record.shellId);
 	return noRecordPreamble();
 }
 
@@ -409,6 +411,52 @@ export async function templatePreamble(templateId: string): Promise<Preamble> {
 		"",
 		await closing(),
 	].join("\n");
+
+	return { markdown, focus: {} };
+}
+
+export async function shellPreamble(shellId: string): Promise<Preamble> {
+	const shell = await db.marketingPartial.findUnique({
+		where: { id: shellId },
+		select: {
+			kind: true,
+			name: true,
+			isDefault: true,
+			_count: { select: { headerFor: true, footerFor: true } },
+		},
+	});
+
+	if (!shell) return { markdown: await closing(), focus: {} };
+
+	const kind = shell.kind === "HEADER" ? "header" : "footer";
+	const used = shell._count.headerFor + shell._count.footerFor;
+
+	const markdown = [
+		"## This session",
+		"",
+		`A rep has the ${kind} **${shell.name}** open and is talking to you.`,
+		shell.isDefault
+			? `It is the default ${kind}, so every email wears it.`
+			: `${used} template(s) pick it.`,
+		"",
+		editThisOne(kind, shellId, "write_shell", "shellId"),
+		"",
+		"Start with `read_shell` on that id. A header or a footer is the same block",
+		"document a template uses — a logo image, a wordmark, a divider, a line of",
+		"text. Keep it short: it is on every email, above or below the part people",
+		"came to read.",
+		"",
+		"**The postal address and the unsubscribe link are the compiler's.** They",
+		"are added to every send, they are not blocks, and nothing you write can",
+		"add or remove them. Do not put a second unsubscribe link in the footer.",
+		"",
+		"A change here reaches mail somebody already wrote, so say what you are",
+		"about to change before you change it.",
+		"",
+		await closing(),
+	]
+		.filter(Boolean)
+		.join("\n");
 
 	return { markdown, focus: {} };
 }

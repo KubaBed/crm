@@ -52,6 +52,8 @@ const VERBS: Record<string, string> = {
 	write_segment: "Saved the segment",
 	list_templates: "Listed the email templates",
 	read_template: "Read an email template",
+	read_shell: "Read the header and footer",
+	write_shell: "Rewrote the header or footer",
 	write_template: "Wrote the email",
 	create_campaign: "Created a campaign as a draft",
 	read_campaign: "Read the campaign and how each touch is doing",

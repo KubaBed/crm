@@ -168,6 +168,7 @@ export const AGENT_TOOLS = [
 	"manage_fields",
 	"read_company_history",
 	"read_crm_history",
+	"read_shell",
 	"read_deal_history",
 	"record_fact",
 	"record_job_change",
@@ -182,6 +183,7 @@ export const AGENT_TOOLS = [
 	"set_field_value",
 	"update_node",
 	"write_brief",
+	"write_shell",
 	"write_workspace_profile",
 ] as const;
 
