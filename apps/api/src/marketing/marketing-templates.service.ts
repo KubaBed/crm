@@ -87,6 +87,7 @@ export class MarketingTemplatesService {
 
 		return {
 			...row,
+			document: row.document as Record<string, unknown> | null,
 			usedBy: row._count.nodes,
 			lint: lintEmail({
 				document: row.document,

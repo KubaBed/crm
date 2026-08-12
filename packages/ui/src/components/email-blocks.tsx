@@ -1,0 +1,253 @@
+"use client";
+
+import Add from "@carbon/icons-react/es/Add";
+import ChevronDown from "@carbon/icons-react/es/ChevronDown";
+import ChevronUp from "@carbon/icons-react/es/ChevronUp";
+import Close from "@carbon/icons-react/es/Close";
+import Draggable from "@carbon/icons-react/es/Draggable";
+import Locked from "@carbon/icons-react/es/Locked";
+import { Button } from "./button";
+import { Icon } from "./icon";
+import { Input } from "./input";
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuTrigger,
+} from "./dropdown-menu";
+import { Textarea } from "./textarea";
+import { cn } from "../lib/utils";
+
+export type EmailInline = { text: string; bold?: boolean; italic?: boolean; href?: string };
+
+export type EmailBlock =
+	| { type: "heading"; level: 1 | 2 | 3; text: EmailInline[] }
+	| { type: "text"; text: EmailInline[] }
+	| { type: "button"; label: string; href: string }
+	| { type: "image"; src: string; alt: string }
+	| { type: "quote"; text: EmailInline[] }
+	| { type: "divider" }
+	| { type: "spacer"; size: "sm" | "md" | "lg" };
+
+export const BLOCK_LABEL: Record<string, string> = {
+	heading: "Heading",
+	text: "Text",
+	button: "Button",
+	image: "Image",
+	quote: "Quote",
+	divider: "Divider",
+	spacer: "Spacer",
+	columns: "Columns",
+};
+
+const ADDABLE: { type: EmailBlock["type"]; label: string; make: () => EmailBlock }[] = [
+	{ type: "heading", label: "Heading", make: () => ({ type: "heading", level: 2, text: [{ text: "" }] }) },
+	{ type: "text", label: "Text", make: () => ({ type: "text", text: [{ text: "" }] }) },
+	{ type: "button", label: "Button", make: () => ({ type: "button", label: "Read more", href: "https://" }) },
+	{ type: "image", label: "Image", make: () => ({ type: "image", src: "https://", alt: "" }) },
+	{ type: "quote", label: "Quote", make: () => ({ type: "quote", text: [{ text: "" }] }) },
+	{ type: "divider", label: "Divider", make: () => ({ type: "divider" }) },
+	{ type: "spacer", label: "Spacer", make: () => ({ type: "spacer", size: "md" }) },
+];
+
+export function textOf(block: EmailBlock): string {
+	if ("text" in block) return block.text.map((run) => run.text).join("");
+	if (block.type === "button") return block.label;
+	if (block.type === "image") return block.alt || block.src;
+	if (block.type === "spacer") return block.size;
+	return "";
+}
+
+function ShellRow({ kind, detail, top }: { kind: string; detail: string; top?: boolean }) {
+	return (
+		<div
+			className={cn(
+				"flex items-center gap-2 bg-muted px-2.5 py-2",
+				top ? "border-b" : "border-t",
+			)}
+		>
+			<Icon icon={Locked} className="size-3 shrink-0 text-muted-foreground" />
+			<span className="shrink-0 rounded-sm bg-background px-1.5 py-px text-muted-foreground text-xs">
+				{kind}
+			</span>
+			<span className="min-w-0 flex-1 truncate text-muted-foreground text-xs">
+				{detail}
+			</span>
+		</div>
+	);
+}
+
+export function EmailBlockEditor({
+	blocks,
+	selected,
+	onSelect,
+	onChange,
+	shell,
+}: {
+	blocks: EmailBlock[];
+	selected: number | null;
+	onSelect: (index: number | null) => void;
+	onChange: (blocks: EmailBlock[]) => void;
+	shell?: { header: string; footer: string };
+}) {
+	const replace = (index: number, block: EmailBlock) =>
+		onChange(blocks.map((current, at) => (at === index ? block : current)));
+
+	const move = (index: number, by: number) => {
+		const target = index + by;
+		if (target < 0 || target >= blocks.length) return;
+		const next = [...blocks];
+		const [row] = next.splice(index, 1);
+		if (row) next.splice(target, 0, row);
+		onChange(next);
+		onSelect(target);
+	};
+
+	const remove = (index: number) => {
+		onChange(blocks.filter((_block, at) => at !== index));
+		onSelect(null);
+	};
+
+	return (
+		<div className="flex flex-col overflow-clip rounded-lg border">
+			{shell ? <ShellRow kind="Header" detail={shell.header} top /> : null}
+
+			{blocks.map((block, index) => {
+				const open = selected === index;
+
+				return (
+					<div
+						key={`${block.type}-${index}`}
+						className={cn("border-b last:border-b-0", open && "bg-muted/40")}
+					>
+						<button
+							type="button"
+							className="flex w-full items-center gap-2 px-2.5 py-2 text-left"
+							onClick={() => onSelect(open ? null : index)}
+						>
+							<Icon icon={Draggable} className="size-3 shrink-0 text-border" />
+							<span className="shrink-0 rounded-sm bg-muted px-1.5 py-px text-muted-foreground text-xs">
+								{BLOCK_LABEL[block.type] ?? block.type}
+							</span>
+							<span className="min-w-0 flex-1 truncate text-xs">
+								{textOf(block) || <span className="text-muted-foreground">Empty</span>}
+							</span>
+						</button>
+
+						{open ? (
+							<div className="flex flex-col gap-2 px-2.5 pb-3">
+								{"text" in block ? (
+									<Textarea
+										value={block.text.map((run) => run.text).join("")}
+										rows={block.type === "heading" ? 2 : 4}
+										onChange={(event) =>
+											replace(index, {
+												...block,
+												text: [{ text: event.target.value }],
+											} as EmailBlock)
+										}
+									/>
+								) : null}
+
+								{block.type === "button" ? (
+									<>
+										<Input
+											value={block.label}
+											placeholder="Label"
+											onChange={(event) =>
+												replace(index, { ...block, label: event.target.value })
+											}
+										/>
+										<Input
+											value={block.href}
+											placeholder="https://"
+											onChange={(event) =>
+												replace(index, { ...block, href: event.target.value })
+											}
+										/>
+									</>
+								) : null}
+
+								{block.type === "image" ? (
+									<>
+										<Input
+											value={block.src}
+											placeholder="https://…/image.png"
+											onChange={(event) =>
+												replace(index, { ...block, src: event.target.value })
+											}
+										/>
+										<Input
+											value={block.alt}
+											placeholder="What the image shows"
+											onChange={(event) =>
+												replace(index, { ...block, alt: event.target.value })
+											}
+										/>
+									</>
+								) : null}
+
+								<div className="flex items-center gap-1">
+									<Button
+										variant="ghost"
+										size="icon"
+										aria-label="Move up"
+										disabled={index === 0}
+										onClick={() => move(index, -1)}
+									>
+										<Icon icon={ChevronUp} />
+									</Button>
+									<Button
+										variant="ghost"
+										size="icon"
+										aria-label="Move down"
+										disabled={index === blocks.length - 1}
+										onClick={() => move(index, 1)}
+									>
+										<Icon icon={ChevronDown} />
+									</Button>
+									<span className="flex-1" />
+									<Button
+										variant="ghost"
+										size="icon"
+										aria-label="Remove this block"
+										onClick={() => remove(index)}
+									>
+										<Icon icon={Close} />
+									</Button>
+								</div>
+							</div>
+						) : null}
+					</div>
+				);
+			})}
+
+			<DropdownMenu>
+				<DropdownMenuTrigger asChild>
+					<button
+						type="button"
+						className="flex items-center gap-2 border-t px-2.5 py-2 text-left text-muted-foreground text-xs"
+					>
+						<Icon icon={Add} className="size-3" />
+						Add block
+					</button>
+				</DropdownMenuTrigger>
+				<DropdownMenuContent align="start">
+					{ADDABLE.map((entry) => (
+						<DropdownMenuItem
+							key={entry.type}
+							onSelect={() => {
+								onChange([...blocks, entry.make()]);
+								onSelect(blocks.length);
+							}}
+						>
+							{entry.label}
+						</DropdownMenuItem>
+					))}
+				</DropdownMenuContent>
+			</DropdownMenu>
+
+			{shell ? <ShellRow kind="Footer" detail={shell.footer} /> : null}
+		</div>
+	);
+}

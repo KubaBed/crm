@@ -8,6 +8,13 @@ import { Field, FieldGroup, FieldLabel } from "@crm/ui/components/field";
 import { Icon } from "@crm/ui/components/icon";
 import { Input } from "@crm/ui/components/input";
 import Logo from "@crm/ui/components/logo";
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "@crm/ui/components/select";
 import { Spinner } from "@crm/ui/components/spinner";
 import { cn } from "@crm/ui/lib/utils";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -40,8 +47,10 @@ export function SetupWizard({ step }: { step: string }) {
 	const fromAddressId = useId();
 	const postalId = useId();
 	const hostId = useId();
+	const pickId = useId();
 
 	const data = settings.data;
+	const domainStatus = domain.data?.status ?? "not_started";
 
 	useEffect(() => {
 		if (!data) return;
@@ -82,12 +91,62 @@ export function SetupWizard({ step }: { step: string }) {
 		}),
 	);
 
+	const domains = useQuery({
+		...trpc.marketing.domains.queryOptions(),
+		enabled: step === "domain",
+	});
+
+	const useDomain = useMutation(
+		trpc.marketing.useDomain.mutationOptions({
+			onSuccess: async (result) => {
+				await Promise.all([
+					queryClient.invalidateQueries({
+						queryKey: trpc.marketing.domain.queryKey(),
+					}),
+					queryClient.invalidateQueries({
+						queryKey: trpc.marketing.settings.queryKey(),
+					}),
+					queryClient.invalidateQueries({
+						queryKey: trpc.marketing.domains.queryKey(),
+					}),
+				]);
+				toast.success(`Sending from ${result.name}.`);
+			},
+			onError: (error) => toast.error(error.message),
+		}),
+	);
+
+	const recheck = useMutation(
+		trpc.marketing.verifyDomain.mutationOptions({
+			onSuccess: async (result) => {
+				await queryClient.invalidateQueries({
+					queryKey: trpc.marketing.domain.queryKey(),
+				});
+				toast.success(
+					result.status === "verified"
+						? "Verified. You can send from it."
+						: `Still ${result.status.replace(/_/g, " ")}. DNS can take a few hours.`,
+				);
+			},
+			onError: (error) => toast.error(error.message),
+		}),
+	);
+
 	const createDomain = useMutation(
 		trpc.marketing.createDomain.mutationOptions({
-			onSuccess: () =>
-				queryClient.invalidateQueries({
-					queryKey: trpc.marketing.domain.queryKey(),
-				}),
+			onSuccess: async () => {
+				await Promise.all([
+					queryClient.invalidateQueries({
+						queryKey: trpc.marketing.domain.queryKey(),
+					}),
+					queryClient.invalidateQueries({
+						queryKey: trpc.marketing.settings.queryKey(),
+					}),
+					queryClient.invalidateQueries({
+						queryKey: trpc.marketing.domains.queryKey(),
+					}),
+				]);
+			},
 			onError: (error) => toast.error(error.message),
 		}),
 	);
@@ -122,9 +181,11 @@ export function SetupWizard({ step }: { step: string }) {
 			? data.connected || key.trim().length > 0
 			: step === "identity"
 				? fromAddress.trim().length > 0 && postalAddress.trim().length > 0
-				: step === "test"
-					? tested
-					: true;
+				: step === "domain"
+					? domainStatus === "verified"
+					: step === "test"
+						? tested
+						: true;
 
 	const advance = () => {
 		if (step === "connect" && key.trim()) return saveKey.mutate({ key });
@@ -265,40 +326,95 @@ export function SetupWizard({ step }: { step: string }) {
 					{step === "domain" ? (
 						<Step
 							title="Your sending domain"
-							blurb="Use a subdomain, so these records cannot collide with the MX that carries your own mail. DNS takes hours — you can come back."
+							blurb="Pick one you have already verified in Resend, or add a new subdomain. A subdomain keeps these records away from the MX that carries your own mail."
 						>
-							<Field>
-								<FieldLabel htmlFor={hostId}>Subdomain</FieldLabel>
-								<Input
-									id={hostId}
-									value={host}
-									onChange={(event) => setHost(event.target.value)}
-									placeholder="send.example.com"
-								/>
-							</Field>
-							<Button
-								variant="outline"
-								className="self-start"
-								disabled={!host.trim() || createDomain.isPending}
-								onClick={() => createDomain.mutate({ name: host })}
-							>
-								{createDomain.isPending ? <Spinner /> : null}
-								Get the records
-							</Button>
+							{(domains.data ?? []).length > 0 ? (
+								<Field>
+									<FieldLabel htmlFor={pickId}>Domains in Resend</FieldLabel>
+									<Select
+										value={
+											(domains.data ?? []).find((row) => row.selected)?.id ?? ""
+										}
+										onValueChange={(id) => useDomain.mutate({ id })}
+									>
+										<SelectTrigger id={pickId}>
+											<SelectValue placeholder="Choose a domain" />
+										</SelectTrigger>
+										<SelectContent>
+											{(domains.data ?? []).map((row) => (
+												<SelectItem key={row.id} value={row.id}>
+													{row.name} — {row.status.replace(/_/g, " ")}
+												</SelectItem>
+											))}
+										</SelectContent>
+									</Select>
+								</Field>
+							) : null}
 
-							{(domain.data?.records ?? []).map((record) => (
-								<div
-									key={`${record.type}-${record.name}`}
-									className="flex flex-col gap-1 rounded-md border p-3 text-xs"
-								>
-									<span className="font-medium">
-										{record.type} · {record.name}
-									</span>
-									<span className="break-all text-muted-foreground">
-										{record.value}
-									</span>
+							{domainStatus === "verified" ? (
+								<p className="text-muted-foreground text-xs">
+									{domain.data?.name} is verified. Nothing else to do here.
+								</p>
+							) : domain.data?.name ? (
+								<div className="flex flex-col gap-3">
+									<p className="text-muted-foreground text-xs">
+										{domain.data.name} is{" "}
+										{(domain.data.status ?? "pending").replace(/_/g, " ")}. Add
+										these records at your DNS provider, then check again. DNS
+										can take a few hours.
+									</p>
+
+									<Button
+										variant="outline"
+										className="self-start"
+										disabled={recheck.isPending}
+										onClick={() => recheck.mutate()}
+									>
+										{recheck.isPending ? <Spinner /> : null}
+										Check again
+									</Button>
+
+									{(domain.data.records ?? []).map((record) => (
+										<div
+											key={`${record.type}-${record.name}`}
+											className="flex flex-col gap-1 rounded-md border p-3 text-xs"
+										>
+											<span className="font-medium">
+												{record.type} · {record.name}
+											</span>
+											<span className="break-all text-muted-foreground">
+												{record.value}
+											</span>
+										</div>
+									))}
 								</div>
-							))}
+							) : null}
+
+							<details className="text-xs">
+								<summary className="cursor-pointer text-muted-foreground">
+									Add a new subdomain instead
+								</summary>
+								<div className="flex flex-col gap-3 pt-3">
+									<Field>
+										<FieldLabel htmlFor={hostId}>Subdomain</FieldLabel>
+										<Input
+											id={hostId}
+											value={host}
+											onChange={(event) => setHost(event.target.value)}
+											placeholder="send.example.com"
+										/>
+									</Field>
+									<Button
+										variant="outline"
+										className="self-start"
+										disabled={!host.trim() || createDomain.isPending}
+										onClick={() => createDomain.mutate({ name: host })}
+									>
+										{createDomain.isPending ? <Spinner /> : null}
+										Add it
+									</Button>
+								</div>
+							</details>
 						</Step>
 					) : null}
 

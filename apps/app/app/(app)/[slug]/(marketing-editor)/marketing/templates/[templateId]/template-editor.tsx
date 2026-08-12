@@ -1,0 +1,294 @@
+"use client";
+
+import ArrowLeft from "@carbon/icons-react/es/ArrowLeft";
+import { Button } from "@crm/ui/components/button";
+import {
+	type EmailBlock,
+	EmailBlockEditor,
+} from "@crm/ui/components/email-blocks";
+import { Icon } from "@crm/ui/components/icon";
+import { Input } from "@crm/ui/components/input";
+import { Label } from "@crm/ui/components/label";
+import { Spinner } from "@crm/ui/components/spinner";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import Link from "next/link";
+import { useEffect, useState } from "react";
+import { toast } from "sonner";
+import { useTRPC } from "@/lib/trpc/client";
+import { useWorkspaceUrl } from "@/lib/use-workspace-url";
+
+function blocksOf(document: unknown): EmailBlock[] {
+	if (!document || typeof document !== "object") return [];
+	const blocks = (document as { blocks?: unknown }).blocks;
+	return Array.isArray(blocks) ? (blocks as EmailBlock[]) : [];
+}
+
+export function TemplateEditor({ templateId }: { templateId: string }) {
+	const trpc = useTRPC();
+	const queryClient = useQueryClient();
+	const workspaceUrl = useWorkspaceUrl();
+
+	const template = useQuery(
+		trpc.marketingTemplates.byId.queryOptions({ id: templateId }),
+	);
+
+	const [name, setName] = useState("");
+	const [subject, setSubject] = useState("");
+	const [preheader, setPreheader] = useState("");
+	const [blocks, setBlocks] = useState<EmailBlock[]>([]);
+	const [selected, setSelected] = useState<number | null>(null);
+	const [device, setDevice] = useState<"desktop" | "mobile" | "text">(
+		"desktop",
+	);
+	const [dirty, setDirty] = useState(false);
+
+	const data = template.data;
+
+	useEffect(() => {
+		if (!data || dirty) return;
+		setName(data.name);
+		setSubject(data.subject);
+		setPreheader(data.preheader ?? "");
+		setBlocks(blocksOf(data.document));
+	}, [data, dirty]);
+
+	const document = { version: 1 as const, blocks };
+
+	const previewOptions = trpc.marketingTemplates.preview.queryOptions({
+		document: document as unknown as Record<string, unknown>,
+		subject,
+		preheader,
+		contactId: null,
+	});
+
+	const preview = useQuery({
+		queryKey: previewOptions.queryKey,
+		queryFn: previewOptions.queryFn,
+	});
+
+	const save = useMutation(
+		trpc.marketingTemplates.update.mutationOptions({
+			onSuccess: async () => {
+				setDirty(false);
+				toast.success("Saved.");
+				await queryClient.invalidateQueries({
+					queryKey: trpc.marketingTemplates.byId.queryKey({ id: templateId }),
+				});
+			},
+			onError: (error) => toast.error(error.message),
+		}),
+	);
+
+	if (template.isPending) {
+		return (
+			<div className="flex min-h-0 flex-1 items-center justify-center">
+				<Spinner />
+			</div>
+		);
+	}
+
+	if (!data) {
+		return (
+			<div className="flex min-h-0 flex-1 items-center justify-center text-muted-foreground text-xs">
+				That template is gone.
+			</div>
+		);
+	}
+
+	const findings = preview.data?.lint ?? [];
+	const errors = findings.filter((finding) => finding.level === "error");
+
+	return (
+		<div className="flex min-h-0 min-w-0 flex-1 flex-col">
+			<header className="flex shrink-0 items-center gap-2 border-b px-6 py-3">
+				<Button
+					asChild
+					variant="ghost"
+					size="sm"
+					className="-ml-2 gap-1.5 font-normal text-muted-foreground"
+				>
+					<Link href={workspaceUrl("/marketing/templates")} prefetch>
+						<Icon icon={ArrowLeft} className="size-3.5" />
+						Templates
+					</Link>
+				</Button>
+				<span className="h-3.5 w-px bg-border" />
+				<Input
+					value={name}
+					onChange={(event) => {
+						setName(event.target.value);
+						setDirty(true);
+					}}
+					className="h-auto max-w-xs border-0 px-0 font-medium shadow-none focus-visible:ring-0"
+				/>
+				<span className="flex-1" />
+				<span className="text-muted-foreground text-xs">
+					{data.usedBy === 0
+						? "Not used yet"
+						: `Used by ${data.usedBy} node${data.usedBy === 1 ? "" : "s"}`}
+				</span>
+				<Button
+					disabled={save.isPending || !dirty}
+					onClick={() =>
+						save.mutate({
+							id: templateId,
+							name,
+							subject,
+							preheader: preheader || null,
+							document: document as unknown as Record<string, unknown>,
+						})
+					}
+				>
+					{save.isPending ? <Spinner /> : null}
+					Save
+				</Button>
+			</header>
+
+			<div className="flex min-h-0 flex-1">
+				<div className="flex w-[400px] shrink-0 flex-col gap-4 overflow-y-auto border-r p-4">
+					<div className="flex flex-col gap-1.5">
+						<Label
+							htmlFor="template-subject"
+							className="text-muted-foreground text-xs"
+						>
+							Subject
+						</Label>
+						<Input
+							id="template-subject"
+							value={subject}
+							onChange={(event) => {
+								setSubject(event.target.value);
+								setDirty(true);
+							}}
+						/>
+						<span className="text-muted-foreground text-xs">
+							{subject.length} characters
+							{subject.length > 50
+								? " — most phones cut it at 50"
+								: " — comfortably inside the mobile cut"}
+						</span>
+					</div>
+
+					<div className="flex flex-col gap-1.5">
+						<Label
+							htmlFor="template-preheader"
+							className="text-muted-foreground text-xs"
+						>
+							Preheader
+						</Label>
+						<Input
+							id="template-preheader"
+							value={preheader}
+							onChange={(event) => {
+								setPreheader(event.target.value);
+								setDirty(true);
+							}}
+						/>
+					</div>
+
+					<div className="flex flex-col gap-2">
+						<span className="text-muted-foreground text-xs">Body</span>
+						<EmailBlockEditor
+							blocks={blocks}
+							selected={selected}
+							onSelect={setSelected}
+							onChange={(next) => {
+								setBlocks(next);
+								setDirty(true);
+							}}
+							shell={{
+								header: "Default shell · workspace logo",
+								footer: "Default shell · address + unsubscribe",
+							}}
+						/>
+					</div>
+
+					<div className="flex flex-col gap-1 rounded-md bg-muted px-3 py-2.5">
+						<span className="font-medium text-xs">
+							Header and footer: Default shell
+						</span>
+						<span className="text-muted-foreground text-xs">
+							The logo, the address and the unsubscribe link are added by the
+							compiler. Edit the shell once in Templates, not here.
+						</span>
+					</div>
+				</div>
+
+				<div className="flex min-h-0 min-w-0 flex-1 flex-col bg-muted">
+					<div className="flex h-12 shrink-0 items-center gap-2 border-b px-4">
+						<div className="flex items-center gap-0.5 rounded-md bg-muted p-0.5">
+							{(["desktop", "mobile", "text"] as const).map((mode) => (
+								<Button
+									key={mode}
+									variant={device === mode ? "outline" : "ghost"}
+									size="sm"
+									className="h-7 px-2.5 font-normal text-xs capitalize"
+									onClick={() => setDevice(mode)}
+								>
+									{mode === "text" ? "Plain text" : mode}
+								</Button>
+							))}
+						</div>
+						<span className="flex-1" />
+						<span className="text-muted-foreground text-xs">
+							Rendered by the code that sends it
+						</span>
+					</div>
+
+					<div className="flex min-h-0 flex-1 justify-center overflow-y-auto p-6">
+						{preview.isPending ? (
+							<Spinner />
+						) : preview.data?.blocked ? (
+							<p className="max-w-sm text-center text-muted-foreground text-xs">
+								{preview.data.blocked}
+							</p>
+						) : device === "text" ? (
+							<pre className="w-full whitespace-pre-wrap rounded-lg border bg-background p-5 text-xs">
+								{preview.data?.text}
+							</pre>
+						) : (
+							<iframe
+								title="Email preview"
+								srcDoc={preview.data?.html ?? ""}
+								sandbox=""
+								className="h-full w-full rounded-lg border bg-background"
+								style={{ maxWidth: device === "mobile" ? 390 : 640 }}
+							/>
+						)}
+					</div>
+
+					{findings.length > 0 ? (
+						<div className="flex shrink-0 flex-col border-t bg-background">
+							<div className="flex items-center justify-between border-b px-4 py-2">
+								<span className="font-medium text-xs">
+									{findings.length} thing{findings.length === 1 ? "" : "s"} to
+									look at
+								</span>
+								<span className="text-muted-foreground text-xs">
+									{errors.length === 0
+										? "No errors — this can be sent"
+										: `${errors.length} must be fixed before this sends`}
+								</span>
+							</div>
+							{findings.slice(0, 4).map((finding) => (
+								<div
+									key={`${finding.code}-${finding.blockIndex ?? "x"}`}
+									className="flex items-center gap-2 border-b px-4 py-2 text-xs last:border-b-0"
+								>
+									<span
+										className={
+											finding.level === "error"
+												? "size-1.5 shrink-0 rounded-sm bg-destructive"
+												: "size-1.5 shrink-0 rounded-sm bg-muted-foreground"
+										}
+									/>
+									{finding.message}
+								</div>
+							))}
+						</div>
+					) : null}
+				</div>
+			</div>
+		</div>
+	);
+}

@@ -23,7 +23,7 @@ import { dashboardSummaryInput } from "../dashboard/dashboard.contracts";
 import { dealListInput, dealIdInput, dealCreateInput, dealUpdateArgs, setStageInput, dealContactsInput, dealAttachContactInput, dealDetachContactInput, dealContactRoleInput, dealBulkOwnerInput, dealBulkStageInput, dealBulkInput } from "../deals/deals.contracts";
 import { fieldListInput, fieldByKeyInput, fieldIdInput, fieldCreateInput, fieldUpdateArgs, fieldReorderInput } from "../fields/fields.contracts";
 import { setAutoCreateInput, suppressDomainInput, threadInput, calendarEventInput } from "../google/google.contracts";
-import { saveKeyInput, saveIdentityInput, saveSendingInput, createDomainInput, campaignListInput, idInput, previewNodeInput, campaignPageInput, createCampaignInput, updateCampaignInput, writeGraphInput, updateNodeInput, scheduleInput, pauseInput, resumeInput, archiveCampaignInput, enrolInput, winnerInput, sendDirectInput, previewSegmentInput, createSegmentInput, updateSegmentInput, memberInput, previewTemplateInput, createTemplateInput, updateTemplateInput } from "../marketing/marketing.contracts";
+import { idInput, saveKeyInput, saveIdentityInput, saveSendingInput, createDomainInput, campaignListInput, previewNodeInput, campaignPageInput, createCampaignInput, updateCampaignInput, writeGraphInput, updateNodeInput, scheduleInput, pauseInput, resumeInput, archiveCampaignInput, enrolInput, winnerInput, sendDirectInput, previewSegmentInput, createSegmentInput, updateSegmentInput, memberInput, previewTemplateInput, createTemplateInput, updateTemplateInput } from "../marketing/marketing.contracts";
 import { listInput } from "../marketing/../trpc/list-input";
 import { setOutlookAutoCreateInput } from "../microsoft/microsoft.contracts";
 import { setAgentModelInput, setResearchKeyInput } from "../settings/settings.contracts";
@@ -365,6 +365,11 @@ const appRouter = t.router({
       .query(async () => "PLACEHOLDER_DO_NOT_REMOVE" as unknown as Awaited<ReturnType<MarketingRouter["settings"]>>),
     domain: publicProcedure
       .query(async () => "PLACEHOLDER_DO_NOT_REMOVE" as unknown as Awaited<ReturnType<MarketingRouter["domain"]>>),
+    domains: publicProcedure
+      .query(async () => "PLACEHOLDER_DO_NOT_REMOVE" as unknown as Awaited<ReturnType<MarketingRouter["domains"]>>),
+    useDomain: publicProcedure
+      .input(idInput)
+      .mutation(async () => "PLACEHOLDER_DO_NOT_REMOVE" as unknown as Awaited<ReturnType<MarketingRouter["useDomain"]>>),
     saveKey: publicProcedure
       .input(saveKeyInput)
       .mutation(async () => "PLACEHOLDER_DO_NOT_REMOVE" as unknown as Awaited<ReturnType<MarketingRouter["saveKey"]>>),

@@ -67,6 +67,16 @@ export class MarketingRouter {
 		return this.settingsService.domain();
 	}
 
+	@Query()
+	async domains() {
+		return this.settingsService.domains();
+	}
+
+	@Mutation({ input: idInput })
+	async useDomain(@Input() input: z.infer<typeof idInput>) {
+		return this.settingsService.useDomain(input.id);
+	}
+
 	@Mutation({ input: saveKeyInput })
 	async saveKey(@Input() input: z.infer<typeof saveKeyInput>) {
 		return this.settingsService.saveKey(input.key);

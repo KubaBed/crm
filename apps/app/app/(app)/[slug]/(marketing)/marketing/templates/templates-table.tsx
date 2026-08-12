@@ -3,11 +3,13 @@
 import { DataTable, type DataTableColumn } from "@crm/ui/components/data-table";
 import { EmptyCellValue } from "@crm/ui/components/empty-cell";
 import { useQuery } from "@tanstack/react-query";
+import { useRouter } from "next/navigation";
 import { ListSearch } from "@/components/data-table/list-search";
 import { useTableQuery } from "@/components/data-table/use-table-query";
 import { LocalRelativeDate } from "@/components/local-date-time";
 import { useTRPC } from "@/lib/trpc/client";
 import type { RouterOutputs } from "@/lib/trpc/types";
+import { useWorkspaceUrl } from "@/lib/use-workspace-url";
 import { templatesSearchParams } from "./templates-search-params";
 
 type TemplateRow = RouterOutputs["marketingTemplates"]["list"]["rows"][number];
@@ -63,6 +65,8 @@ const COLUMNS: DataTableColumn<TemplateRow>[] = [
 
 export function TemplatesTable() {
 	const trpc = useTRPC();
+	const router = useRouter();
+	const workspaceUrl = useWorkspaceUrl();
 	const { query, input } = useTableQuery(templatesSearchParams);
 
 	const templates = useQuery({
@@ -79,6 +83,9 @@ export function TemplatesTable() {
 			total={templates.data?.total ?? 0}
 			getRowId={(row) => row.id}
 			loading={templates.isPending}
+			onRowClick={(row) =>
+				router.push(workspaceUrl(`/marketing/templates/${row.id}`))
+			}
 			empty="No templates yet. A template holds the shell and a starting point for the copy."
 		/>
 	);

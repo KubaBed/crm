@@ -84,6 +84,20 @@ export class ResendService {
 		}
 	}
 
+	async listDomains(): Promise<{ id: string; name: string; status: string }[]> {
+		const client = await this.client();
+		if (!client) return [];
+
+		const result = await client.domains.list();
+		if (result.error || !result.data) return [];
+
+		const rows = (result.data as unknown as { data?: unknown[] }).data ?? [];
+
+		return (rows as { id: string; name: string; status: string }[]).map(
+			(row) => ({ id: row.id, name: row.name, status: row.status }),
+		);
+	}
+
 	async createDomain(name: string): Promise<DomainState | null> {
 		const client = await this.client();
 		if (!client) return null;

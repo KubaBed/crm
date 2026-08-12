@@ -186,17 +186,39 @@ export class MarketingSettingsService {
 		};
 	}
 
+	async domains(): Promise<
+		{ id: string; name: string; status: string; selected: boolean }[]
+	> {
+		const [settings, rows] = await Promise.all([
+			readMarketingSettings(this.db),
+			this.resend.listDomains(),
+		]);
+
+		return rows.map((row) => ({
+			...row,
+			selected: row.id === settings.resendDomainId,
+		}));
+	}
+
+	async useDomain(id: string): Promise<{ status: string; name: string }> {
+		const domain = await this.resend.readDomain(id);
+		if (!domain) {
+			throw new BadRequestException("Resend does not have that domain.");
+		}
+
+		await writeMarketingSettings(this.db, {
+			resendDomainId: domain.id,
+			sendingDomain: domain.name,
+		});
+
+		return { status: domain.status, name: domain.name };
+	}
+
 	async createDomain(
 		name: string,
 	): Promise<{ records: DnsRecord[]; status: string }> {
 		const host = blankToNull(name)?.toLowerCase();
 		if (!host) throw new BadRequestException("Enter a subdomain to send from.");
-
-		if (host.split(".").length < 3) {
-			throw new BadRequestException(
-				`Use a subdomain such as send.${host}, so the records cannot collide with the MX that carries your own mail.`,
-			);
-		}
 
 		const created = await this.resend.createDomain(host);
 		if (!created) {
