@@ -32,8 +32,28 @@ describe("telling an author what is wrong", () => {
 		).toEqual([]);
 	});
 
+	test("reports every issue, not the first eight", () => {
+		const problems = documentProblems({
+			version: 1,
+			blocks: Array.from({ length: 12 }, () => ({
+				type: "text",
+				text: "Hello",
+			})),
+		});
+
+		expect(problems.length).toBeGreaterThanOrEqual(12);
+		expect(problems.some((problem) => problem.path.includes("blocks.11"))).toBe(
+			true,
+		);
+	});
+
 	test("the shapes it hands back are themselves readable", () => {
 		expect(BLOCK_SHAPES.inline).toContain("ARRAY of runs");
 		expect(BLOCK_SHAPES.text).toContain('"text": [{ "text"');
+	});
+
+	test("the shapes cover a columns block", () => {
+		expect(BLOCK_SHAPES.columns).toContain('"type": "columns"');
+		expect(BLOCK_SHAPES.columns).toContain("blocks");
 	});
 });

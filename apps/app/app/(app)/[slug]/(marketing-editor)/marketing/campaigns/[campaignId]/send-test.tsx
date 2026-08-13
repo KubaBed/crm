@@ -44,7 +44,7 @@ export function SendTest({
 				test.mutate({
 					nodeId,
 					subject,
-					preheader: preheader || null,
+					preheader,
 					document: { version: 1, blocks } as unknown as Record<
 						string,
 						unknown

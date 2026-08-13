@@ -1,4 +1,3 @@
-import { createHash } from "node:crypto";
 import type { Db } from "@crm/db";
 import { readMarketingSettings } from "@crm/db/marketing";
 import { Injectable, Logger } from "@nestjs/common";
@@ -52,19 +51,14 @@ export type DomainState = {
 	clickTracking: boolean;
 };
 
-const RETRYABLE = new Set([408, 429, 500, 502, 503, 504]);
+const RETRYABLE_STATUSES = new Set([408, 429, 500, 502, 503, 504]);
+
+const RETRYABLE_CONFLICT: ErrorResponse["name"] = "concurrent_idempotent_requests";
 
 function retryable(error: ErrorResponse | null): boolean {
-	const status = error?.statusCode;
-	return status ? RETRYABLE.has(status) : true;
-}
-
-function batchKey(sendIds: string[]): string {
-	const digest = createHash("sha256")
-		.update([...sendIds].sort().join(","))
-		.digest("hex");
-
-	return `batch-send/${digest}`;
+	if (!error) return true;
+	if (error.name === RETRYABLE_CONFLICT) return true;
+	return error.statusCode ? RETRYABLE_STATUSES.has(error.statusCode) : true;
 }
 
 @Injectable()
@@ -245,76 +239,4 @@ export class ResendService {
 		}
 	}
 
-	async sendBatch(
-		messages: (SendOne & { sendId: string })[],
-	): Promise<Map<string, SendOutcome>> {
-		const results = new Map<string, SendOutcome>();
-		const client = await this.client();
-
-		if (!client) {
-			for (const message of messages) {
-				results.set(message.sendId, {
-					ok: false,
-					error: "Resend is not connected.",
-					retry: false,
-				});
-			}
-			return results;
-		}
-
-		const settings = await readMarketingSettings(this.db);
-
-		try {
-			const result = await client.batch.send(
-				messages.map((message) => ({
-					from: fromLine(settings, message.fromName),
-					to: [message.to],
-					subject: message.subject,
-					html: message.html,
-					text: message.text,
-					replyTo: message.replyTo ?? settings.replyTo ?? undefined,
-					headers: message.headers,
-				})),
-				{ idempotencyKey: batchKey(messages.map((message) => message.sendId)) },
-			);
-
-			if (result.error || !result.data) {
-				const retry = retryable(result.error);
-
-				for (const message of messages) {
-					results.set(message.sendId, {
-						ok: false,
-						error: result.error?.message ?? "Resend refused the batch.",
-						retry,
-					});
-				}
-				return results;
-			}
-
-			result.data.data.forEach((row, index) => {
-				const message = messages[index];
-				if (message)
-					results.set(message.sendId, { ok: true, providerId: row.id });
-			});
-
-			for (const message of messages) {
-				if (!results.has(message.sendId)) {
-					results.set(message.sendId, {
-						ok: false,
-						error: "Resend returned no id for this message.",
-						retry: true,
-					});
-				}
-			}
-
-			return results;
-		} catch (error) {
-			const reason =
-				error instanceof Error ? error.message : "Resend did not answer.";
-			for (const message of messages) {
-				results.set(message.sendId, { ok: false, error: reason, retry: true });
-			}
-			return results;
-		}
-	}
 }

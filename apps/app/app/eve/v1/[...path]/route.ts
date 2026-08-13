@@ -47,6 +47,7 @@ async function handler(request: Request): Promise<Response> {
 	const companyId = request.headers.get("x-crm-company");
 	const dealId = request.headers.get("x-crm-deal");
 	const campaignId = request.headers.get("x-crm-campaign");
+	const campaignNodeId = request.headers.get("x-crm-campaign-node");
 	const segmentId = request.headers.get("x-crm-segment");
 	const templateId = request.headers.get("x-crm-template");
 	const shellId = request.headers.get("x-crm-shell");
@@ -58,6 +59,7 @@ async function handler(request: Request): Promise<Response> {
 	headers.delete("x-crm-company");
 	headers.delete("x-crm-deal");
 	headers.delete("x-crm-campaign");
+	headers.delete("x-crm-campaign-node");
 	headers.delete("x-crm-segment");
 	headers.delete("x-crm-template");
 	headers.delete("x-crm-shell");
@@ -109,6 +111,7 @@ async function handler(request: Request): Promise<Response> {
 				companyId: cuid(companyId),
 				dealId: cuid(dealId),
 				campaignId: cuid(campaignId),
+				campaignNodeId: cuid(campaignId) ? cuid(campaignNodeId) : undefined,
 				segmentId: cuid(segmentId),
 				templateId: cuid(templateId),
 				shellId: cuid(shellId),

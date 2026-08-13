@@ -22,22 +22,23 @@ export class MarketingActivityService {
 	async file(sends: FiledSend[]): Promise<number> {
 		if (sends.length === 0) return 0;
 
-		const authors = await this.authors(sends.map((send) => send.contactId));
-		if (authors.size === 0) return 0;
+		const contacts = await this.contacts(sends.map((send) => send.contactId));
+		if (contacts.size === 0) return 0;
 
 		const rows: Prisma.ActivityCreateManyInput[] = [];
 
 		for (const send of sends) {
-			const createdById = authors.get(send.contactId);
-			if (!createdById) continue;
+			const contact = contacts.get(send.contactId);
+			if (!contact) continue;
 
 			rows.push({
 				type: ActivityType.EMAIL,
 				subject: send.subject?.trim() || "A marketing email",
 				body: send.campaignName,
 				contactId: send.contactId,
+				companyId: contact.companyId,
 				occurredAt: send.sentAt,
-				createdById,
+				createdById: contact.author,
 				meta: { automated: true, source: "marketing" },
 			});
 		}
@@ -48,28 +49,35 @@ export class MarketingActivityService {
 		return result.count;
 	}
 
-	private async authors(contactIds: string[]): Promise<Map<string, string>> {
+	private async contacts(
+		contactIds: string[],
+	): Promise<Map<string, { author: string; companyId: string | null }>> {
 		const unique = [...new Set(contactIds)];
 		if (unique.length === 0) return new Map();
 
-		const contacts = await this.db.contact.findMany({
+		const rows = await this.db.contact.findMany({
 			where: { id: { in: unique } },
-			select: { id: true, ownerId: true },
+			select: { id: true, ownerId: true, companyId: true },
 		});
 
-		const unowned = contacts.some((contact) => contact.ownerId === null);
+		const unowned = rows.some((contact) => contact.ownerId === null);
 
 		const fallback = unowned
 			? await this.db.user.findFirst({ select: { id: true } })
 			: null;
 
-		const authors = new Map<string, string>();
+		const contacts = new Map<
+			string,
+			{ author: string; companyId: string | null }
+		>();
 
-		for (const contact of contacts) {
-			const author = contact.ownerId ?? fallback?.id ?? null;
-			if (author) authors.set(contact.id, author);
+		for (const row of rows) {
+			const author = row.ownerId ?? fallback?.id ?? null;
+			if (author) {
+				contacts.set(row.id, { author, companyId: row.companyId });
+			}
 		}
 
-		return authors;
+		return contacts;
 	}
 }

@@ -98,9 +98,11 @@ export function MarketingSettingsForm() {
 			onSuccess: (result) => {
 				setKey("");
 				toast.success(
-					result.state === "valid"
-						? "Resend is connected."
-						: "Saved. Resend did not confirm the key, so watch the first send.",
+					result.state !== "valid"
+						? "Saved. Resend did not confirm the key, so watch the first send."
+						: data?.connection === "oauth"
+							? "Key saved as the fallback. Sends keep going through the Resend sign-in."
+							: "Resend is connected.",
 				);
 				void invalidate();
 			},
@@ -184,12 +186,16 @@ export function MarketingSettingsForm() {
 				<CardContent className="gap-4">
 					<p className="text-muted-foreground text-xs">
 						{data.connection === "oauth"
-							? "Signed in to Resend. Revoke it in Resend at any time."
+							? "Signed in to Resend. Sends go through the sign-in, and a pasted key is only the fallback. Revoke the sign-in in Resend at any time."
 							: "Signing in grants access on Resend's own screen, and you can revoke it there."}
 					</p>
 
 					<Field>
-						<FieldLabel htmlFor={keyId}>Or paste an API key</FieldLabel>
+						<FieldLabel htmlFor={keyId}>
+							{data.connection === "oauth"
+								? "Or keep a fallback API key"
+								: "Or paste an API key"}
+						</FieldLabel>
 						<Input
 							id={keyId}
 							value={key}
@@ -207,7 +213,11 @@ export function MarketingSettingsForm() {
 						onClick={() => saveKey.mutate({ key })}
 					>
 						{saveKey.isPending ? <Spinner /> : null}
-						{data.connection === "key" ? "Replace key" : "Use this key"}
+						{data.connection === "oauth"
+							? "Save fallback key"
+							: data.connection === "key"
+								? "Replace key"
+								: "Use this key"}
 					</Button>
 				</CardContent>
 			</Card>

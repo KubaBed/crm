@@ -9,18 +9,15 @@ import { useTRPC } from "@/lib/trpc/client";
 const RESEND_DOMAINS_URL = "https://resend.com/domains";
 
 const STATUS_LABEL: Record<string, string> = {
-	verified: "Verified",
-	pending: "Pending",
-	not_started: "Not started",
-	temporary_failure: "Temporary failure",
-	failure: "Failed",
+	verified: "verified",
+	pending: "pending",
+	not_started: "not started",
+	temporary_failure: "temporary failure",
+	failure: "failed",
 };
 
 function statusLabel(status: string): string {
-	return (
-		STATUS_LABEL[status] ??
-		status.charAt(0).toUpperCase() + status.slice(1).replace(/_/g, " ")
-	);
+	return STATUS_LABEL[status] ?? status.replace(/_/g, " ");
 }
 
 function useRefreshDomains() {
@@ -57,7 +54,7 @@ export function SendingDomainActions() {
 				{domains.isFetching ? <Spinner /> : null}
 				Refresh
 			</Button>
-			<Button variant="ghost" size="sm" asChild>
+			<Button variant="outline" size="sm" asChild>
 				<a href={RESEND_DOMAINS_URL} target="_blank" rel="noreferrer">
 					Open Resend
 				</a>

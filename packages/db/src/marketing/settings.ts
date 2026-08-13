@@ -1,10 +1,11 @@
 import type { Db } from "../client";
+import type { Prisma } from "../generated/prisma/client";
 import { SETTINGS_ID } from "../settings";
 
 const DAY_MS = 24 * 60 * 60_000;
 
 export const MARKETING = {
-	send: { perMinute: 300, dailyCap: 0, batchSize: 100 },
+	send: { perMinute: 300, dailyCap: 0 },
 	quiet: { start: 8, end: 20, timeZone: "UTC" },
 	cap: { windowMs: DAY_MS },
 	overview: { windowMs: 30 * DAY_MS },
@@ -40,6 +41,7 @@ export const RESEND_OAUTH = {
 	clientName: "Comp AI CRM",
 	callbackPath: "/api/marketing/resend/callback",
 	refreshSkewMs: 60_000,
+	attemptTtlMs: 15 * 60_000,
 } as const;
 
 export type MarketingSettings = {
@@ -49,8 +51,6 @@ export type MarketingSettings = {
 	resendAccessToken: string | null;
 	resendRefreshToken: string | null;
 	resendTokenExpires: Date | null;
-	resendAuthState: string | null;
-	resendAuthVerifier: string | null;
 	resendDomainId: string | null;
 	sendingDomain: string | null;
 	fromName: string | null;
@@ -74,8 +74,6 @@ const SELECT = {
 	marketingResendAccessToken: true,
 	marketingResendRefreshToken: true,
 	marketingResendTokenExpires: true,
-	marketingResendAuthState: true,
-	marketingResendAuthVerifier: true,
 	marketingResendDomainId: true,
 	marketingSendingDomain: true,
 	marketingFromName: true,
@@ -107,8 +105,6 @@ export async function readMarketingSettings(
 		resendAccessToken: row?.marketingResendAccessToken ?? null,
 		resendRefreshToken: row?.marketingResendRefreshToken ?? null,
 		resendTokenExpires: row?.marketingResendTokenExpires ?? null,
-		resendAuthState: row?.marketingResendAuthState ?? null,
-		resendAuthVerifier: row?.marketingResendAuthVerifier ?? null,
 		resendDomainId: row?.marketingResendDomainId ?? null,
 		sendingDomain: row?.marketingSendingDomain ?? null,
 		fromName: row?.marketingFromName ?? null,
@@ -127,7 +123,7 @@ export async function readMarketingSettings(
 }
 
 export async function writeMarketingSettings(
-	db: Db,
+	db: Db | Prisma.TransactionClient,
 	patch: Partial<{
 		resendApiKey: string | null;
 		resendClientId: string | null;
@@ -135,8 +131,6 @@ export async function writeMarketingSettings(
 		resendAccessToken: string | null;
 		resendRefreshToken: string | null;
 		resendTokenExpires: Date | null;
-		resendAuthState: string | null;
-		resendAuthVerifier: string | null;
 		resendDomainId: string | null;
 		sendingDomain: string | null;
 		fromName: string | null;
@@ -171,12 +165,6 @@ export async function writeMarketingSettings(
 		}),
 		...(patch.resendTokenExpires !== undefined && {
 			marketingResendTokenExpires: patch.resendTokenExpires,
-		}),
-		...(patch.resendAuthState !== undefined && {
-			marketingResendAuthState: patch.resendAuthState,
-		}),
-		...(patch.resendAuthVerifier !== undefined && {
-			marketingResendAuthVerifier: patch.resendAuthVerifier,
 		}),
 		...(patch.resendDomainId !== undefined && {
 			marketingResendDomainId: patch.resendDomainId,

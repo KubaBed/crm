@@ -2,6 +2,7 @@ import { type Db, Prisma } from "@crm/db";
 import { filterSchema, segmentWhere } from "@crm/db/marketing";
 import {
 	BadRequestException,
+	ConflictException,
 	Injectable,
 	NotFoundException,
 } from "@nestjs/common";
@@ -346,17 +347,23 @@ export class MarketingSegmentsService {
 			throw new BadRequestException("Those rules cannot be read.");
 		}
 
-		return this.db.marketingSegment.create({
-			data: {
-				name,
-				description: input.description ? blankToNull(input.description) : null,
-				definition: (input.definition ?? undefined) as
-					| Prisma.InputJsonValue
-					| undefined,
-				kind: input.definition ? "DYNAMIC" : "STATIC",
-			},
-			select: { id: true, name: true },
-		});
+		try {
+			return await this.db.marketingSegment.create({
+				data: {
+					name,
+					description: input.description
+						? blankToNull(input.description)
+						: null,
+					definition: (input.definition ?? undefined) as
+						| Prisma.InputJsonValue
+						| undefined,
+					kind: input.definition ? "DYNAMIC" : "STATIC",
+				},
+				select: { id: true, name: true },
+			});
+		} catch (error) {
+			throw this.translate(error, name);
+		}
 	}
 
 	async update(input: {
@@ -371,25 +378,29 @@ export class MarketingSegmentsService {
 			}
 		}
 
-		return this.db.marketingSegment.update({
-			where: { id: input.id },
-			data: {
-				...(input.name && { name: input.name }),
-				...(input.description !== undefined && {
-					description: input.description
-						? blankToNull(input.description)
-						: null,
-				}),
-				...(input.definition !== undefined && {
-					definition:
-						input.definition === null
-							? Prisma.DbNull
-							: (input.definition as Prisma.InputJsonValue),
-					kind: input.definition === null ? "STATIC" : "DYNAMIC",
-				}),
-			},
-			select: { id: true },
-		});
+		try {
+			return await this.db.marketingSegment.update({
+				where: { id: input.id },
+				data: {
+					...(input.name && { name: input.name }),
+					...(input.description !== undefined && {
+						description: input.description
+							? blankToNull(input.description)
+							: null,
+					}),
+					...(input.definition !== undefined && {
+						definition:
+							input.definition === null
+								? Prisma.DbNull
+								: (input.definition as Prisma.InputJsonValue),
+						kind: input.definition === null ? "STATIC" : "DYNAMIC",
+					}),
+				},
+				select: { id: true },
+			});
+		} catch (error) {
+			throw this.translate(error, input.name ?? input.id);
+		}
 	}
 
 	async archive(id: string) {
@@ -431,5 +442,26 @@ export class MarketingSegmentsService {
 			select: { id: true, name: true },
 			orderBy: { name: "asc" },
 		});
+	}
+
+	async campaignOptions() {
+		return this.db.marketingCampaign.findMany({
+			select: { id: true, name: true },
+			orderBy: { updatedAt: "desc" },
+		});
+	}
+
+	private translate(error: unknown, name: string): unknown {
+		if (error instanceof Prisma.PrismaClientKnownRequestError) {
+			if (error.code === "P2025") {
+				return new NotFoundException("That segment does not exist.");
+			}
+			if (error.code === "P2002") {
+				return new ConflictException(
+					`Another segment is already named ${name}.`,
+				);
+			}
+		}
+		return error;
 	}
 }

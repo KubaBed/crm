@@ -1,6 +1,7 @@
 import {
 	afterAll,
 	afterEach,
+	beforeAll,
 	beforeEach,
 	describe,
 	expect,
@@ -8,6 +9,7 @@ import {
 } from "bun:test";
 import { db } from "@crm/db";
 import {
+	type MarketingSettings,
 	RESEND_OAUTH,
 	readMarketingSettings,
 	resendConnection,
@@ -21,6 +23,7 @@ const realFetch = globalThis.fetch;
 type Call = { url: string; body: string };
 
 let calls: Call[] = [];
+let saved: MarketingSettings;
 
 function reply(status: number, body: unknown): Response {
 	return new Response(JSON.stringify(body), {
@@ -29,7 +32,9 @@ function reply(status: number, body: unknown): Response {
 	});
 }
 
-function stub(handler: (url: string, body: string) => Response): void {
+function stub(
+	handler: (url: string, body: string) => Response | Promise<Response>,
+): void {
 	globalThis.fetch = (async (
 		input: Parameters<typeof fetch>[0],
 		init?: Parameters<typeof fetch>[1],
@@ -41,6 +46,10 @@ function stub(handler: (url: string, body: string) => Response): void {
 	}) as typeof fetch;
 }
 
+function stateOf(url: string): string {
+	return new URL(url).searchParams.get("state") ?? "";
+}
+
 async function blank(): Promise<void> {
 	await writeMarketingSettings(db, {
 		resendApiKey: null,
@@ -49,10 +58,13 @@ async function blank(): Promise<void> {
 		resendAccessToken: null,
 		resendRefreshToken: null,
 		resendTokenExpires: null,
-		resendAuthState: null,
-		resendAuthVerifier: null,
 	});
+	await db.marketingResendAuthAttempt.deleteMany({});
 }
+
+beforeAll(async () => {
+	saved = await readMarketingSettings(db);
+});
 
 beforeEach(async () => {
 	calls = [];
@@ -64,7 +76,15 @@ afterEach(() => {
 });
 
 afterAll(async () => {
-	await blank();
+	await db.marketingResendAuthAttempt.deleteMany({});
+	await writeMarketingSettings(db, {
+		resendApiKey: saved.resendApiKey,
+		resendClientId: saved.resendClientId,
+		resendClientSecret: saved.resendClientSecret,
+		resendAccessToken: saved.resendAccessToken,
+		resendRefreshToken: saved.resendRefreshToken,
+		resendTokenExpires: saved.resendTokenExpires,
+	});
 });
 
 describe("connecting Resend with OAuth", () => {
@@ -91,27 +111,25 @@ describe("connecting Resend with OAuth", () => {
 
 		const { url } = await oauth.start();
 		const query = new URL(url).searchParams;
-		const settings = await readMarketingSettings(db);
+		const attempt = await db.marketingResendAuthAttempt.findUniqueOrThrow({
+			where: { state: stateOf(url) },
+		});
 
 		expect(url.startsWith(RESEND_OAUTH.authorize)).toBe(true);
 		expect(query.get("code_challenge_method")).toBe("S256");
-		expect(query.get("state")).toBe(settings.resendAuthState);
-		expect(query.get("scope")).toBe(RESEND_OAUTH.scope);
-		expect(query.get("code_challenge")).not.toBe(settings.resendAuthVerifier);
-		expect(url).not.toContain(settings.resendAuthVerifier ?? "never");
+		expect(query.get("code_challenge")).not.toBe(attempt.verifier);
+		expect(url).not.toContain(attempt.verifier);
 	});
 
-	it("refuses a callback whose state does not match, and clears the attempt", async () => {
+	it("refuses a callback for a sign-in that was not started here", async () => {
 		stub(() => reply(200, { client_id: "client-1" }));
 		await oauth.start();
 
 		await expect(oauth.finish("code-1", "not-the-state")).rejects.toThrow(
-			/does not match/,
+			/was not started here/,
 		);
 
-		const settings = await readMarketingSettings(db);
-		expect(settings.resendAuthState).toBeNull();
-		expect(settings.resendAuthVerifier).toBeNull();
+		expect(await db.marketingResendAuthAttempt.count()).toBe(1);
 	});
 
 	it("exchanges the code with the verifier and stores the grant", async () => {
@@ -125,23 +143,52 @@ describe("connecting Resend with OAuth", () => {
 					}),
 		);
 
-		await oauth.start();
-		const started = await readMarketingSettings(db);
-		await oauth.finish("code-1", started.resendAuthState ?? "");
+		const { url } = await oauth.start("/acme/marketing/setup/connect");
+		const state = stateOf(url);
+		const attempt = await db.marketingResendAuthAttempt.findUniqueOrThrow({
+			where: { state },
+		});
+
+		const finished = await oauth.finish("code-1", state);
 
 		const exchange = calls.find((call) => call.url === RESEND_OAUTH.token);
 		const sent = new URLSearchParams(exchange?.body ?? "");
 
 		expect(sent.get("grant_type")).toBe("authorization_code");
 		expect(sent.get("code")).toBe("code-1");
-		expect(sent.get("code_verifier")).toBe(started.resendAuthVerifier);
+		expect(sent.get("code_verifier")).toBe(attempt.verifier);
 		expect(sent.get("client_secret")).toBeNull();
+
+		expect(finished.returnTo).toBe("/acme/marketing/setup/connect");
+		expect(await db.marketingResendAuthAttempt.count()).toBe(0);
 
 		const settings = await readMarketingSettings(db);
 		expect(settings.resendAccessToken).toBe("access-1");
 		expect(settings.resendRefreshToken).toBe("refresh-1");
-		expect(settings.resendAuthVerifier).toBeNull();
 		expect(resendConnection(settings)).toBe("oauth");
+	});
+
+	it("keeps two concurrent starts apart, so one callback cannot clear the other", async () => {
+		stub((url) =>
+			url === RESEND_OAUTH.register
+				? reply(200, { client_id: "client-1" })
+				: reply(200, { access_token: "access-1", expires_in: 900 }),
+		);
+
+		const first = await oauth.start();
+		const second = await oauth.start();
+
+		await oauth.finish("code-2", stateOf(second.url));
+
+		expect(
+			await db.marketingResendAuthAttempt.count({
+				where: { state: stateOf(first.url) },
+			}),
+		).toBe(1);
+
+		expect((await readMarketingSettings(db)).resendAccessToken).toBe(
+			"access-1",
+		);
 	});
 
 	it("hands Resend's own refusal back rather than a generic one", async () => {
@@ -154,12 +201,11 @@ describe("connecting Resend with OAuth", () => {
 					}),
 		);
 
-		await oauth.start();
-		const started = await readMarketingSettings(db);
+		const { url } = await oauth.start();
 
-		await expect(
-			oauth.finish("code-1", started.resendAuthState ?? ""),
-		).rejects.toThrow("That code is spent.");
+		await expect(oauth.finish("code-1", stateOf(url))).rejects.toThrow(
+			"That code is spent.",
+		);
 	});
 });
 
@@ -248,6 +294,36 @@ describe("keeping the Resend token fresh", () => {
 		const settings = await readMarketingSettings(db);
 		expect(settings.resendRefreshToken).toBe("refresh-1");
 		expect(resendConnection(settings)).toBe("oauth");
+	});
+
+	it("drops a refresh that lands after a disconnect, so nothing is revived", async () => {
+		stub(async () => {
+			await writeMarketingSettings(db, {
+				resendAccessToken: null,
+				resendRefreshToken: null,
+				resendTokenExpires: null,
+			});
+
+			return reply(200, {
+				access_token: "access-2",
+				refresh_token: "refresh-2",
+				expires_in: 900,
+			});
+		});
+
+		await writeMarketingSettings(db, {
+			resendClientId: "client-1",
+			resendAccessToken: "access-1",
+			resendRefreshToken: "refresh-1",
+			resendTokenExpires: new Date(Date.now() - 1),
+		});
+
+		expect(await oauth.accessToken()).toBeNull();
+
+		const settings = await readMarketingSettings(db);
+		expect(settings.resendAccessToken).toBeNull();
+		expect(settings.resendRefreshToken).toBeNull();
+		expect(resendConnection(settings)).toBeNull();
 	});
 
 	it("falls back to the API key once a dead grant is cleared", async () => {

@@ -88,8 +88,11 @@ export function AudienceSheet({
 	const exitDefinition = useMemo(() => toDefinition(exit), [exit]);
 
 	const problems = useMemo(
-		() => [...ruleProblems(entry), ...ruleProblems(exit)],
-		[entry, exit],
+		() => [
+			...(source === "rules" ? ruleProblems(entry) : []),
+			...ruleProblems(exit),
+		],
+		[source, entry, exit],
 	);
 
 	const previewOptions = trpc.marketingSegments.preview.queryOptions({
@@ -133,7 +136,7 @@ export function AudienceSheet({
 	const matching =
 		source === "segment"
 			? same
-				? campaign.audience.sendable
+				? campaign.audience.total
 				: null
 			: (preview.data?.total ?? null);
 

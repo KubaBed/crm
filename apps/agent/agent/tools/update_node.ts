@@ -6,7 +6,7 @@ import { updateCampaignNode } from "../lib/marketing";
 
 export default defineTool({
 	description:
-		"Change one node in a campaign, in place. Use this for 'make touch three shorter' or 'wait five days instead of three' rather than rewriting the whole graph — it keeps every other node and every hand-placed position. Pass only the fields you are changing. It never activates anything. Free.",
+		"Change one node in a campaign, in place. Use this for 'make touch three shorter' or 'wait five days instead of three' rather than rewriting the whole graph — it keeps every other node and every hand-placed position. Pass only the fields you are changing. It never activates anything. After changing an EMAIL node, call review_email on it to see what a reader sees. Free.",
 	inputSchema: z.object({
 		nodeId: z
 			.string()

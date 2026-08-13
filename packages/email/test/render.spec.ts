@@ -54,7 +54,7 @@ describe("renderEmail", () => {
 		).rejects.toThrow("cannot be read");
 	});
 
-	test("renders an empty body without the shell", async () => {
+	test("renders an empty body and still appends the shell footer", async () => {
 		const { html } = await renderEmail({
 			document: { version: 1, blocks: [] },
 			shell,

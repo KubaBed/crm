@@ -211,6 +211,7 @@ describe("the header and footer the co-pilot can edit", () => {
 			data: {
 				kind: "FOOTER",
 				name: `${TAG} footer`,
+				isDefault: true,
 				document: { version: 1, blocks: [] },
 			},
 			select: { id: true },
@@ -230,6 +231,36 @@ describe("the header and footer the co-pilot can edit", () => {
 		expect(
 			await writeShell({ shellId: shell.id, document: { blocks: "no" } }),
 		).toHaveProperty("error");
+
+		await db.marketingPartial.delete({ where: { id: shell.id } });
+	});
+
+	it("refuses a header or footer outgoing mail does not wear", async () => {
+		const shell = await db.marketingPartial.create({
+			data: {
+				kind: "FOOTER",
+				name: `${TAG} spare footer`,
+				document: { version: 1, blocks: [] },
+			},
+			select: { id: true },
+		});
+
+		const written = await writeShell({
+			shellId: shell.id,
+			document: {
+				version: 1,
+				blocks: [{ type: "text", text: [{ text: "Never worn" }] }],
+			},
+		});
+
+		expect(written).toHaveProperty("error");
+
+		const kept = await db.marketingPartial.findUniqueOrThrow({
+			where: { id: shell.id },
+			select: { document: true },
+		});
+
+		expect(kept.document).toEqual({ version: 1, blocks: [] });
 
 		await db.marketingPartial.delete({ where: { id: shell.id } });
 	});

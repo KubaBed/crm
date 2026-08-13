@@ -103,31 +103,32 @@ export async function runMarketingBrand(): Promise<BrandPass> {
 		],
 	};
 
-	if (colour || logoUrl) {
-		await writeMarketingSettings(db, {
-			...(colour ? { brandColor: colour } : {}),
-			...(logoUrl ? { logoUrl } : {}),
-		});
-	}
+	await db.$transaction(async (tx) => {
+		if (colour || logoUrl) {
+			await writeMarketingSettings(tx, {
+				...(colour ? { brandColor: colour } : {}),
+				...(logoUrl ? { logoUrl } : {}),
+			});
+		}
 
-	await db.$transaction([
-		db.marketingPartial.create({
+		await tx.marketingPartial.create({
 			data: {
 				kind: "HEADER",
 				name: "Default header",
 				isDefault: true,
 				document: header,
 			},
-		}),
-		db.marketingPartial.create({
+		});
+
+		await tx.marketingPartial.create({
 			data: {
 				kind: "FOOTER",
 				name: "Default footer",
 				isDefault: true,
 				document: footer,
 			},
-		}),
-	]);
+		});
+	});
 
 	return {
 		wrote: true,

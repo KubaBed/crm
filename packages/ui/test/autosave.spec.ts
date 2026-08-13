@@ -1,8 +1,5 @@
 import { describe, expect, test } from "bun:test";
-
-function stableKey(value: unknown): string {
-	return JSON.stringify(value ?? null);
-}
+import { autosaveKey } from "../src/hooks/use-autosave";
 
 describe("what autosave decides to write", () => {
 	test("a redrawn object with the same contents is not a change", () => {
@@ -10,20 +7,42 @@ describe("what autosave decides to write", () => {
 		const second = { subject: "Hi", blocks: [{ type: "text" }] };
 
 		expect(first === second).toBe(false);
-		expect(stableKey(first)).toBe(stableKey(second));
+		expect(autosaveKey(first)).toBe(autosaveKey(second));
+	});
+
+	test("reordered properties are not a change", () => {
+		expect(autosaveKey({ subject: "Hi", blocks: [] })).toBe(
+			autosaveKey({ blocks: [], subject: "Hi" }),
+		);
+	});
+
+	test("reordered properties inside a block are not a change", () => {
+		expect(
+			autosaveKey({ blocks: [{ type: "text", text: [{ text: "Hi" }] }] }),
+		).toBe(autosaveKey({ blocks: [{ text: [{ text: "Hi" }], type: "text" }] }));
+	});
+
+	test("reordered blocks are a change", () => {
+		expect(
+			autosaveKey({ blocks: [{ type: "divider" }, { type: "text" }] }),
+		).not.toBe(
+			autosaveKey({ blocks: [{ type: "text" }, { type: "divider" }] }),
+		);
 	});
 
 	test("an edited field is a change", () => {
-		expect(stableKey({ subject: "Hi" })).not.toBe(stableKey({ subject: "Ho" }));
+		expect(autosaveKey({ subject: "Hi" })).not.toBe(
+			autosaveKey({ subject: "Ho" }),
+		);
 	});
 
 	test("an added block is a change", () => {
-		expect(stableKey({ blocks: [] })).not.toBe(
-			stableKey({ blocks: [{ type: "divider" }] }),
+		expect(autosaveKey({ blocks: [] })).not.toBe(
+			autosaveKey({ blocks: [{ type: "divider" }] }),
 		);
 	});
 
 	test("undefined and null settle to the same key", () => {
-		expect(stableKey(undefined)).toBe(stableKey(null));
+		expect(autosaveKey(undefined)).toBe(autosaveKey(null));
 	});
 });

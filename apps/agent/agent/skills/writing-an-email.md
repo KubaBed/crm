@@ -55,9 +55,10 @@ no `paragraph` type. Blocks are positional.
 
 Write them inside a run's text: `{{contact.firstName|there}}`. The part after
 the pipe is the fallback and it is not optional in practice — a tag with no
-fallback renders empty for anybody missing that field. `contact.firstName`,
-`contact.lastName`, `company.name`, `workspace.name` and `sender.name` are the
-ones that resolve.
+fallback renders empty for anybody missing that field. Nine tags resolve, and
+no others: `contact.firstName`, `contact.lastName`, `contact.email`,
+`contact.title`, `company.name`, `company.domain`, `workspace.name`,
+`sender.name` and `sender.email`.
 
 ## What the compiler adds, and you cannot
 
@@ -84,3 +85,9 @@ It warns about a subject over 50 characters, and about a missing preheader.
 The tool returns `problems` with a `path` and a `message` for each — read them
 rather than guessing again. It also returns `shapes`, which is this vocabulary.
 One corrected call is the expectation, not ten probes.
+
+## After a write is accepted
+
+Call `review_email` on what you saved. The linter checks structure, not looks —
+a valid document can still open on a wall of image. The review renders the real
+email at desktop and mobile width and reports what a reader sees first.

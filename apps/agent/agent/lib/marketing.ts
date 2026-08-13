@@ -277,10 +277,25 @@ export async function writeShell(input: {
 }) {
 	const shell = await db.marketingPartial.findUnique({
 		where: { id: input.shellId },
-		select: { kind: true },
+		select: { kind: true, isDefault: true, archivedAt: true },
 	});
 
 	if (!shell) return { error: "No header or footer with that id." };
+
+	if (!shell.isDefault || shell.archivedAt) {
+		const worn = await db.marketingPartial.findFirst({
+			where: { kind: shell.kind, isDefault: true, archivedAt: null },
+			select: { id: true },
+		});
+
+		const name = shell.kind === "HEADER" ? "header" : "footer";
+
+		return {
+			error: worn
+				? `Outgoing email wears only the default ${name}, and this is not it. Writing it would change nothing anybody receives. Call this again with shellId ${worn.id}.`
+				: `Outgoing email wears only the default ${name}, and this is not it. There is no default ${name} yet, so nothing can be rewritten.`,
+		};
+	}
 
 	const document = readDocument(input.document);
 
@@ -509,7 +524,7 @@ export async function writeCampaignGraph(input: {
 							by: ["currentNodeId"],
 							where: {
 								campaignId: input.campaignId,
-								status: "ACTIVE",
+								status: { in: ["ACTIVE", "PAUSED"] },
 								currentNodeId: { in: removing },
 							},
 							_count: { _all: true },

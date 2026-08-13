@@ -156,7 +156,7 @@ export function documentProblems(value: unknown): DocumentProblem[] {
 	const parsed = emailDocument.safeParse(value);
 	if (parsed.success) return [];
 
-	return parsed.error.issues.slice(0, 8).map((issue) => ({
+	return parsed.error.issues.map((issue) => ({
 		path: issue.path.length > 0 ? issue.path.join(".") : "document",
 		message: issue.message,
 	}));
@@ -171,6 +171,8 @@ export const BLOCK_SHAPES = {
 	quote: '{ "type": "quote", "text": [{ "text": "…" }] }',
 	divider: '{ "type": "divider" }',
 	spacer: '{ "type": "spacer", "size": "sm" | "md" | "lg" }',
+	columns:
+		'{ "type": "columns", "columns": [ [ …blocks… ], [ …blocks… ] ] } — 2 or 3 arrays of blocks, nested at most twice.',
 	document: '{ "version": 1, "blocks": [ … ] }',
 	inline:
 		'Every "text" field is an ARRAY of runs, not a string: [{ "text": "Hi" }, { "text": "there", "bold": true }]. A run may carry bold, italic, href.',

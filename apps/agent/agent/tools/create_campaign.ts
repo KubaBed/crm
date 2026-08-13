@@ -25,16 +25,20 @@ export default defineTool({
 			),
 	}),
 	async execute(input) {
-		const segments = [
-			...(input.segmentIds ?? []).map((segmentId) => ({
-				segmentId,
-				mode: "INCLUDE" as const,
-			})),
-			...(input.excludeSegmentIds ?? []).map((segmentId) => ({
-				segmentId,
-				mode: "EXCLUDE" as const,
-			})),
-		];
+		const chosen = new Map<string, "INCLUDE" | "EXCLUDE">();
+
+		for (const segmentId of input.segmentIds ?? []) {
+			chosen.set(segmentId, "INCLUDE");
+		}
+
+		for (const segmentId of input.excludeSegmentIds ?? []) {
+			chosen.set(segmentId, "EXCLUDE");
+		}
+
+		const segments = [...chosen].map(([segmentId, mode]) => ({
+			segmentId,
+			mode,
+		}));
 
 		const campaign = await db.marketingCampaign.create({
 			data: {

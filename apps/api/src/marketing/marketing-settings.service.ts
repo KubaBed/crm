@@ -10,6 +10,7 @@ import {
 	type SetupStep,
 	writeMarketingSettings,
 } from "@crm/db/marketing";
+import { WORKSPACE_ID } from "@crm/db/workspace";
 import { BadRequestException, Injectable } from "@nestjs/common";
 import { AgentTriggerService } from "../agent/agent-trigger.service";
 import { blankToNull, normalizeEmail } from "../crm/values";
@@ -109,12 +110,36 @@ export class MarketingSettingsService {
 	}
 
 	async connectStart(): Promise<{ url: string }> {
-		return this.oauth.start();
+		return this.oauth.start(await this.connectReturnPath());
 	}
 
-	async connectFinish(code: string, state: string): Promise<void> {
-		await this.oauth.finish(code, state);
+	private async connectReturnPath(): Promise<string> {
+		const [settings, workspace] = await Promise.all([
+			readMarketingSettings(this.db),
+			this.db.organization.findUnique({
+				where: { id: WORKSPACE_ID },
+				select: { slug: true },
+			}),
+		]);
+
+		const base = workspace?.slug ? `/${workspace.slug}` : "";
+
+		return settings.onboardedAt
+			? `${base}/marketing/settings`
+			: `${base}/marketing/setup/connect`;
+	}
+
+	async connectFinish(
+		code: string,
+		state: string,
+	): Promise<{ returnTo: string | null }> {
+		const finished = await this.oauth.finish(code, state);
 		await this.agent.marketingConnected().catch(() => {});
+		return finished;
+	}
+
+	async abandonConnect(state: string): Promise<{ returnTo: string | null }> {
+		return this.oauth.abandon(state);
 	}
 
 	async saveIdentity(input: {
@@ -369,7 +394,7 @@ export class MarketingSettingsService {
 	}
 
 	async markOnboarded(): Promise<void> {
+		await ensureDefaultSegments(this.db);
 		await writeMarketingSettings(this.db, { onboardedAt: new Date() });
-		await ensureDefaultSegments(this.db).catch(() => 0);
 	}
 }

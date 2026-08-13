@@ -52,14 +52,14 @@ model User {
 }
 
 model SlackMemberMatch {
-  id                  String   @id @default(cuid())
-  crmUserId           String   @unique
-  crmUser             User     @relation(fields: [crmUserId], references: [id], onDelete: Cascade)
-  slackUserId         String?
-  slackHandle         String?
-  slackEmail          String?
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
+  id          String   @id @default(cuid())
+  crmUserId   String   @unique
+  crmUser     User     @relation(fields: [crmUserId], references: [id], onDelete: Cascade)
+  slackUserId String?
+  slackHandle String?
+  slackEmail  String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   @@index([slackUserId])
   @@map("slackMemberMatch")
@@ -384,11 +384,11 @@ model Contact {
   visitors        TrackedVisitor[]   @relation("VisitorContact")
   submissions     FormSubmission[]   @relation("SubmissionContact")
 
-  marketingRecipients MarketingRecipient[]      @relation("RecipientContact")
+  marketingRecipients MarketingRecipient[]     @relation("RecipientContact")
   marketingSegments   MarketingSegmentMember[]
   marketingEnrolments MarketingEnrolment[]
-  createdAt       DateTime           @default(now())
-  updatedAt       DateTime           @updatedAt
+  createdAt           DateTime                 @default(now())
+  updatedAt           DateTime                 @updatedAt
 
   @@index([companyId])
   @@index([ownerId])
@@ -518,12 +518,16 @@ model AgentConversation {
   dealId    String?
   deal      Deal?    @relation(fields: [dealId], references: [id], onDelete: Cascade)
 
-  campaignId String?
-  campaign   MarketingCampaign? @relation(fields: [campaignId], references: [id], onDelete: Cascade)
-  segmentId  String?
-  segment    MarketingSegment?  @relation(fields: [segmentId], references: [id], onDelete: Cascade)
-  templateId String?
-  template   MarketingTemplate? @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  campaignId     String?
+  campaign       MarketingCampaign?     @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  campaignNodeId String?
+  campaignNode   MarketingCampaignNode? @relation(fields: [campaignNodeId], references: [id], onDelete: Cascade)
+  segmentId      String?
+  segment        MarketingSegment?      @relation(fields: [segmentId], references: [id], onDelete: Cascade)
+  templateId     String?
+  template       MarketingTemplate?     @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  shellId        String?
+  shell          MarketingPartial?      @relation(fields: [shellId], references: [id], onDelete: Cascade)
 
   userId String
   user   User   @relation("ConversationOwner", fields: [userId], references: [id], onDelete: Cascade)
@@ -556,8 +560,10 @@ model AgentConversation {
   @@index([companyId, lastMessageAt])
   @@index([dealId, lastMessageAt])
   @@index([campaignId, lastMessageAt])
+  @@index([campaignNodeId, lastMessageAt])
   @@index([segmentId, lastMessageAt])
   @@index([templateId, lastMessageAt])
+  @@index([shellId, lastMessageAt])
   @@index([userId, kind, lastMessageAt])
   @@index([agentId, lastMessageAt])
   @@map("agentConversation")
@@ -1291,15 +1297,15 @@ model AppSetting {
 
   ratesRefreshedAt DateTime?
 
-  trackingSiteId           String?  @unique
-  trackingCrossDomain      Boolean  @default(true)
-  trackingLimitToDomains   Boolean  @default(true)
-  trackingCookieSubdomains Boolean  @default(false)
-  trackingSecureCookies    Boolean  @default(true)
-  trackingHonourDnt        Boolean  @default(true)
-  trackingCookieDays       Int      @default(395)
+  trackingSiteId           String? @unique
+  trackingCrossDomain      Boolean @default(true)
+  trackingLimitToDomains   Boolean @default(true)
+  trackingCookieSubdomains Boolean @default(false)
+  trackingSecureCookies    Boolean @default(true)
+  trackingHonourDnt        Boolean @default(true)
+  trackingCookieDays       Int     @default(395)
   trackingConfigHash       String?
-  trackingPaused           Boolean  @default(false)
+  trackingPaused           Boolean @default(false)
 
   marketingResendApiKey   String?
   marketingResendDomainId String?
@@ -1322,12 +1328,19 @@ model AppSetting {
   marketingResendAccessToken  String?
   marketingResendRefreshToken String?
   marketingResendTokenExpires DateTime?
-  marketingResendAuthState    String?
-  marketingResendAuthVerifier String?
 
   updatedAt DateTime @updatedAt
 
   @@map("appSetting")
+}
+
+model MarketingResendAuthAttempt {
+  state     String   @id
+  verifier  String
+  returnTo  String?
+  createdAt DateTime @default(now())
+
+  @@map("marketingResendAuthAttempt")
 }
 
 enum DomainScope {
@@ -1354,14 +1367,14 @@ model TrackedVisitor {
   contactId String?
   contact   Contact? @relation("VisitorContact", fields: [contactId], references: [id], onDelete: SetNull)
 
-  firstSource     String?
-  firstMedium     String?
-  firstCampaign   String?
-  firstTerm       String?
-  firstContent    String?
-  firstReferrer   String?
-  firstLanding    String?
-  firstTouchAt    DateTime?
+  firstSource   String?
+  firstMedium   String?
+  firstCampaign String?
+  firstTerm     String?
+  firstContent  String?
+  firstReferrer String?
+  firstLanding  String?
+  firstTouchAt  DateTime?
 
   lastSource   String?
   lastMedium   String?
@@ -1706,6 +1719,8 @@ model MarketingPartial {
   headerFor MarketingTemplate[] @relation("TemplateHeader")
   footerFor MarketingTemplate[] @relation("TemplateFooter")
 
+  conversations AgentConversation[]
+
   archivedAt DateTime?
   createdAt  DateTime  @default(now())
   updatedAt  DateTime  @updatedAt
@@ -1805,7 +1820,7 @@ model MarketingCampaign {
   exitDefinition  Json?
 
   reentryCooldownDays Int?
-  maxPasses           Int @default(1)
+  maxPasses           Int  @default(1)
 
   fromName    String?
   fromAddress String?
@@ -1859,9 +1874,10 @@ model MarketingCampaignNode {
   x Float @default(0)
   y Float @default(0)
 
-  outgoing MarketingCampaignEdge[] @relation("EdgeFrom")
-  incoming MarketingCampaignEdge[] @relation("EdgeTo")
-  sends    MarketingSend[]
+  outgoing      MarketingCampaignEdge[] @relation("EdgeFrom")
+  incoming      MarketingCampaignEdge[] @relation("EdgeTo")
+  sends         MarketingSend[]
+  conversations AgentConversation[]
 
   @@index([campaignId])
   @@map("marketingCampaignNode")

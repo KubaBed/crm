@@ -179,6 +179,7 @@ export function CampaignEnrolments({ campaignId }: { campaignId: string }) {
 					<ExportCsv
 						name={`enrolments-${phase}`}
 						total={enrolments.data?.total ?? 0}
+						disabled={enrolments.isFetching}
 						columns={[
 							{ header: "Name", value: nameOf },
 							{ header: "Address", value: (row: Row) => row.contact.email },

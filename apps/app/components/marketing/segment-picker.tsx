@@ -70,8 +70,13 @@ export function SegmentPicker({
 
 	const remove = (id: string) => onChange(value.filter((one) => one.id !== id));
 
+	const query = search.trim().toLowerCase();
 	const options = all
 		.filter((segment) => !chosen.has(segment.id))
+		.filter(
+			(segment) =>
+				query === "" || segment.name.toLowerCase().includes(query),
+		)
 		.map((segment) => ({ value: segment.id, label: segment.name }));
 
 	const included = value.filter((one) => one.mode === "INCLUDE");

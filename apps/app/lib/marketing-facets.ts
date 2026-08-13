@@ -176,6 +176,14 @@ const CAMPAIGN_FACETS = new Set([
 	"marketing.inCampaign",
 ]);
 
+export const TEXT_FIELD_TYPES = new Set([
+	"TEXT",
+	"LONG_TEXT",
+	"URL",
+	"EMAIL",
+	"PHONE",
+]);
+
 type Facet = Record<string, unknown> & { facet: string };
 
 export const UNSUPPORTED_RULE = {
@@ -214,6 +222,12 @@ function checkRule(rule: RuleRow): RuleResult {
 	const raw = rule.value.trim();
 	if (raw === "") return { message: `${spec.label} needs a value.` };
 
+	const overLimit = (candidate: string) =>
+		candidate.length > FACET_LIMITS.text.max;
+	const tooLong = {
+		message: `${spec.label} takes up to ${FACET_LIMITS.text.max} characters.`,
+	};
+
 	if (spec.field.kind === "list") {
 		const items = raw
 			.split(spec.field.separator)
@@ -221,6 +235,11 @@ function checkRule(rule: RuleRow): RuleResult {
 			.filter(Boolean);
 
 		if (items.length === 0) return { message: `${spec.label} needs a value.` };
+		if (items.some(overLimit)) {
+			return {
+				message: `${spec.label} takes up to ${FACET_LIMITS.text.max} characters per entry.`,
+			};
+		}
 
 		return { facet: { facet: rule.facet, [spec.field.key]: items } };
 	}
@@ -228,6 +247,7 @@ function checkRule(rule: RuleRow): RuleResult {
 	if (spec.field.kind === "pair") {
 		const extra = (rule.extra ?? "").trim();
 		if (extra === "") return { message: `${spec.label} needs a value.` };
+		if (overLimit(raw) || overLimit(extra)) return tooLong;
 
 		return {
 			facet: {
@@ -256,6 +276,18 @@ function checkRule(rule: RuleRow): RuleResult {
 
 		return { facet: { facet: rule.facet, [spec.field.key]: days } };
 	}
+
+	if (spec.field.kind === "choice") {
+		const options = spec.field.options;
+
+		if (options.length > 0 && !options.some((option) => option.value === raw)) {
+			return { message: `${spec.label} needs a choice from its list.` };
+		}
+
+		return { facet: { facet: rule.facet, [spec.field.key]: raw } };
+	}
+
+	if (overLimit(raw)) return tooLong;
 
 	return { facet: { facet: rule.facet, [spec.field.key]: raw } };
 }

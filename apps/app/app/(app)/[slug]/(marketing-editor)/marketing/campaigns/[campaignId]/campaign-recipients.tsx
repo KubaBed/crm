@@ -151,6 +151,7 @@ export function CampaignRecipients({ campaignId }: { campaignId: string }) {
 					<ExportCsv
 						name={`recipients-${state}`}
 						total={recipients.data?.total ?? 0}
+						disabled={recipients.isFetching}
 						columns={[
 							{ header: "Name", value: (row: Row) => row.name },
 							{ header: "Address", value: (row: Row) => row.recipient.address },

@@ -46,9 +46,13 @@ send something.
 
 **An install starts with four segments.** `ensureDefaultSegments` writes All
 contacts, Added in the last 30 days, Quiet for 60 days and No open deal. It runs
-on the seed and again when somebody finishes marketing setup, and it is
-idempotent by name, so a rep who renames one gets a fresh copy and a rep who
-deletes one gets it back on the next run. Every one of them carries
+on the seed and again when somebody finishes marketing setup — before
+`onboardedAt` is written, and a failure fails the finish rather than redirecting
+a rep into a workspace with no lists. While four live defaults exist it does
+nothing, so a rep who renames one keeps the rename and no copy appears. Below
+four it repairs each name: a deleted default comes back, a rep's own segment
+holding a default's name becomes that default, and a missing one is created —
+so a partial first run heals on the next. Every one of them carries
 `contact.hasEmail`, because a contact with no address is queued and skipped.
 
 ## Entry and exit are set operations
@@ -78,10 +82,17 @@ day somebody sends the drift to nine thousand people.
 composers, the template editor, the shell editor and the standalone preview page
 all use it, so the device toggle and the frame stay the same everywhere.
 
-The frame is `EMAIL_WIDTH` wide, imported from `@crm/email/theme`. **Never give
-the frame a percentage width.** The email is a 600px table and it does not
-shrink, so a narrow frame hides the right edge inside the iframe. The pane
-scrolls sideways instead, which a person can see and act on.
+The frame is the device width — `EMAIL_WIDTH` from `@crm/email/theme` for
+desktop, 390 for mobile. **Never give the frame a percentage width.** The
+preview answers "what does this email look like at this width", and a frame
+that tracks the pane answers a different question at every pane size.
+
+The email itself is fluid: the container is `width:100%` capped at
+`EMAIL_WIDTH`, an MSO conditional table holds Outlook's Word engine at the same
+fixed width, every image carries `max-width:100%` and every text block breaks
+long words. `overflow.spec.ts` in `packages/email` renders the adversarial
+shapes — pasted URLs, wide logos, oversized images — and fails on the first
+fixed width past `EMAIL_WIDTH`.
 
 An editor column beside the preview is `overflow-x-hidden`. One wide child used
 to shear the whole column sideways and clip every label.
@@ -170,7 +181,9 @@ draw either.
 After that a person owns them. They are rows in Templates, they open the same
 editor a template does, and the co-pilot has `read_shell` and `write_shell`.
 `write_shell` always asks a person first and is denied to an unattended run: it
-reaches every email anybody has already written.
+reaches every email anybody has already written. It accepts only the two
+defaults — outgoing mail wears nothing else, so a write to any other row would
+change nothing anybody receives and is refused rather than reported as done.
 
 ## A refused write says which field
 
@@ -190,6 +203,12 @@ ten times is a documentation failure, not a model failure.
 Fourteen tools in `apps/agent/agent/tools/`, all through `@crm/db/marketing`.
 `update_node` changes one node in place — use it for *"make touch three
 shorter"* rather than rewriting a graph and losing every hand-placed position.
+Selecting an email step on the canvas mounts the co-pilot beside its sheet, and
+the session's preamble names that node. The conversation files under the
+campaign **and** carries `campaignNodeId`, so the campaign rail lists only
+campaign-level threads and each step keeps its own. Closing the step returns
+the rail to the campaign's threads; `?thread=` resets on every node scope
+change. Edits land on the step the rep is looking at.
 `schedule_campaign` moves a draft to `PENDING_APPROVAL` with a note; it appears
 under **Waiting for you** on the Marketing overview and a person clicks Approve.
 That is the whole of the unattended lane: an overnight run stages, a human

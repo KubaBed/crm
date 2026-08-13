@@ -15,7 +15,10 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useId, useState } from "react";
 import { toast } from "sonner";
-import { SendingDomains } from "@/components/marketing/sending-domains";
+import {
+	SendingDomainActions,
+	SendingDomains,
+} from "@/components/marketing/sending-domains";
 import { useTRPC } from "@/lib/trpc/client";
 import { useWorkspaceUrl } from "@/lib/use-workspace-url";
 import { STEPS } from "./steps";
@@ -315,7 +318,12 @@ export function SetupWizard({ step }: { step: string }) {
 							title="Your sending domain"
 							blurb="Pick a domain you have already verified in Resend. Resend owns the DNS, so there is nothing to paste here."
 						>
-							<SendingDomains />
+							<div className="flex flex-col gap-2">
+								<div className="flex items-center gap-1 self-end">
+									<SendingDomainActions />
+								</div>
+								<SendingDomains />
+							</div>
 
 							{domain.data?.name ? (
 								<div className="flex flex-col gap-3">

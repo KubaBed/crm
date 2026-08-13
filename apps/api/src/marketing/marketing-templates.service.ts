@@ -21,7 +21,36 @@ import { MarketingComposeService } from "./marketing-compose.service";
 
 const GLYPH_LINES = 4;
 
-const EMAIL_IMAGE_TYPES = new Set(["image/png", "image/jpeg", "image/gif"]);
+const IMAGE_SIGNATURES = {
+	"image/png": [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a],
+	"image/jpeg": [0xff, 0xd8, 0xff],
+	"image/gif": [0x47, 0x49, 0x46, 0x38],
+} as const;
+
+type EmailImageType = keyof typeof IMAGE_SIGNATURES;
+
+const EMAIL_IMAGE_TYPES = new Set<string>(Object.keys(IMAGE_SIGNATURES));
+
+function isEmailImageType(type: string): type is EmailImageType {
+	return EMAIL_IMAGE_TYPES.has(type);
+}
+
+const BASE64 = /^[A-Za-z0-9+/]+={0,2}$/;
+
+function decodeBase64(content: string): Buffer | null {
+	const compact = content.replace(/\s+/g, "");
+	if (compact.length === 0 || compact.length % 4 !== 0) return null;
+	if (!BASE64.test(compact)) return null;
+
+	return Buffer.from(compact, "base64");
+}
+
+function matchesSignature(bytes: Buffer, type: EmailImageType): boolean {
+	const signature = IMAGE_SIGNATURES[type];
+	if (bytes.byteLength < signature.length) return false;
+
+	return signature.every((byte, at) => bytes[at] === byte);
+}
 
 const UNREADABLE_EMAIL =
 	"That email content cannot be read, so nothing can be previewed or sent. Undo the last change, or start the body again.";
@@ -88,39 +117,24 @@ export class MarketingTemplatesService {
 				{ updatedAt: "desc" },
 			);
 
-		const [rows, total] = await Promise.all([
-			this.db.marketingTemplate.findMany({
-				where,
-				orderBy,
-				...paginate(input),
+		const [shells, total] = await Promise.all([
+			this.db.marketingPartial.findMany({
+				where: {
+					archivedAt: null,
+					...(input.q && { name: { contains: input.q, mode: "insensitive" } }),
+				},
+				orderBy: [{ kind: "asc" }, { isDefault: "desc" }],
 				select: {
 					id: true,
+					kind: true,
 					name: true,
-					subject: true,
-					preheader: true,
 					document: true,
 					updatedAt: true,
-					_count: { select: { nodes: true } },
+					_count: { select: { headerFor: true, footerFor: true } },
 				},
 			}),
 			this.db.marketingTemplate.count({ where }),
 		]);
-
-		const shells = await this.db.marketingPartial.findMany({
-			where: {
-				archivedAt: null,
-				...(input.q && { name: { contains: input.q, mode: "insensitive" } }),
-			},
-			orderBy: [{ kind: "asc" }, { isDefault: "desc" }],
-			select: {
-				id: true,
-				kind: true,
-				name: true,
-				document: true,
-				updatedAt: true,
-				_count: { select: { headerFor: true, footerFor: true } },
-			},
-		});
 
 		const shellRows = shells.map((shell) => ({
 			id: shell.id,
@@ -134,9 +148,33 @@ export class MarketingTemplatesService {
 			warnings: 0,
 		}));
 
+		const { skip, take } = paginate(input);
+		const visibleShells = shellRows.slice(skip, skip + take);
+		const templateSkip = Math.max(0, skip - shellRows.length);
+		const templateTake = take - visibleShells.length;
+
+		const rows =
+			templateTake > 0
+				? await this.db.marketingTemplate.findMany({
+						where,
+						orderBy,
+						skip: templateSkip,
+						take: templateTake,
+						select: {
+							id: true,
+							name: true,
+							subject: true,
+							preheader: true,
+							document: true,
+							updatedAt: true,
+							_count: { select: { nodes: true } },
+						},
+					})
+				: [];
+
 		return {
 			rows: [
-				...(input.page === 1 ? shellRows : []),
+				...visibleShells,
 				...rows.map((row) => {
 					const findings = lintEmail({
 						document: row.document,
@@ -159,7 +197,7 @@ export class MarketingTemplatesService {
 					};
 				}),
 			],
-			total,
+			total: shellRows.length + total,
 			facetCounts: {},
 		};
 	}
@@ -180,8 +218,10 @@ export class MarketingTemplatesService {
 
 		if (!row) return null;
 
-		const settings = await readMarketingSettings(this.db);
-		const workspace = await readWorkspaceIdentity(this.db).catch(() => null);
+		const [settings, workspace] = await Promise.all([
+			readMarketingSettings(this.db),
+			readWorkspaceIdentity(this.db).catch(() => null),
+		]);
 
 		return {
 			id: row.id,
@@ -242,22 +282,30 @@ export class MarketingTemplatesService {
 
 		const type = input.mimeType.split(";")[0]?.trim().toLowerCase() ?? "";
 
-		if (!EMAIL_IMAGE_TYPES.has(type)) {
+		if (!isEmailImageType(type)) {
 			throw new BadRequestException(
 				`Use a PNG, a JPEG or a GIF. Outlook draws none of the rest, ${type || "that type"} included.`,
 			);
 		}
 
-		const bytes = Buffer.from(input.contentBase64, "base64");
+		const bytes = decodeBase64(input.contentBase64);
 
-		if (bytes.byteLength === 0) {
-			throw new BadRequestException("That file is empty.");
+		if (!bytes || bytes.byteLength === 0) {
+			throw new BadRequestException(
+				"That file is empty, or it is not valid base64. Upload the image again.",
+			);
 		}
 
 		if (bytes.byteLength > MARKETING.image.maxBytes) {
 			const mb = Math.round(MARKETING.image.maxBytes / (1024 * 1024));
 			throw new BadRequestException(
 				`That image is over ${mb} MB. A big image is slow in a phone inbox, so shrink it first.`,
+			);
+		}
+
+		if (!matchesSignature(bytes, type)) {
+			throw new BadRequestException(
+				`That file's content is not ${type}. Export it again as a PNG, a JPEG or a GIF, then upload it.`,
 			);
 		}
 

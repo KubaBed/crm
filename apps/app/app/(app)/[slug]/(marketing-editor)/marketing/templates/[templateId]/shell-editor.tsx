@@ -8,11 +8,7 @@ import {
 import { EmailPreview } from "@crm/ui/components/email-preview";
 import { Icon } from "@crm/ui/components/icon";
 import { Spinner } from "@crm/ui/components/spinner";
-import {
-	saveLabel,
-	useAutosave,
-	useSaveStatus,
-} from "@crm/ui/hooks/use-autosave";
+import { saveLabel, useAutosave } from "@crm/ui/hooks/use-autosave";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
@@ -67,7 +63,6 @@ export function ShellEditor({ shellId }: { shellId: string }) {
 	const save = useMutation(
 		trpc.marketingTemplates.savePartial.mutationOptions({
 			onSuccess: async () => {
-				setDirty(false);
 				await queryClient.invalidateQueries({
 					queryKey: trpc.marketingTemplates.shellById.queryKey({ id: shellId }),
 				});
@@ -76,12 +71,10 @@ export function ShellEditor({ shellId }: { shellId: string }) {
 		}),
 	);
 
-	const status = useSaveStatus(save.isPending);
-
-	useAutosave(
+	const status = useAutosave(
 		{ name, blocks },
 		(draft) =>
-			save.mutate({
+			save.mutateAsync({
 				id: shellId,
 				name: draft.name,
 				document: { version: 1, blocks: draft.blocks } as unknown as Record<
@@ -89,7 +82,7 @@ export function ShellEditor({ shellId }: { shellId: string }) {
 					unknown
 				>,
 			}),
-		{ enabled: dirty },
+		{ enabled: dirty, onSaved: () => setDirty(false) },
 	);
 
 	if (shell.isPending) {
@@ -138,7 +131,18 @@ export function ShellEditor({ shellId }: { shellId: string }) {
 					]}
 				/>
 			}
-			rail={<CopilotRail record={{ kind: "shell", id: shellId }} />}
+			rail={
+				<CopilotRail
+					record={{ kind: "shell", id: shellId }}
+					onFinish={() =>
+						queryClient.invalidateQueries({
+							queryKey: trpc.marketingTemplates.shellById.queryKey({
+								id: shellId,
+							}),
+						})
+					}
+				/>
+			}
 		>
 			<div className="flex w-[400px] shrink-0 flex-col gap-4 overflow-y-auto overflow-x-hidden border-r p-4">
 				{data.kind === "HEADER" ? (

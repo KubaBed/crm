@@ -96,6 +96,8 @@ const NEW_NODE: Record<NewKind, Record<string, unknown>> = {
 	EXIT: { kind: "EXIT", label: "Stop here" },
 };
 
+const APPEND_KINDS = new Set<NodeKind>(["EMAIL", "WAIT"]);
+
 function newId(): string {
 	return `node_${Math.random().toString(36).slice(2, 12)}`;
 }
@@ -209,17 +211,33 @@ export function withNode(
 
 	const outgoing = new Set(edges.map((edge) => edge.fromId));
 	const anchor =
-		afterId ??
-		campaign.nodes.findLast((node) => !outgoing.has(node.id))?.id ??
-		campaign.nodes[campaign.nodes.length - 1]?.id ??
+		(afterId
+			? campaign.nodes.find((node) => node.id === afterId)
+			: undefined) ??
+		campaign.nodes.findLast(
+			(node) => APPEND_KINDS.has(node.kind) && !outgoing.has(node.id),
+		) ??
+		campaign.nodes.findLast((node) => APPEND_KINDS.has(node.kind)) ??
+		campaign.nodes[campaign.nodes.length - 1] ??
 		null;
 
 	const id = newId();
 	nodes.push({ id, ...NEW_NODE[kind] } as (typeof nodes)[number]);
 
-	const following = anchor
-		? edges.find((edge) => edge.fromId === anchor && edge.handle === "next")
-		: undefined;
+	if (!anchor) return { nodes, edges };
+
+	const replacing = anchor.kind === "EXIT";
+	const handle = anchor.kind === "BRANCH" ? "yes" : "next";
+
+	if (replacing) {
+		for (const edge of edges) {
+			if (edge.toId === anchor.id) edge.toId = id;
+		}
+	}
+
+	const following = replacing
+		? undefined
+		: edges.find((edge) => edge.fromId === anchor.id && edge.handle === handle);
 
 	if (kind === "BRANCH") {
 		const stop = newId();
@@ -249,17 +267,23 @@ export function withNode(
 		});
 	} else if (following) {
 		following.fromId = id;
+		following.handle = "next";
 	}
 
-	if (anchor) {
+	if (!replacing) {
 		edges.push({
-			fromId: anchor,
+			fromId: anchor.id,
 			toId: id,
-			handle: "next",
+			handle,
 			label: null,
 			weight: 100,
 		});
+
+		return { nodes, edges };
 	}
 
-	return { nodes, edges };
+	return {
+		nodes: nodes.filter((node) => node.id !== anchor.id),
+		edges: edges.filter((edge) => edge.fromId !== anchor.id),
+	};
 }

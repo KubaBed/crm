@@ -130,9 +130,12 @@ export function BlastComposer({
 	);
 
 	const sent = campaign.status === "SENT" || campaign.status === "SENDING";
+	const scheduled = campaign.status === "SCHEDULED";
 	const findings = preview.data?.lint ?? [];
 	const errors = findings.filter((finding) => finding.level === "error");
-	const shown = sent ? view : "flow";
+	const shown = sent
+		? (BLAST_VIEWS.find((option) => option === view) ?? "flow")
+		: "flow";
 	const sends = chosen.filter((one) => one.mode === "INCLUDE");
 
 	return (
@@ -147,6 +150,7 @@ export function BlastComposer({
 						campaignId={campaign.id}
 						kind="BLAST"
 						editable={campaign.status === "DRAFT"}
+						dirty={dirty}
 						onChanged={onChanged}
 					/>
 					<span className="shrink-0 text-xs">
@@ -175,7 +179,7 @@ export function BlastComposer({
 			}
 			actions={
 				<>
-					{sent ? null : (
+					{sent || scheduled ? null : (
 						<ScheduleSend
 							campaignId={campaign.id}
 							disabled={
@@ -225,7 +229,7 @@ export function BlastComposer({
 			}
 			rail={
 				<CopilotRail
-					record={{ kind: "campaign", id: campaign.id }}
+					record={{ kind: "campaign", id: campaign.id, campaignKind: "BLAST" }}
 					onFinish={onChanged}
 				/>
 			}

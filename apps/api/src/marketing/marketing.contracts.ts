@@ -129,9 +129,14 @@ export const RECIPIENT_STATES = [
 
 export const ENROLMENT_STATES = ["all", "active", "stuck", "exited"] as const;
 
-export const campaignPageInput = listInput.extend({
+export const recipientsPageInput = listInput.extend({
 	campaignId: z.string().min(1),
-	state: z.string().default("all"),
+	state: z.string().default("all").pipe(z.enum(RECIPIENT_STATES)),
+});
+
+export const enrolmentsPageInput = listInput.extend({
+	campaignId: z.string().min(1),
+	state: z.string().default("all").pipe(z.enum(ENROLMENT_STATES)),
 });
 
 export const enrolInput = z.object({

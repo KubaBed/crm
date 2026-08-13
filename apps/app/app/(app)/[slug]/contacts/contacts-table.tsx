@@ -196,6 +196,7 @@ export function ContactsTable() {
 					<ExportCsv
 						name="contacts"
 						total={contacts.data?.total ?? 0}
+						disabled={contacts.isFetching}
 						columns={[
 							{ header: "Name", value: (row: ContactRow) => contactName(row) },
 							{ header: "Email", value: (row: ContactRow) => row.email },

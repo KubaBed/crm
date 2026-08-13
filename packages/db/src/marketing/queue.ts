@@ -63,7 +63,9 @@ export async function materialise(
 					preheader: true,
 					document: true,
 					kind: true,
-					template: { select: { subject: true, document: true } },
+					template: {
+						select: { subject: true, preheader: true, document: true },
+					},
 				},
 			},
 		},

@@ -1,5 +1,6 @@
 import { db } from "@crm/db";
 import { websiteUrl } from "@crm/db/workspace";
+import { readDocument } from "@crm/email/document";
 import { capabilitiesMarkdown } from "./capabilities";
 import { identity, usMarkdown, type WorkspaceIdentity } from "./workspace";
 
@@ -21,6 +22,7 @@ export async function sessionPreamble(
 		companyId?: string | null;
 		dealId?: string | null;
 		campaignId?: string | null;
+		campaignNodeId?: string | null;
 		segmentId?: string | null;
 		templateId?: string | null;
 		shellId?: string | null;
@@ -31,7 +33,8 @@ export async function sessionPreamble(
 	if (record.contactId) return contactPreamble(record.contactId, opened);
 	if (record.companyId) return companyPreamble(record.companyId, opened);
 	if (record.dealId) return dealPreamble(record.dealId, opened);
-	if (record.campaignId) return campaignPreamble(record.campaignId);
+	if (record.campaignId)
+		return campaignPreamble(record.campaignId, record.campaignNodeId);
 	if (record.segmentId) return segmentPreamble(record.segmentId);
 	if (record.templateId) return templatePreamble(record.templateId);
 	if (record.shellId) return shellPreamble(record.shellId);
@@ -309,7 +312,10 @@ export async function dealPreamble(
 	return { markdown, focus: { companyId: deal.company?.id ?? null } };
 }
 
-export async function campaignPreamble(campaignId: string): Promise<Preamble> {
+export async function campaignPreamble(
+	campaignId: string,
+	nodeId?: string | null,
+): Promise<Preamble> {
 	const campaign = await db.marketingCampaign.findUnique({
 		where: { id: campaignId },
 		select: {
@@ -324,6 +330,13 @@ export async function campaignPreamble(campaignId: string): Promise<Preamble> {
 	});
 
 	if (!campaign) return { markdown: await closing(), focus: {} };
+
+	const node = nodeId
+		? await db.marketingCampaignNode.findFirst({
+				where: { id: nodeId, campaignId, kind: "EMAIL" },
+				select: { label: true, subject: true },
+			})
+		: null;
 
 	const named = (mode: "INCLUDE" | "EXCLUDE") =>
 		campaign.segments
@@ -344,11 +357,25 @@ export async function campaignPreamble(campaignId: string): Promise<Preamble> {
 			: "It has no segment yet, so it cannot send.",
 		excluded ? `It excludes ${excluded}.` : null,
 		"",
+		node
+			? [
+					`They have the email step **${node.label ?? node.subject ?? "an untitled email"}** open in the editor beside you — node id \`${nodeId}\`.`,
+					"That email is what they are talking about unless they say otherwise.",
+					"Change it with `update_node` on that node id — subject, preheader and",
+					"body copy. Do not rewrite the graph for a change to this one email,",
+					"and touch other steps only when they ask.",
+				].join(" ")
+			: null,
+		node ? "" : null,
 		editThisOne("campaign", campaignId, "write_campaign_graph", "campaignId"),
 		"",
 		"Start with `read_campaign` on that id. Preview with `campaign_stats` when",
 		"they ask how it is doing. Read the `building-a-drip` skill before you",
 		"write a graph.",
+		"",
+		"Before you tell the rep an email is done, call `review_email` on it. It",
+		"renders the real email at both widths and reports what a reader sees",
+		"first — the linter accepts documents that open on a wall of image.",
 		"",
 		"**You cannot activate a campaign and there is no tool that does.** Write",
 		"the graph, say what you changed, and let the rep click Activate.",
@@ -402,29 +429,50 @@ export async function templatePreamble(templateId: string): Promise<Preamble> {
 		select: {
 			name: true,
 			subject: true,
+			document: true,
 			_count: { select: { nodes: true } },
 		},
 	});
 
 	if (!template) return { markdown: await closing(), focus: {} };
 
+	const blocks = readDocument(template.document)?.blocks.length ?? 0;
+	const empty = blocks === 0 && !template.subject;
+
 	const markdown = [
 		"## This session",
 		"",
 		`A rep has the template **${template.name}** open and is talking to you.`,
-		template.subject
-			? `Its subject is "${template.subject}".`
-			: "It has no subject yet, which the linter refuses.",
+		empty
+			? [
+					"It is brand new — no subject, no body, nothing written yet. Ask what",
+					"it is for if the rep has not said — who receives it and what one",
+					"thing it says — then write the whole template: name, subject,",
+					"preheader and body in one `write_template` call.",
+				].join(" ")
+			: null,
+		!empty && template.subject ? `Its subject is "${template.subject}".` : null,
+		!empty && !template.subject
+			? "It has no subject yet, which the linter refuses."
+			: null,
 		`Used by ${template._count.nodes} node(s).`,
 		"",
 		editThisOne("template", templateId, "write_template", "templateId"),
 		"",
-		"Start with `read_template` on that id. You write body copy only — the",
-		"header, the footer, the postal address and the unsubscribe link come from",
-		"the shell and are not yours to set.",
+		"Start with `read_template` on that id. Read the `creating-a-template`",
+		"skill before you write — what a good template contains — and",
+		"`writing-an-email` for the block document shape. You write body copy",
+		"only — the header, the footer, the postal address and the unsubscribe",
+		"link come from the shell and are not yours to set.",
+		"",
+		"Before you tell the rep it is done, call `review_email` on that id. It",
+		"renders the real email at both widths and reports what a reader sees",
+		"first — the linter accepts documents that open on a wall of image.",
 		"",
 		await closing(),
-	].join("\n");
+	]
+		.filter((line) => line !== null)
+		.join("\n");
 
 	return { markdown, focus: {} };
 }

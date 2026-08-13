@@ -4,7 +4,7 @@ import { writeTemplate } from "../lib/marketing";
 
 export default defineTool({
 	description:
-		"Read the `writing-an-email` skill first: the block document shape is not guessable. Create or update a marketing email template from a block document. The linter runs first and refuses errors back to you — fix them and call again. You write the body only; the header, the footer, the postal address and the unsubscribe link are added by the compiler and are not yours to set. Free.",
+		"Read the `creating-a-template` skill first for what a good template contains, and `writing-an-email` for the block document shape, which is not guessable. Create or update a marketing email template from a block document. The linter runs first and refuses errors back to you — fix them and call again. You write the body only; the header, the footer, the postal address and the unsubscribe link are added by the compiler and are not yours to set. After a save is accepted, call review_email to see what a reader sees — the linter checks structure, not looks. Free.",
 	inputSchema: z.object({
 		templateId: z.string().optional(),
 		name: z.string().min(1).max(160),

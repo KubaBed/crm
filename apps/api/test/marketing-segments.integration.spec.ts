@@ -50,3 +50,24 @@ describe("a segment update", () => {
 		expect(row?.kind).toBe("DYNAMIC");
 	});
 });
+
+describe("a segment name collision", () => {
+	it("rejects a create that reuses a name", async () => {
+		const name = `${TAG} taken`;
+		await segments.create({ name });
+
+		await expect(segments.create({ name })).rejects.toThrow(
+			`Another segment is already named ${name}.`,
+		);
+	});
+
+	it("rejects a rename onto an existing name", async () => {
+		const name = `${TAG} occupied`;
+		await segments.create({ name });
+		const id = await make();
+
+		await expect(segments.update({ id, name })).rejects.toThrow(
+			`Another segment is already named ${name}.`,
+		);
+	});
+});

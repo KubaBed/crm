@@ -83,8 +83,12 @@ export class ConversationsService {
 				companyId: input.companyId ?? undefined,
 				dealId: input.dealId ?? undefined,
 				campaignId: input.campaignId ?? undefined,
+				campaignNodeId: input.campaignId
+					? (input.campaignNodeId ?? null)
+					: undefined,
 				segmentId: input.segmentId ?? undefined,
 				templateId: input.templateId ?? undefined,
+				shellId: input.shellId ?? undefined,
 			},
 			orderBy: { lastMessageAt: "desc" },
 			take: 20,
@@ -762,9 +766,10 @@ export class ConversationsService {
 	}
 
 	async save(
-		input: ConversationSaveInput,
+		rawInput: ConversationSaveInput,
 		userId: string,
 	): Promise<{ id: string }> {
+		const input = await this.withLiveNode(rawInput);
 		const recordId = this.recordId(input);
 		const updateExisting = async (existing: {
 			id: string;
@@ -774,8 +779,10 @@ export class ConversationsService {
 			companyId: string | null;
 			dealId: string | null;
 			campaignId: string | null;
+			campaignNodeId: string | null;
 			segmentId: string | null;
 			templateId: string | null;
+			shellId: string | null;
 		}) => {
 			if (existing.userId !== userId || existing.kind !== "RECORD") {
 				throw new NotFoundException(
@@ -789,8 +796,12 @@ export class ConversationsService {
 				existing.dealId ??
 				existing.campaignId ??
 				existing.segmentId ??
-				existing.templateId;
-			if (existingRecordId !== recordId) {
+				existing.templateId ??
+				existing.shellId;
+			if (
+				existingRecordId !== recordId ||
+				existing.campaignNodeId !== (input.campaignNodeId ?? null)
+			) {
 				throw new BadRequestException(
 					"A conversation cannot be moved to another CRM record.",
 				);
@@ -805,8 +816,10 @@ export class ConversationsService {
 					companyId: input.companyId ?? null,
 					dealId: input.dealId ?? null,
 					campaignId: input.campaignId ?? null,
+					campaignNodeId: input.campaignNodeId ?? null,
 					segmentId: input.segmentId ?? null,
 					templateId: input.templateId ?? null,
+					shellId: input.shellId ?? null,
 				},
 				data: {
 					continuationToken: input.continuationToken ?? null,
@@ -835,8 +848,10 @@ export class ConversationsService {
 				companyId: true,
 				dealId: true,
 				campaignId: true,
+				campaignNodeId: true,
 				segmentId: true,
 				templateId: true,
+				shellId: true,
 			},
 		});
 		let conversation: { id: string };
@@ -857,12 +872,19 @@ export class ConversationsService {
 						companyId: input.companyId ?? null,
 						dealId: input.dealId ?? null,
 						campaignId: input.campaignId ?? null,
+						campaignNodeId: input.campaignNodeId ?? null,
 						segmentId: input.segmentId ?? null,
 						templateId: input.templateId ?? null,
+						shellId: input.shellId ?? null,
 					},
 					select: { id: true },
 				});
 			} catch (error) {
+				if (isForeignKeyConstraint(error)) {
+					throw new BadRequestException(
+						"That conversation points at a record that no longer exists.",
+					);
+				}
 				if (!isUniqueConstraint(error)) throw error;
 				const winner = await this.db.agentConversation.findUnique({
 					where: { sessionId: input.sessionId },
@@ -874,8 +896,10 @@ export class ConversationsService {
 						companyId: true,
 						dealId: true,
 						campaignId: true,
+						campaignNodeId: true,
 						segmentId: true,
 						templateId: true,
+						shellId: true,
 					},
 				});
 				if (!winner) throw error;
@@ -968,6 +992,26 @@ export class ConversationsService {
 		return { id };
 	}
 
+	private async withLiveNode(
+		input: ConversationSaveInput,
+	): Promise<ConversationSaveInput> {
+		if (!input.campaignNodeId) return input;
+
+		const node = await this.db.marketingCampaignNode.findFirst({
+			where: { id: input.campaignNodeId, campaignId: input.campaignId },
+			select: { id: true },
+		});
+
+		if (node) return input;
+
+		this.logger.debug({
+			message: "Conversation saved without a step that no longer exists",
+			campaignId: input.campaignId,
+		});
+
+		return { ...input, campaignNodeId: undefined };
+	}
+
 	private recordId(input: RecordScope): string {
 		const recordIds = recordScopeIds(input).filter(
 			(recordId): recordId is string => Boolean(recordId),
@@ -976,7 +1020,7 @@ export class ConversationsService {
 
 		if (!recordId || recordIds.length !== 1) {
 			throw new BadRequestException(
-				"Choose exactly one contact, company, deal, campaign, segment or template.",
+				"Choose exactly one contact, company, deal, campaign, segment, template or shell.",
 			);
 		}
 
@@ -1128,6 +1172,13 @@ export class ConversationsService {
 
 		return { id: existing.id };
 	}
+}
+
+function isForeignKeyConstraint(error: unknown): boolean {
+	return (
+		error instanceof PrismaNamespace.PrismaClientKnownRequestError &&
+		error.code === "P2003"
+	);
 }
 
 function isUniqueConstraint(error: unknown): boolean {

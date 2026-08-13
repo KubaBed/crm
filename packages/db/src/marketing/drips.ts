@@ -15,9 +15,13 @@ type EmailContent = {
 
 export function emailContent(node: {
 	subject: string | null;
-	preheader?: string | null;
+	preheader: string | null;
 	document: Prisma.JsonValue | null;
-	template: { subject: string; document: Prisma.JsonValue } | null;
+	template: {
+		subject: string;
+		preheader: string | null;
+		document: Prisma.JsonValue;
+	} | null;
 }): EmailContent {
 	const document = node.document ?? node.template?.document ?? undefined;
 
@@ -25,7 +29,9 @@ export function emailContent(node: {
 		subject: node.subject?.trim()
 			? node.subject
 			: (node.template?.subject ?? null),
-		preheader: node.preheader ?? null,
+		preheader: node.preheader?.trim()
+			? node.preheader
+			: (node.template?.preheader ?? null),
 		document: (document ?? undefined) as Prisma.InputJsonValue | undefined,
 	};
 }
@@ -340,10 +346,13 @@ export async function advance(db: Db, enrolmentId: string): Promise<void> {
 							id: true,
 							kind: true,
 							subject: true,
+							preheader: true,
 							document: true,
 							delayHours: true,
 							condition: true,
-							template: { select: { subject: true, document: true } },
+							template: {
+								select: { subject: true, preheader: true, document: true },
+							},
 						},
 					},
 					edges: {

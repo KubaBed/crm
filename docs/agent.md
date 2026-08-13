@@ -193,6 +193,36 @@ missing key removes a place to look. **Never an error, never throws.**
 `capabilitiesFrom()`/`markdownFor()` are the pure halves. `contextDevKey()` is the only
 resolver, and `lib/context-dev.ts` memoises its client on the key string.
 
+### The agent can look at an email before a reader does
+
+`review_email` renders a template, a campaign email step, or an unsaved draft in a
+headless browser at 600px and 390px, measures the first screen, and reports what it
+observed — image coverage, visible text characters, anything oversized, cut off,
+upscaled or overflowing. A block document passes every linter and still opens on a
+wall of image; this tool is how the agent catches that before a rep does.
+
+- **The session model never sees pixels.** The default model (`zai/glm-5.2-fast`) is
+  chosen for tool use, not vision, and the model chooser filters only on `tool-use` —
+  so the tool must not require vision of it. Screenshots go to a separate
+  vision-capable judge (`EMAIL_REVIEW.judge` in `lib/email-review-config.ts`) through
+  the same AI Gateway credential the agent already runs on, and the session gets text:
+  measurements plus the judge's observations. No image enters session history, so
+  nothing is re-sent per turn or lost to compaction.
+- **The measurements do not need the judge.** First-screen image coverage, visible
+  text, overflow and upscaling are computed from the DOM. No gateway credential means
+  the visual read reports itself skipped; the numbers still land.
+- **Rendering is local, deliberately.** The email is composed by `renderEmail()` —
+  the one renderer — and screenshotted by a Chrome the deployment provides
+  (`CHROME_EXECUTABLE_PATH`, or a standard location found automatically). No
+  screenshot vendor: rendered marketing copy stays on this machine, per the egress
+  rules above. The page runs with JavaScript disabled.
+- **It is a capability like the others.** No browser means the capability is off at
+  boot, stated in the session instructions, and the tool returns the shared
+  not-configured result. It never throws, and it costs nothing when unused.
+- **Evidence, not confidence.** Findings are observations with the measured numbers
+  in them. The judge is instructed to describe what is visible — no scores, no
+  grades.
+
 ## Budget and scheduling
 
 - `lib/focus.ts` — per-session budget in `defineState`; running out is a normal ending.
@@ -358,7 +388,10 @@ browser → /eve/v1/*  (same origin, session cookie, x-crm-contact header)
                              → instructions/task.ts reads attributes.contactId
 ```
 
-- **The record travels in the token, never in the message.**
+- **The record travels in the token, never in the message.** A campaign may
+  also carry the open email step (`x-crm-campaign-node` → `campaignNodeId`),
+  so the session preamble names the node the rep is editing and points
+  `update_node` at it.
 - **Mounted at `/eve/v1/*`** because that is where `useEveAgent()` looks — no `host`,
   no CORS, no cross-site cookie.
 - **The proxy is an enforcement point, not a passthrough** — the agent never sees the

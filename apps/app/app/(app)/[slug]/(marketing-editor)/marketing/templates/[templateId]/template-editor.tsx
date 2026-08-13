@@ -18,11 +18,7 @@ import { Icon } from "@crm/ui/components/icon";
 import { Input } from "@crm/ui/components/input";
 import { Label } from "@crm/ui/components/label";
 import { Spinner } from "@crm/ui/components/spinner";
-import {
-	saveLabel,
-	useAutosave,
-	useSaveStatus,
-} from "@crm/ui/hooks/use-autosave";
+import { saveLabel, useAutosave } from "@crm/ui/hooks/use-autosave";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -88,7 +84,6 @@ export function TemplateEditor({ templateId }: { templateId: string }) {
 	const save = useMutation(
 		trpc.marketingTemplates.update.mutationOptions({
 			onSuccess: async () => {
-				setDirty(false);
 				await queryClient.invalidateQueries({
 					queryKey: trpc.marketingTemplates.byId.queryKey({ id: templateId }),
 				});
@@ -124,12 +119,10 @@ export function TemplateEditor({ templateId }: { templateId: string }) {
 		}),
 	);
 
-	const status = useSaveStatus(save.isPending);
-
-	useAutosave(
+	const status = useAutosave(
 		{ name, subject, preheader, blocks },
 		(draft) =>
-			save.mutate({
+			save.mutateAsync({
 				id: templateId,
 				name: draft.name,
 				subject: draft.subject,
@@ -139,7 +132,7 @@ export function TemplateEditor({ templateId }: { templateId: string }) {
 					unknown
 				>,
 			}),
-		{ enabled: dirty },
+		{ enabled: dirty, onSaved: () => setDirty(false) },
 	);
 
 	if (template.isPending) {
@@ -160,6 +153,8 @@ export function TemplateEditor({ templateId }: { templateId: string }) {
 
 	const findings = preview.data?.lint ?? [];
 	const errors = findings.filter((finding) => finding.level === "error");
+	const empty =
+		data.subject.trim() === "" && blocksOf(data.document).length === 0;
 
 	return (
 		<MarketingEditorShell
@@ -219,7 +214,7 @@ export function TemplateEditor({ templateId }: { templateId: string }) {
 			}
 			rail={
 				<CopilotRail
-					record={{ kind: "template", id: templateId }}
+					record={{ kind: "template", id: templateId, empty }}
 					onFinish={() =>
 						queryClient.invalidateQueries({
 							queryKey: trpc.marketingTemplates.byId.queryKey({

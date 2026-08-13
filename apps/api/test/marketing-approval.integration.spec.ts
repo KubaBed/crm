@@ -57,6 +57,7 @@ beforeEach(async () => {
 		data: {
 			name: `${TAG} staged`,
 			kind: "DRIP",
+			entryMode: "CONTINUOUS",
 			status: "PENDING_APPROVAL",
 			segments: { create: [{ segmentId, mode: "INCLUDE" }] },
 			pausedReason: "The agent built this overnight.",
@@ -125,6 +126,18 @@ describe("changing a campaign between a blast and a drip", () => {
 
 		expect(row.kind).toBe("BLAST");
 		expect(row.entryMode).toBe("MANUAL");
+	});
+
+	it("refuses a drip whose only step is not an email", async () => {
+		await campaigns.reject(campaignId);
+		await db.marketingCampaignNode.deleteMany({ where: { campaignId } });
+		await db.marketingCampaignNode.create({
+			data: { campaignId, kind: "WAIT", delayHours: 24, x: 0, y: 0 },
+		});
+
+		expect(campaigns.setKind(campaignId, "BLAST")).rejects.toThrow(
+			/not an email/,
+		);
 	});
 
 	it("refuses to collapse a drip that has more than one step", async () => {

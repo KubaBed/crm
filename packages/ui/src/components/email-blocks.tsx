@@ -29,7 +29,8 @@ export type EmailBlock =
 	| { type: "image"; src: string; alt: string }
 	| { type: "quote"; text: EmailInline[] }
 	| { type: "divider" }
-	| { type: "spacer"; size: "sm" | "md" | "lg" };
+	| { type: "spacer"; size: "sm" | "md" | "lg" }
+	| { type: "columns"; columns: EmailBlock[][] };
 
 export const BLOCK_LABEL: Record<string, string> = {
 	heading: "Heading",
@@ -80,6 +81,10 @@ export function textOf(block: EmailBlock): string {
 	if (block.type === "button") return block.label;
 	if (block.type === "image") return block.alt || block.src;
 	if (block.type === "spacer") return block.size;
+	if (block.type === "columns")
+		return block.columns
+			.map((column) => column.map(textOf).join(" "))
+			.join(" · ");
 	return "";
 }
 
@@ -178,8 +183,20 @@ export function EmailBlockEditor({
 }) {
 	const fieldId = useId();
 
+	const latest = useRef(blocks);
+	latest.current = blocks;
+
 	const replace = (index: number, block: EmailBlock) =>
 		onChange(blocks.map((current, at) => (at === index ? block : current)));
+
+	const uploaded = (
+		block: Extract<EmailBlock, { type: "image" }>,
+		src: string,
+	) => {
+		const rows = latest.current;
+		if (!rows.includes(block)) return;
+		onChange(rows.map((row) => (row === block ? { ...block, src } : row)));
+	};
 
 	const editRun = (
 		index: number,
@@ -294,6 +311,26 @@ export function EmailBlockEditor({
 									</>
 								) : null}
 
+								{block.type === "columns" ? (
+									<div className="flex flex-col gap-2">
+										{block.columns.map((column, columnIndex) => (
+											<ColumnBlocks
+												key={`${index}-${columnIndex}`}
+												blocks={column}
+												onUploadImage={onUploadImage}
+												onChange={(next) =>
+													replace(index, {
+														...block,
+														columns: block.columns.map((rows, at) =>
+															at === columnIndex ? next : rows,
+														),
+													})
+												}
+											/>
+										))}
+									</div>
+								) : null}
+
 								{block.type === "image" ? (
 									<>
 										<Input
@@ -305,7 +342,7 @@ export function EmailBlockEditor({
 										/>
 										{onUploadImage ? (
 											<ImageUpload
-												onUploaded={(src) => replace(index, { ...block, src })}
+												onUploaded={(src) => uploaded(block, src)}
 												upload={onUploadImage}
 											/>
 										) : null}
@@ -383,5 +420,27 @@ export function EmailBlockEditor({
 				<ShellRow kind="Footer" detail={shell.footer} action={shell.action} />
 			) : null}
 		</div>
+	);
+}
+
+function ColumnBlocks({
+	blocks,
+	onChange,
+	onUploadImage,
+}: {
+	blocks: EmailBlock[];
+	onChange: (blocks: EmailBlock[]) => void;
+	onUploadImage?: (file: File) => Promise<string | null>;
+}) {
+	const [selected, setSelected] = useState<number | null>(null);
+
+	return (
+		<EmailBlockEditor
+			blocks={blocks}
+			selected={selected}
+			onSelect={setSelected}
+			onChange={onChange}
+			onUploadImage={onUploadImage}
+		/>
 	);
 }

@@ -20,6 +20,7 @@ export async function mintBridgeToken(
 		companyId?: string;
 		dealId?: string;
 		campaignId?: string;
+		campaignNodeId?: string;
 		segmentId?: string;
 		templateId?: string;
 		shellId?: string;
@@ -37,13 +38,14 @@ export async function mintBridgeToken(
 		sub: user.id,
 		email: user.email,
 		name: user.name,
-		...(record.contactId ? { contactId: record.contactId } : {}),
-		...(record.companyId ? { companyId: record.companyId } : {}),
-		...(record.dealId ? { dealId: record.dealId } : {}),
-		...(record.campaignId ? { campaignId: record.campaignId } : {}),
-		...(record.segmentId ? { segmentId: record.segmentId } : {}),
-		...(record.templateId ? { templateId: record.templateId } : {}),
-		...(record.shellId ? { shellId: record.shellId } : {}),
+		contactId: record.contactId,
+		companyId: record.companyId,
+		dealId: record.dealId,
+		campaignId: record.campaignId,
+		campaignNodeId: record.campaignNodeId,
+		segmentId: record.segmentId,
+		templateId: record.templateId,
+		shellId: record.shellId,
 		iat: now,
 		nbf: now - 5,
 		exp: now + TTL_SECONDS,

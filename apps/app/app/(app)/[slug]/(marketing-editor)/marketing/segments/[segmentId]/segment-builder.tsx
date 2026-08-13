@@ -181,7 +181,8 @@ export function SegmentBuilder({ segmentId }: { segmentId: string }) {
 				<>
 					<ExportCsv
 						name={name || "segment"}
-						total={total ?? 0}
+						total={data.counts.total}
+						disabled={segment.isFetching}
 						columns={[
 							{ header: "Name", value: (row: Person) => row.name },
 							{ header: "Email", value: (row: Person) => row.email },

@@ -12,12 +12,15 @@ export type CsvColumn<TRow> = {
 function cell(value: unknown): string {
 	if (value === null || value === undefined) return "";
 
-	const text =
+	const raw =
 		value instanceof Date
 			? value.toISOString()
 			: typeof value === "object"
 				? JSON.stringify(value)
 				: String(value);
+
+	const text =
+		/^[=+\-@\t\r]/.test(raw) && Number.isNaN(Number(raw)) ? `'${raw}` : raw;
 
 	return /["\n\r,]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text;
 }

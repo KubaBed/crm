@@ -24,6 +24,8 @@ import { CampaignStatus } from "./campaign-status";
 const ERROR_TITLE = "We could not load your marketing numbers";
 const ERROR_BODY =
 	"Your campaigns keep running. Try again in a moment, before you change anything.";
+const STALE_BODY =
+	"These numbers did not refresh. They show the last successful load.";
 const RETRY = "Try again";
 
 function Stat({
@@ -55,7 +57,7 @@ export function MarketingOverview() {
 
 	const data = overview.data;
 
-	if (overview.isError || !data) {
+	if (!data) {
 		return (
 			<Empty>
 				<EmptyHeader>
@@ -86,6 +88,24 @@ export function MarketingOverview() {
 	return (
 		<div className="flex max-w-4xl flex-col gap-6">
 			<WaitingForYou />
+
+			{overview.isError ? (
+				<div className="flex items-center gap-3 rounded-lg border px-5 py-3">
+					<Icon icon={Warning} />
+					<span className="min-w-0 flex-1 text-muted-foreground text-xs">
+						{STALE_BODY}
+					</span>
+					<Button
+						variant="outline"
+						size="sm"
+						disabled={overview.isFetching}
+						onClick={() => overview.refetch()}
+					>
+						<Icon icon={Renew} data-icon="inline-start" />
+						{RETRY}
+					</Button>
+				</div>
+			) : null}
 
 			{data.sendable ? null : (
 				<div className="flex flex-col gap-3 rounded-lg border p-5">

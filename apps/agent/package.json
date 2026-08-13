@@ -25,6 +25,7 @@
 		"@crm/validation": "workspace:*",
 		"context.dev": "^2.7.0",
 		"eve": "^0.29.4",
+		"puppeteer-core": "^25.6.0",
 		"zod": "^4.4.3",
 		"@crm/email": "workspace:*"
 	},

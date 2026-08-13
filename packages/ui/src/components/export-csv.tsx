@@ -12,6 +12,7 @@ export type ExportCsvProps<TRow> = {
 	label?: string;
 	columns: CsvColumn<TRow>[];
 	total: number;
+	disabled?: boolean;
 	fetchPage: (page: number, pageSize: number) => Promise<TRow[]>;
 	onDone?: (rows: number, capped: boolean) => void;
 	onError?: (message: string) => void;
@@ -22,6 +23,7 @@ export function ExportCsv<TRow>({
 	label = "Export",
 	columns,
 	total,
+	disabled = false,
 	fetchPage,
 	onDone,
 	onError,
@@ -64,7 +66,7 @@ export function ExportCsv<TRow>({
 		<Button
 			variant="outline"
 			size="sm"
-			disabled={running || total === 0}
+			disabled={disabled || running || total === 0}
 			onClick={() => void run()}
 		>
 			{running ? <Spinner /> : <Icon icon={Download} data-icon="inline-start" />}

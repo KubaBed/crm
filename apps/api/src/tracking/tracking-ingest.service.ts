@@ -99,7 +99,7 @@ export class TrackingIngestService {
 		if (accepted.length === 0) return;
 		if (!(await this.withinRate(accepted.length))) return;
 
-		await this.seen(visitorId);
+		await this.seen(visitorId, accepted);
 
 		const pageViews = accepted.filter(
 			({ event }) => event.type === "page_view" || event.type === "click",
@@ -115,12 +115,25 @@ export class TrackingIngestService {
 		}
 	}
 
-	private async seen(visitorId: string): Promise<void> {
-		await this.db.trackedVisitor.upsert({
-			where: { id: visitorId },
-			create: { id: visitorId },
-			update: { lastSeen: new Date() },
+	private async seen(
+		visitorId: string,
+		accepted: AcceptedEvent[],
+	): Promise<void> {
+		const stamps = accepted.map(({ event }) => occurredAt(event.at).getTime());
+		const firstSeen = new Date(Math.min(...stamps));
+		const lastSeen = new Date(Math.max(...stamps));
+
+		const bumped = await this.db.trackedVisitor.updateMany({
+			where: { id: visitorId, lastSeen: { lt: lastSeen } },
+			data: { lastSeen },
 		});
+
+		if (bumped.count === 0) {
+			await this.db.trackedVisitor.createMany({
+				data: [{ id: visitorId, firstSeen, lastSeen }],
+				skipDuplicates: true,
+			});
+		}
 	}
 
 	private async events(

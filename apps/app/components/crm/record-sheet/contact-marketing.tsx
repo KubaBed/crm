@@ -87,29 +87,44 @@ export function ContactMarketing({ contactId }: { contactId: string }) {
 		);
 	}
 
+	if (marketing.isError) {
+		return <Empty>This tab did not load. {marketing.error.message}</Empty>;
+	}
+
 	const data = marketing.data;
 	if (!data) return <Empty>Nothing to show.</Empty>;
 
-	const status = data.recipient?.status ?? "SUBSCRIBED";
+	const recipient = data.recipient;
 
 	return (
 		<div className="flex flex-col gap-6 p-5">
-			<Panel
-				title="Marketing status"
-				note={data.recipient?.address ?? undefined}
-			>
+			<Panel title="Marketing status" note={recipient?.address ?? undefined}>
 				<div className="flex flex-col gap-1 px-4 py-3">
-					<span className="font-medium text-xs">
-						{status.charAt(0) + status.slice(1).toLowerCase()}
-					</span>
-					<span className="text-muted-foreground text-xs">
-						{STATUS_NOTE[status] ?? "This address has had no marketing mail."}
-					</span>
-					{data.recipient?.statusReason ? (
-						<span className="text-muted-foreground text-xs">
-							{data.recipient.statusReason}
-						</span>
-					) : null}
+					{recipient ? (
+						<>
+							<span className="font-medium text-xs">
+								{recipient.status.charAt(0) +
+									recipient.status.slice(1).toLowerCase()}
+							</span>
+							<span className="text-muted-foreground text-xs">
+								{STATUS_NOTE[recipient.status] ??
+									"This address has had no marketing mail."}
+							</span>
+							{recipient.statusReason ? (
+								<span className="text-muted-foreground text-xs">
+									{recipient.statusReason}
+								</span>
+							) : null}
+						</>
+					) : (
+						<>
+							<span className="font-medium text-xs">No marketing address</span>
+							<span className="text-muted-foreground text-xs">
+								Marketing has never written to this contact, so there is no
+								address on record yet.
+							</span>
+						</>
+					)}
 				</div>
 			</Panel>
 
@@ -161,9 +176,12 @@ export function ContactMarketing({ contactId }: { contactId: string }) {
 				)}
 			</Panel>
 
-			<Panel title="Marketing email they have had">
+			<Panel
+				title="Marketing send activity"
+				note="Sent, queued, skipped and failed alike."
+			>
 				{data.sends.length === 0 ? (
-					<Empty>No marketing email has gone to them.</Empty>
+					<Empty>No marketing email has been queued for them.</Empty>
 				) : (
 					data.sends.map((send: Send) => (
 						<div

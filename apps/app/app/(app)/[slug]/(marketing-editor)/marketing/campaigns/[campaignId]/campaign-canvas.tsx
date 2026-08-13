@@ -25,7 +25,7 @@ import {
 import { Spinner } from "@crm/ui/components/spinner";
 import { ToggleGroup, ToggleGroupItem } from "@crm/ui/components/toggle-group";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { parseAsStringLiteral, useQueryState } from "nuqs";
+import { parseAsString, parseAsStringLiteral, useQueryStates } from "nuqs";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { CampaignKind } from "@/components/marketing/campaign-kind";
@@ -37,6 +37,7 @@ import {
 	entryLabel,
 	entryX,
 	NEW_LABEL,
+	type Removal,
 	withNode,
 	withoutNode,
 } from "@/lib/campaign-graph";
@@ -201,17 +202,34 @@ function toFlow(
 	return { nodes, edges };
 }
 
+const canvasParams = {
+	node: parseAsString,
+	view: parseAsStringLiteral(CAMPAIGN_VIEWS).withDefault("flow"),
+	thread: parseAsString,
+};
+
 export function CampaignCanvas({ campaignId }: { campaignId: string }) {
 	const trpc = useTRPC();
 	const queryClient = useQueryClient();
 	const workspaceUrl = useWorkspaceUrl();
-	const [selectedId, setSelectedId] = useQueryState("node");
+	const [{ node: selectedId, view }, setParams] = useQueryStates(canvasParams);
 	const [targetId, setTargetId] = useState<string | null>(null);
 	const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
-	const [view, setView] = useQueryState(
-		"view",
-		parseAsStringLiteral(CAMPAIGN_VIEWS).withDefault("flow"),
-	);
+
+	const setSelectedId = (next: string | null) => {
+		if (next === selectedId) return;
+		void setParams(
+			{ node: next, thread: null },
+			{ history: selectedId === null && next !== null ? "push" : "replace" },
+		);
+	};
+
+	const setView = (next: (typeof CAMPAIGN_VIEWS)[number]) => {
+		if (next === view) return;
+		void setParams(
+			selectedId === null ? { view: next } : { view: next, thread: null },
+		);
+	};
 
 	const campaign = useQuery(
 		trpc.marketingCampaigns.byId.queryOptions({ id: campaignId }),
@@ -295,7 +313,7 @@ export function CampaignCanvas({ campaignId }: { campaignId: string }) {
 			<BlastComposer
 				campaign={data}
 				view={view}
-				onViewChange={(next) => void setView(next)}
+				onViewChange={(next) => setView(next)}
 				onChanged={() => void invalidate()}
 			/>
 		);
@@ -305,6 +323,18 @@ export function CampaignCanvas({ campaignId }: { campaignId: string }) {
 	const target = data.nodes.find((node) => node.id === targetId) ?? null;
 	const removal = target ? withoutNode(data, target.id) : null;
 	const activatable = data.kind === "DRIP" && data.status === "DRAFT";
+
+	const removeStep = (change: Removal, stepId: string) =>
+		addNode.mutate(
+			{ campaignId, ...change },
+			{
+				onSuccess: (result) => {
+					if (!result.ok) return;
+					setTargetId(null);
+					if (selectedId === stepId) setSelectedId(null);
+				},
+			},
+		);
 
 	return (
 		<MarketingEditorShell
@@ -363,7 +393,7 @@ export function CampaignCanvas({ campaignId }: { campaignId: string }) {
 					value={view}
 					onValueChange={(next) => {
 						const chosen = CAMPAIGN_VIEWS.find((option) => option === next);
-						void setView(chosen ?? "flow");
+						setView(chosen ?? "flow");
 					}}
 				>
 					{CAMPAIGN_VIEWS.map((option) => (
@@ -376,13 +406,13 @@ export function CampaignCanvas({ campaignId }: { campaignId: string }) {
 			rail={
 				view !== "flow" ? (
 					<CopilotRail
-						record={{ kind: "campaign", id: campaignId }}
+						record={{ kind: "campaign", id: campaignId, campaignKind: "DRIP" }}
 						onFinish={() => void invalidate()}
 					/>
 				) : selectedId === ENTRY.id ? (
 					<AudienceSheet
 						campaign={data}
-						onClose={() => void setSelectedId(null)}
+						onClose={() => setSelectedId(null)}
 						onChanged={() => void invalidate()}
 					/>
 				) : selected && selected.kind !== "EMAIL" ? (
@@ -391,21 +421,33 @@ export function CampaignCanvas({ campaignId }: { campaignId: string }) {
 						node={selected}
 						campaign={data}
 						stats={stats}
-						onClose={() => void setSelectedId(null)}
+						onClose={() => setSelectedId(null)}
 						onChanged={() => void invalidate()}
 					/>
 				) : selected ? (
-					<NodeSheet
-						node={selected}
-						campaignId={campaignId}
-						recipients={data.inFlight}
-						stats={stats.get(selected.id) ?? null}
-						onClose={() => void setSelectedId(null)}
-						onSaved={() => invalidate()}
-					/>
+					<>
+						<NodeSheet
+							node={selected}
+							campaignId={campaignId}
+							recipients={data.inFlight}
+							stats={stats.get(selected.id) ?? null}
+							onClose={() => setSelectedId(null)}
+							onSaved={() => invalidate()}
+						/>
+						<CopilotRail
+							key={selected.id}
+							record={{
+								kind: "campaign",
+								id: campaignId,
+								nodeId: selected.id,
+								campaignKind: "DRIP",
+							}}
+							onFinish={() => void invalidate()}
+						/>
+					</>
 				) : (
 					<CopilotRail
-						record={{ kind: "campaign", id: campaignId }}
+						record={{ kind: "campaign", id: campaignId, campaignKind: "DRIP" }}
 						onFinish={() => {
 							void queryClient.invalidateQueries({
 								queryKey: trpc.marketingCampaigns.byId.queryKey({
@@ -458,7 +500,7 @@ export function CampaignCanvas({ campaignId }: { campaignId: string }) {
 													setConfirmDelete(target.id);
 													return;
 												}
-												addNode.mutate({ campaignId, ...removal });
+												removeStep(removal, target.id);
 											}}
 										>
 											{removal === null
@@ -473,10 +515,11 @@ export function CampaignCanvas({ campaignId }: { campaignId: string }) {
 						edges={flow.edges}
 						selectedId={selectedId}
 						fitKey={`${data.nodes.length}-${data.edges.length}`}
-						onNodeClick={(_event, node) => void setSelectedId(node.id)}
+						onNodeClick={(_event, node) => setSelectedId(node.id)}
 						onNodeContextMenu={(_event, node) =>
 							setTargetId(node.id === ENTRY.id ? null : node.id)
 						}
+						onPaneClick={() => setSelectedId(null)}
 						onPaneContextMenu={() => setTargetId(null)}
 						onNodeMoved={(id, position) =>
 							moveNode.mutate({ nodeId: id, x: position.x, y: position.y })
@@ -503,7 +546,9 @@ export function CampaignCanvas({ campaignId }: { campaignId: string }) {
 								<AlertDialogCancel>Cancel</AlertDialogCancel>
 								<AlertDialogAction
 									onClick={() => {
-										if (removal) addNode.mutate({ campaignId, ...removal });
+										if (removal && confirmDelete) {
+											removeStep(removal, confirmDelete);
+										}
 										setConfirmDelete(null);
 									}}
 								>
@@ -512,15 +557,6 @@ export function CampaignCanvas({ campaignId }: { campaignId: string }) {
 							</AlertDialogFooter>
 						</AlertDialogContent>
 					</AlertDialog>
-
-					{selectedId ? (
-						<button
-							type="button"
-							aria-label="Close the step"
-							className="absolute inset-0 z-10 bg-overlay"
-							onClick={() => void setSelectedId(null)}
-						/>
-					) : null}
 				</div>
 			)}
 		</MarketingEditorShell>

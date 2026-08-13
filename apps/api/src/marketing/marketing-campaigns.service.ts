@@ -51,9 +51,14 @@ const CAMPAIGN_STATUS_FILTERS: Record<
 	"": LIVE_ONLY,
 	all: LIVE_ONLY,
 	DRAFT: { status: "DRAFT" },
+	PENDING_APPROVAL: { status: "PENDING_APPROVAL" },
+	SCHEDULED: { status: "SCHEDULED" },
 	ACTIVE: { status: "ACTIVE" },
 	PAUSED: { status: "PAUSED" },
 	SENT: { status: { in: ["SENT", "SENDING"] } },
+	DRAINING: { status: "DRAINING" },
+	CANCELLED: { status: "CANCELLED" },
+	FAILED: { status: "FAILED" },
 	ARCHIVED: { status: "ARCHIVED" },
 };
 
@@ -122,7 +127,7 @@ export class MarketingCampaignsService {
 
 	async list(input: ListInput & { kind?: string; status?: string }) {
 		const where: Prisma.MarketingCampaignWhereInput = {
-			...CAMPAIGN_STATUS_FILTERS[input.status ?? ""],
+			...(CAMPAIGN_STATUS_FILTERS[input.status ?? ""] ?? LIVE_ONLY),
 			...(input.q && {
 				OR: [
 					{ name: { contains: input.q, mode: "insensitive" } },
@@ -872,7 +877,7 @@ export class MarketingCampaignsService {
 			const busy = await tx.marketingEnrolment.findMany({
 				where: {
 					campaignId: input.campaignId,
-					status: "ACTIVE",
+					status: { in: ["ACTIVE", "PAUSED"] },
 					currentNodeId: {
 						in: existing.filter((node) => !keep.has(node.id)).map((n) => n.id),
 					},
@@ -1045,7 +1050,8 @@ export class MarketingCampaignsService {
 			select: {
 				kind: true,
 				status: true,
-				_count: { select: { nodes: true, sends: true, enrolments: true } },
+				nodes: { select: { kind: true } },
+				_count: { select: { sends: true, enrolments: true } },
 			},
 		});
 
@@ -1064,9 +1070,15 @@ export class MarketingCampaignsService {
 			);
 		}
 
-		if (kind === "BLAST" && campaign._count.nodes > 1) {
+		if (kind === "BLAST" && campaign.nodes.length > 1) {
 			throw new BadRequestException(
 				"A blast is one email. Delete the extra steps first, or leave it a sequence.",
+			);
+		}
+
+		if (kind === "BLAST" && campaign.nodes[0]?.kind !== "EMAIL") {
+			throw new BadRequestException(
+				"A blast is one email, and this campaign's only step is not an email. Make it an email first, or leave it a sequence.",
 			);
 		}
 
@@ -1257,47 +1269,49 @@ export class MarketingCampaignsService {
 
 		if (!campaign) throw new NotFoundException("No such campaign.");
 
-		if (clocks === "restart") {
-			const stale = await this.db.marketingEnrolment.findMany({
+		const status = campaign.kind === "DRIP" ? "ACTIVE" : "SENDING";
+
+		await this.db.$transaction(async (tx) => {
+			const moved = await tx.marketingCampaign.updateMany({
+				where: { id, status: "PAUSED" },
+				data: { status, pausedReason: null },
+			});
+
+			if (moved.count === 0) {
+				throw new ConflictException(
+					"Only a paused campaign can resume. This one is not paused.",
+				);
+			}
+
+			if (clocks === "restart") {
+				await tx.marketingEnrolment.updateMany({
+					where: {
+						campaignId: id,
+						status: "ACTIVE",
+						nextDueAt: { lt: new Date() },
+					},
+					data: { nextDueAt: new Date() },
+				});
+			}
+
+			await tx.marketingSend.updateMany({
 				where: {
 					campaignId: id,
-					status: "ACTIVE",
-					nextDueAt: { lt: new Date() },
+					status: "SKIPPED",
+					skipReason: {
+						in: [PAUSE_SKIP_REASONS.byPerson, PAUSE_SKIP_REASONS.bySystem],
+					},
+					OR: [{ enrolmentId: null }, { enrolment: { status: "ACTIVE" } }],
 				},
-				select: { id: true },
-			});
-
-			await this.db.marketingEnrolment.updateMany({
-				where: { id: { in: stale.map((row) => row.id) } },
-				data: { nextDueAt: new Date() },
-			});
-		}
-
-		await this.db.marketingSend.updateMany({
-			where: {
-				campaignId: id,
-				status: "SKIPPED",
-				skipReason: {
-					in: [PAUSE_SKIP_REASONS.byPerson, PAUSE_SKIP_REASONS.bySystem],
+				data: {
+					status: "QUEUED",
+					skipReason: null,
+					...(clocks === "restart" && { dueAt: new Date() }),
 				},
-				OR: [{ enrolmentId: null }, { enrolment: { status: "ACTIVE" } }],
-			},
-			data: {
-				status: "QUEUED",
-				skipReason: null,
-				...(clocks === "restart" && { dueAt: new Date() }),
-			},
+			});
 		});
 
-		await this.db.marketingCampaign.update({
-			where: { id },
-			data: {
-				status: campaign.kind === "DRIP" ? "ACTIVE" : "SENDING",
-				pausedReason: null,
-			},
-		});
-
-		return { status: campaign.kind === "DRIP" ? "ACTIVE" : "SENDING" };
+		return { status };
 	}
 
 	async drain(id: string) {
@@ -1363,11 +1377,6 @@ export class MarketingCampaignsService {
 	async recipients(input: ListInput & { campaignId: string; state: string }) {
 		const scoped: Prisma.MarketingSendWhereInput = {
 			campaignId: input.campaignId,
-		};
-
-		const where: Prisma.MarketingSendWhereInput = {
-			...scoped,
-			...RECIPIENT_FILTERS[input.state],
 			...(input.q && {
 				OR: [
 					{
@@ -1378,11 +1387,25 @@ export class MarketingCampaignsService {
 			}),
 		};
 
+		const where: Prisma.MarketingSendWhereInput = {
+			...scoped,
+			...RECIPIENT_FILTERS[input.state],
+		};
+
+		const orderBy =
+			resolveOrderBy<Prisma.MarketingSendOrderByWithRelationInput>(
+				input,
+				{
+					sentAt: (dir) => ({ sentAt: { sort: dir, nulls: "last" } }),
+				},
+				{ createdAt: "desc" },
+			);
+
 		const [rows, total, counts] = await Promise.all([
 			this.db.marketingSend.findMany({
 				where,
 				...paginate(input),
-				orderBy: { createdAt: "desc" },
+				orderBy,
 				select: {
 					id: true,
 					status: true,
@@ -1465,11 +1488,20 @@ export class MarketingCampaignsService {
 			}),
 		};
 
+		const orderBy =
+			resolveOrderBy<Prisma.MarketingEnrolmentOrderByWithRelationInput>(
+				input,
+				{
+					enrolledAt: (dir) => ({ enrolledAt: dir }),
+				},
+				{ enrolledAt: "desc" },
+			);
+
 		const [rows, total, nodes] = await Promise.all([
 			this.db.marketingEnrolment.findMany({
 				where,
 				...paginate(input),
-				orderBy: { enrolledAt: "desc" },
+				orderBy,
 				select: {
 					id: true,
 					status: true,

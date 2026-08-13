@@ -11,7 +11,7 @@ Last worked 12 August 2026.
 
 **Where it stands:** 46 commits on `lewis/marketing-suite`. A real email has gone
 out through Resend. The engine walks a branching drip and the agent can build
-one. All 14 packages typecheck, lint is clean, and 971 specs pass. What follows
+one. All 14 packages typecheck, lint is clean, and 1231 specs pass. What follows
 is everything that is not done, ordered so that doing it top to bottom never
 leaves the product in a worse state than it is now.
 
@@ -165,11 +165,11 @@ Fix: done. The key is the index and the class together.
   preambles, `pending`, `approve`, `reject` and `setKind`. Add step is checked
   against the validator the server runs, which caught an email that saved with
   no subject.
-- **971 specs pass**: 359 api, 321 agent, 152 app, 150 `@crm/db` (engine, re-entry row by
+- **1231 specs pass**: 399 api, 330 agent, 165 app, 172 `@crm/db` (engine, re-entry row by
   row, exit sweeps firing between touches, split stability across retries, blast
   idempotency, deliverability auto-pause, event retention, quiet hours, the
-  daily cap, the graph validator), 61 telemetry, 43 auth, 17 env, 9 email render
-  and lint, 8 canvas node rendering, 5 validation.
+  daily cap, the graph validator), 61 telemetry, 43 auth, 17 env, 24 email render
+  and lint, 15 ui (canvas nodes, autosave), 5 validation.
 
 ## Known unknowns
 

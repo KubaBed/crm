@@ -3,7 +3,7 @@
 import type { FacetSpec } from "@crm/ui/components/rule-tree";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
-import { facetsWith } from "@/lib/marketing-facets";
+import { facetsWith, TEXT_FIELD_TYPES } from "@/lib/marketing-facets";
 import { useTRPC } from "@/lib/trpc/client";
 
 export function useMarketingFacets(): FacetSpec[] {
@@ -19,26 +19,20 @@ export function useMarketingFacets(): FacetSpec[] {
 	);
 
 	const campaigns = useQuery(
-		trpc.marketingCampaigns.list.queryOptions({
-			q: "",
-			sort: "updatedAt",
-			dir: "desc",
-			page: 1,
-			pageSize: 100,
-			kind: "",
-			status: "",
-		}),
+		trpc.marketingSegments.campaignOptions.queryOptions(),
 	);
 
 	return useMemo(
 		() =>
 			facetsWith({
 				owners: users.data ?? [],
-				campaigns: campaigns.data?.rows ?? [],
-				fields: (fields.data ?? []).map((field) => ({
-					key: field.key,
-					label: field.label,
-				})),
+				campaigns: campaigns.data ?? [],
+				fields: (fields.data ?? [])
+					.filter((field) => TEXT_FIELD_TYPES.has(field.type))
+					.map((field) => ({
+						key: field.key,
+						label: field.label,
+					})),
 			}),
 		[users.data, campaigns.data, fields.data],
 	);

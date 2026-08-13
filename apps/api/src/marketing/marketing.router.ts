@@ -15,13 +15,13 @@ import {
 	addAttachmentInput,
 	archiveCampaignInput,
 	campaignListInput,
-	campaignPageInput,
 	connectFinishInput,
 	createCampaignInput,
 	createSegmentInput,
 	createTemplateInput,
 	enrolCompanyInput,
 	enrolInput,
+	enrolmentsPageInput,
 	idInput,
 	memberInput,
 	pauseInput,
@@ -29,6 +29,7 @@ import {
 	previewSegmentInput,
 	previewShellInput,
 	previewTemplateInput,
+	recipientsPageInput,
 	rejectInput,
 	resumeInput,
 	saveIdentityInput,
@@ -187,13 +188,13 @@ export class MarketingCampaignsRouter {
 		return this.campaigns.previewNode(input);
 	}
 
-	@Query({ input: campaignPageInput })
-	async recipients(@Input() input: z.infer<typeof campaignPageInput>) {
+	@Query({ input: recipientsPageInput })
+	async recipients(@Input() input: z.infer<typeof recipientsPageInput>) {
 		return this.campaigns.recipients(input);
 	}
 
-	@Query({ input: campaignPageInput })
-	async enrolments(@Input() input: z.infer<typeof campaignPageInput>) {
+	@Query({ input: enrolmentsPageInput })
+	async enrolments(@Input() input: z.infer<typeof enrolmentsPageInput>) {
 		return this.campaigns.enrolments(input);
 	}
 
@@ -385,6 +386,11 @@ export class MarketingSegmentsRouter {
 	@Query()
 	async options() {
 		return this.segments.options();
+	}
+
+	@Query()
+	async campaignOptions() {
+		return this.segments.campaignOptions();
 	}
 
 	@Query({ input: previewSegmentInput })

@@ -10,12 +10,14 @@ import {
 	MARKETING,
 	pauseUnhealthy,
 	readMarketingSettings,
+	resendConnection,
 	settle,
 	skipOverCap,
 	startDueCampaigns,
 	sweepEntries,
 	sweepExits,
 } from "@crm/db/marketing";
+import { readDocument } from "@crm/email";
 import {
 	Injectable,
 	Logger,
@@ -109,7 +111,7 @@ export class MarketingDrainService implements OnModuleInit, OnModuleDestroy {
 
 	private async drainSends(): Promise<{ sent: number; failed: number }> {
 		const settings = await readMarketingSettings(this.db);
-		if (!settings.resendApiKey) return { sent: 0, failed: 0 };
+		if (!resendConnection(settings)) return { sent: 0, failed: 0 };
 
 		const perTick = Math.max(
 			1,
@@ -141,9 +143,18 @@ export class MarketingDrainService implements OnModuleInit, OnModuleDestroy {
 		const filed: FiledSend[] = [];
 		const names = new Map<string, string | null>();
 
-		const batchable: { send: ClaimedSend; body: ComposedBody }[] = [];
-
 		for (const send of claimed) {
+			if (!readDocument(send.document)) {
+				await settle(this.db, send.id, {
+					ok: false,
+					error:
+						"This email's content cannot be read, so it cannot be built.",
+					retry: false,
+				});
+				failed += 1;
+				continue;
+			}
+
 			const context = await this.compose.contextFor(send.contactId);
 
 			let body: ComposedBody | null;
@@ -163,7 +174,7 @@ export class MarketingDrainService implements OnModuleInit, OnModuleDestroy {
 						error instanceof Error
 							? error.message
 							: "This email cannot be built.",
-					retry: false,
+					retry: true,
 				});
 				failed += 1;
 				continue;
@@ -180,72 +191,30 @@ export class MarketingDrainService implements OnModuleInit, OnModuleDestroy {
 				continue;
 			}
 
-			if (send.hasAttachments) {
-				const outcome = await this.resend.sendOne({
-					to: send.address,
-					fromName: send.fromName,
-					subject: body.subject,
-					html: body.html,
-					text: body.text,
-					replyTo: send.replyTo,
-					headers: body.headers,
-					idempotencyKey: `send/${send.id}`,
-					attachments: send.attachments.map((attachment) => ({
-						filename: attachment.filename,
-						path: attachment.url,
-					})),
-				});
+			const outcome = await this.resend.sendOne({
+				to: send.address,
+				fromName: send.fromName,
+				subject: body.subject,
+				html: body.html,
+				text: body.text,
+				replyTo: send.replyTo,
+				headers: body.headers,
+				idempotencyKey: `send/${send.id}`,
+				attachments: send.hasAttachments
+					? send.attachments.map((attachment) => ({
+							filename: attachment.filename,
+							path: attachment.url,
+						}))
+					: undefined,
+			});
 
-				await settle(this.db, send.id, outcome);
+			await settle(this.db, send.id, outcome);
 
-				if (outcome.ok) {
-					sent += 1;
-					this.remember(filed, names, send, body);
-				} else {
-					failed += 1;
-				}
-
-				continue;
-			}
-
-			batchable.push({ send, body });
-		}
-
-		for (
-			let index = 0;
-			index < batchable.length;
-			index += MARKETING.send.batchSize
-		) {
-			const slice = batchable.slice(index, index + MARKETING.send.batchSize);
-
-			const outcomes = await this.resend.sendBatch(
-				slice.map(({ send, body }) => ({
-					sendId: send.id,
-					to: send.address,
-					fromName: send.fromName,
-					subject: body.subject,
-					html: body.html,
-					text: body.text,
-					replyTo: send.replyTo,
-					headers: body.headers,
-				})),
-			);
-
-			for (const { send, body } of slice) {
-				const outcome = outcomes.get(send.id) ?? {
-					ok: false as const,
-					error: "Resend did not answer for this message.",
-					retry: true,
-				};
-
-				await settle(this.db, send.id, outcome);
-
-				if (outcome.ok) {
-					sent += 1;
-					this.remember(filed, names, send, body);
-				} else {
-					failed += 1;
-				}
+			if (outcome.ok) {
+				sent += 1;
+				this.remember(filed, names, send, body);
+			} else {
+				failed += 1;
 			}
 		}
 
@@ -278,16 +247,16 @@ export class MarketingDrainService implements OnModuleInit, OnModuleDestroy {
 	): Promise<void> {
 		if (filed.length === 0) return;
 
-		if (names.size > 0) {
-			const campaigns = await this.db.marketingCampaign.findMany({
-				where: { id: { in: [...names.keys()] } },
-				select: { id: true, name: true },
-			});
-
-			for (const campaign of campaigns) names.set(campaign.id, campaign.name);
-		}
-
 		try {
+			if (names.size > 0) {
+				const campaigns = await this.db.marketingCampaign.findMany({
+					where: { id: { in: [...names.keys()] } },
+					select: { id: true, name: true },
+				});
+
+				for (const campaign of campaigns) names.set(campaign.id, campaign.name);
+			}
+
 			await this.activity.file(
 				filed.map((send) => ({
 					...send,

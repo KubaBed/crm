@@ -332,23 +332,25 @@ export const DEFAULT_SEGMENTS = [
 export async function ensureDefaultSegments(db: Db): Promise<number> {
 	let made = 0;
 
-	const already = await db.marketingSegment.count({
-		where: { isDefault: true },
+	const alive = await db.marketingSegment.count({
+		where: { isDefault: true, archivedAt: null },
 	});
 
-	if (already > 0) return 0;
+	if (alive >= DEFAULT_SEGMENTS.length) return 0;
 
 	for (const segment of DEFAULT_SEGMENTS) {
 		const clash = await db.marketingSegment.findFirst({
 			where: { name: segment.name },
-			select: { id: true },
+			select: { id: true, isDefault: true, archivedAt: true },
 		});
 
 		if (clash) {
-			await db.marketingSegment.update({
-				where: { id: clash.id },
-				data: { isDefault: true },
-			});
+			if (!clash.isDefault || clash.archivedAt) {
+				await db.marketingSegment.update({
+					where: { id: clash.id },
+					data: { isDefault: true, archivedAt: null },
+				});
+			}
 			continue;
 		}
 

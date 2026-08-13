@@ -2,6 +2,7 @@
 
 import Settings from "@carbon/icons-react/es/Settings";
 import { Button } from "@crm/ui/components/button";
+import { FieldError } from "@crm/ui/components/field";
 import { Icon } from "@crm/ui/components/icon";
 import { Input } from "@crm/ui/components/input";
 import { Label } from "@crm/ui/components/label";
@@ -20,6 +21,8 @@ import { useMutation } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
 import { useTRPC } from "@/lib/trpc/client";
+
+const WHOLE_NUMBER = /^\d+$/;
 
 export function CampaignSettings({
 	campaignId,
@@ -45,6 +48,9 @@ export function CampaignSettings({
 	const [reentry, setReentry] = useState(cooldownDays !== null);
 	const [days, setDays] = useState(String(cooldownDays ?? 90));
 	const [passes, setPasses] = useState(String(maxPasses));
+
+	const cooldownValid = WHOLE_NUMBER.test(days.trim());
+	const blocked = kind === "DRIP" && reentry && !cooldownValid;
 
 	const save = useMutation(
 		trpc.marketingCampaigns.update.mutationOptions({
@@ -135,12 +141,23 @@ export function CampaignSettings({
 												id="cooldown"
 												type="number"
 												value={days}
+												aria-invalid={!cooldownValid}
 												onChange={(event) => setDays(event.target.value)}
 											/>
 											<span className="shrink-0 text-muted-foreground text-xs">
 												days after they leave
 											</span>
 										</div>
+										{cooldownValid ? null : (
+											<FieldError
+												errors={[
+													{
+														message:
+															"The cooldown takes a whole number of days.",
+													},
+												]}
+											/>
+										)}
 									</div>
 
 									<div className="flex flex-col gap-1.5">
@@ -181,7 +198,7 @@ export function CampaignSettings({
 
 				<SheetFooter>
 					<Button
-						disabled={save.isPending}
+						disabled={save.isPending || blocked}
 						onClick={() =>
 							save.mutate({
 								id: campaignId,
@@ -190,7 +207,7 @@ export function CampaignSettings({
 								...(kind === "DRIP"
 									? {
 											reentryCooldownDays: reentry
-												? Number.parseInt(days, 10) || 0
+												? Number.parseInt(days, 10)
 												: null,
 											maxPasses: reentry
 												? Math.max(1, Number.parseInt(passes, 10) || 1)

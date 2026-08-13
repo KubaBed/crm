@@ -4,10 +4,21 @@ import { AllowAnonymous } from "@thallesp/nestjs-better-auth";
 import type { Response } from "express";
 import { MarketingSettingsService } from "./marketing-settings.service";
 
-function landing(outcome: "connected" | "failed", reason?: string): string {
+const FAILED_SAFELY =
+	"Resend did not finish the sign-in. Try connecting again from Marketing settings.";
+
+function landing(
+	returnTo: string | null,
+	outcome: "connected" | "failed",
+	reason?: string,
+): string {
 	const query = new URLSearchParams({ resend: outcome });
 	if (reason) query.set("reason", reason);
-	return `${appUrl.replace(/\/+$/, "")}/?${query.toString()}`;
+
+	const path =
+		returnTo?.startsWith("/") && !returnTo.startsWith("//") ? returnTo : "/";
+
+	return `${appUrl.replace(/\/+$/, "")}${path}?${query.toString()}`;
 }
 
 @Controller("api/marketing/resend")
@@ -26,30 +37,39 @@ export class ResendOauthController {
 		@Res() response: Response,
 	): Promise<void> {
 		if (error) {
-			response.redirect(landing("failed", description ?? error));
+			const { returnTo } = state
+				? await this.settings.abandonConnect(state)
+				: { returnTo: null };
+
+			this.logger.warn({
+				message: "Resend refused the marketing sign-in",
+				reason: description ?? error,
+			});
+
+			response.redirect(landing(returnTo, "failed", FAILED_SAFELY));
 			return;
 		}
 
 		if (!code || !state) {
 			response.redirect(
-				landing("failed", "Resend sent no authorisation code."),
+				landing(null, "failed", "Resend sent no authorisation code."),
 			);
 			return;
 		}
 
 		try {
-			await this.settings.connectFinish(code, state);
-			response.redirect(landing("connected"));
+			const { returnTo } = await this.settings.connectFinish(code, state);
+			response.redirect(landing(returnTo, "connected"));
 		} catch (cause) {
-			const reason =
-				cause instanceof Error ? cause.message : "Resend refused the sign-in.";
-
 			this.logger.warn({
 				message: "Resend did not finish the marketing sign-in",
-				reason,
+				reason:
+					cause instanceof Error
+						? cause.message
+						: "Resend refused the sign-in.",
 			});
 
-			response.redirect(landing("failed", reason));
+			response.redirect(landing(null, "failed", FAILED_SAFELY));
 		}
 	}
 }

@@ -14,7 +14,7 @@ import {
 	Section,
 	Text,
 } from "@react-email/components";
-import type { JSX } from "react";
+import { createElement, type JSX } from "react";
 import {
 	type Block,
 	type EmailDocument,
@@ -22,7 +22,12 @@ import {
 	parseDocument,
 } from "./document";
 import { type MergeContext, resolveMerge } from "./merge";
-import { EMAIL_THEME, EMAIL_WIDTH } from "./theme";
+import {
+	EMAIL_CONTENT_WIDTH,
+	EMAIL_PADDING_X,
+	EMAIL_THEME,
+	EMAIL_WIDTH,
+} from "./theme";
 
 export type Shell = {
 	logoUrl?: string | null;
@@ -44,6 +49,25 @@ export type RenderInput = {
 };
 
 const ALIGN = { left: "left", center: "center", right: "right" } as const;
+
+const BREAK_LONG_WORDS = { wordBreak: "break-word" } as const;
+
+const MSO_SHELL = {
+	open: {
+		marker: "<mso-shell-open></mso-shell-open>",
+		html: `<!--[if mso]><table role="presentation" align="center" width="${EMAIL_WIDTH}" border="0" cellpadding="0" cellspacing="0"><tr><td><![endif]-->`,
+	},
+	close: {
+		marker: "<mso-shell-close></mso-shell-close>",
+		html: "<!--[if mso]></td></tr></table><![endif]-->",
+	},
+} as const;
+
+function withMsoShell(html: string): string {
+	return html
+		.replace(MSO_SHELL.open.marker, MSO_SHELL.open.html)
+		.replace(MSO_SHELL.close.marker, MSO_SHELL.close.html);
+}
 
 function runs(items: Inline[], context: MergeContext): JSX.Element[] {
 	return items.map((run, index) => {
@@ -93,6 +117,7 @@ function renderBlock(
 						fontWeight: 600,
 						color: EMAIL_THEME.foreground,
 						textAlign: ALIGN[item.align ?? "left"],
+						...BREAK_LONG_WORDS,
 					}}
 				>
 					{runs(item.text, context)}
@@ -109,6 +134,7 @@ function renderBlock(
 						lineHeight: "24px",
 						color: EMAIL_THEME.body,
 						textAlign: ALIGN[item.align ?? "left"],
+						...BREAK_LONG_WORDS,
 					}}
 				>
 					{runs(item.text, context)}
@@ -133,6 +159,8 @@ function renderBlock(
 							textDecoration: "none",
 							display: "inline-block",
 							boxSizing: "border-box",
+							maxWidth: "100%",
+							...BREAK_LONG_WORDS,
 						}}
 					>
 						{resolveMerge(item.label, context)}
@@ -144,7 +172,10 @@ function renderBlock(
 				<Img
 					src={item.src}
 					alt={item.alt}
-					width={item.width ?? EMAIL_WIDTH - 56}
+					width={Math.min(
+						item.width ?? EMAIL_CONTENT_WIDTH,
+						EMAIL_CONTENT_WIDTH,
+					)}
 					style={{ maxWidth: "100%", border: "0 none", display: "block" }}
 				/>
 			);
@@ -171,6 +202,7 @@ function renderBlock(
 							lineHeight: "24px",
 							color: EMAIL_THEME.muted,
 							fontStyle: "italic",
+							...BREAK_LONG_WORDS,
 						}}
 					>
 						{runs(item.text, context)}
@@ -247,17 +279,19 @@ function Shell({ input }: { input: ShellInput }): JSX.Element {
 						"-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif",
 				}}
 			>
+				{createElement("mso-shell-open")}
 				<Container
+					width={EMAIL_WIDTH}
 					style={{
-						width: `${EMAIL_WIDTH}px`,
-						maxWidth: "100%",
+						width: "100%",
+						maxWidth: `${EMAIL_WIDTH}px`,
 						margin: "0 auto",
 						backgroundColor: EMAIL_THEME.surface,
 					}}
 				>
 					<Section
 						style={{
-							padding: "20px 28px",
+							padding: `20px ${EMAIL_PADDING_X}px`,
 							borderBottom: `1px solid ${EMAIL_THEME.border}`,
 						}}
 					>
@@ -266,7 +300,7 @@ function Shell({ input }: { input: ShellInput }): JSX.Element {
 								src={shell.logoUrl}
 								alt={shell.logoAlt ?? shell.workspaceName}
 								height={24}
-								style={{ border: "0 none", display: "block" }}
+								style={{ maxWidth: "100%", border: "0 none", display: "block" }}
 							/>
 						) : (
 							<Text
@@ -276,6 +310,7 @@ function Shell({ input }: { input: ShellInput }): JSX.Element {
 									lineHeight: "22px",
 									fontWeight: 600,
 									color: EMAIL_THEME.foreground,
+									...BREAK_LONG_WORDS,
 								}}
 							>
 								{shell.workspaceName}
@@ -286,7 +321,7 @@ function Shell({ input }: { input: ShellInput }): JSX.Element {
 						)}
 					</Section>
 
-					<Section style={{ padding: "28px" }}>
+					<Section style={{ padding: `${EMAIL_PADDING_X}px` }}>
 						{document.blocks.map((item, index) =>
 							renderBlock(item, index, context, brand),
 						)}
@@ -294,7 +329,7 @@ function Shell({ input }: { input: ShellInput }): JSX.Element {
 
 					<Section
 						style={{
-							padding: "18px 28px",
+							padding: `18px ${EMAIL_PADDING_X}px`,
 							borderTop: `1px solid ${EMAIL_THEME.border}`,
 							backgroundColor: EMAIL_THEME.surfaceMuted,
 						}}
@@ -308,6 +343,7 @@ function Shell({ input }: { input: ShellInput }): JSX.Element {
 								fontSize: "12px",
 								lineHeight: "18px",
 								color: EMAIL_THEME.muted,
+								...BREAK_LONG_WORDS,
 							}}
 						>
 							{shell.postalAddress}
@@ -318,6 +354,7 @@ function Shell({ input }: { input: ShellInput }): JSX.Element {
 								fontSize: "12px",
 								lineHeight: "18px",
 								color: EMAIL_THEME.muted,
+								...BREAK_LONG_WORDS,
 							}}
 						>
 							<Link
@@ -346,6 +383,7 @@ function Shell({ input }: { input: ShellInput }): JSX.Element {
 						</Text>
 					</Section>
 				</Container>
+				{createElement("mso-shell-close")}
 			</Body>
 		</Html>
 	);
@@ -367,7 +405,7 @@ export async function renderEmail(
 		render(element, { plainText: true }),
 	]);
 
-	return { html, text };
+	return { html: withMsoShell(html), text };
 }
 
 export async function renderPlainText(input: RenderInput): Promise<string> {

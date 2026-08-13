@@ -12,11 +12,7 @@ import { EmailPreview } from "@crm/ui/components/email-preview";
 import { Icon } from "@crm/ui/components/icon";
 import { Input } from "@crm/ui/components/input";
 import { Label } from "@crm/ui/components/label";
-import {
-	saveLabel,
-	useAutosave,
-	useSaveStatus,
-} from "@crm/ui/hooks/use-autosave";
+import { saveLabel, useAutosave } from "@crm/ui/hooks/use-autosave";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
@@ -48,36 +44,43 @@ function Stat({ label, value }: { label: string; value: string }) {
 	);
 }
 
-export function NodeSheet({
-	node,
-	campaignId,
-	recipients,
-	stats,
-	onClose,
-	onSaved,
-}: {
+type NodeSheetProps = {
 	node: Node;
 	campaignId: string;
 	recipients: number;
 	stats: Stats | null;
 	onClose: () => void;
 	onSaved: () => void;
-}) {
+};
+
+export function NodeSheet(props: NodeSheetProps) {
+	return <NodeSheetBody key={props.node.id} {...props} />;
+}
+
+function NodeSheetBody({
+	node,
+	campaignId,
+	recipients,
+	stats,
+	onClose,
+	onSaved,
+}: NodeSheetProps) {
 	const trpc = useTRPC();
 	const uploadImage = useImageUpload();
 	const [subject, setSubject] = useState(node.subject ?? "");
 	const [preheader, setPreheader] = useState(node.preheader ?? "");
-
-	useEffect(() => {
-		setSubject(node.subject ?? "");
-		setPreheader(node.preheader ?? "");
-	}, [node.subject, node.preheader]);
-
 	const [blocks, setBlocks] = useState<EmailBlock[]>(() =>
 		blocksOf(node.document),
 	);
 	const [selected, setSelected] = useState<number | null>(null);
 	const [touched, setTouched] = useState(false);
+
+	useEffect(() => {
+		if (touched) return;
+		setSubject(node.subject ?? "");
+		setPreheader(node.preheader ?? "");
+		setBlocks(blocksOf(node.document));
+	}, [node, touched]);
 
 	const preview = useQuery(
 		trpc.marketingCampaigns.previewNode.queryOptions({
@@ -90,19 +93,15 @@ export function NodeSheet({
 
 	const save = useMutation(
 		trpc.marketingCampaigns.updateNode.mutationOptions({
-			onSuccess: () => {
-				onSaved();
-			},
+			onSuccess: () => onSaved(),
 			onError: (error) => toast.error(error.message),
 		}),
 	);
 
-	const status = useSaveStatus(save.isPending);
-
-	useAutosave(
+	const status = useAutosave(
 		{ subject, preheader, blocks },
 		(draft) =>
-			save.mutate({
+			save.mutateAsync({
 				nodeId: node.id,
 				subject: draft.subject,
 				preheader: draft.preheader || null,
@@ -111,14 +110,14 @@ export function NodeSheet({
 					unknown
 				>,
 			}),
-		{ enabled: touched },
+		{ enabled: touched, onSaved: () => setTouched(false) },
 	);
 
 	const percent = (part: number, whole: number) =>
 		whole === 0 ? "—" : `${Math.round((part / whole) * 100)}%`;
 
 	return (
-		<aside className="flex w-[1000px] max-w-[80vw] shrink-0 flex-col overflow-hidden border-l bg-background">
+		<aside className="flex w-[1000px] min-w-0 max-w-[80vw] flex-col overflow-hidden border-l bg-background">
 			<header className="flex h-13 shrink-0 items-center gap-2 border-b px-4 py-3">
 				<Icon
 					icon={Email}
@@ -220,8 +219,8 @@ export function NodeSheet({
 					{saveLabel(status)}
 				</span>
 				<div className="flex-1" />
-				<OpenPreview nodeId={node.id} disabled={status !== "idle"} />
-				<SaveAsTemplate nodeId={node.id} disabled={status !== "idle"} />
+				<OpenPreview nodeId={node.id} disabled={touched} />
+				<SaveAsTemplate nodeId={node.id} disabled={touched} />
 				<SendTest
 					nodeId={node.id}
 					subject={subject}

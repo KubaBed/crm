@@ -81,7 +81,6 @@
 			"linter": {
 				"rules": {
 					"correctness": {
-						// Nest, not React. `app.useGlobalPipes()` is a method, not a hook.
 						"useHookAtTopLevel": "off"
 					},
 					"style": {

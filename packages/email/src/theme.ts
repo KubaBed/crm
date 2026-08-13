@@ -11,6 +11,8 @@ export const EMAIL_THEME = {
 } as const;
 
 export const EMAIL_WIDTH = 600;
+export const EMAIL_PADDING_X = 28;
+export const EMAIL_CONTENT_WIDTH = EMAIL_WIDTH - EMAIL_PADDING_X * 2;
 
 function channel(hex: string, at: number): number {
 	const value = Number.parseInt(hex.slice(at, at + 2), 16) / 255;
