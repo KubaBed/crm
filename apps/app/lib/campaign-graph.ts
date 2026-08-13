@@ -98,6 +98,8 @@ const NEW_NODE: Record<NewKind, Record<string, unknown>> = {
 
 const APPEND_KINDS = new Set<NodeKind>(["EMAIL", "WAIT"]);
 
+export const GRAPH_NODE_ID = /^node_[a-z0-9]{1,32}$/;
+
 function newId(): string {
 	return `node_${Math.random().toString(36).slice(2, 12)}`;
 }
@@ -182,6 +184,22 @@ export function withoutNode(
 	return { nodes, edges, orphaned: left.length - nodes.length };
 }
 
+function exitAnchor(
+	campaign: CampaignGraph,
+	chosen: PlainNode | null,
+): PlainNode | null {
+	if (!chosen || chosen.kind === "EXIT") return chosen;
+
+	const handle = chosen.kind === "BRANCH" ? "yes" : "next";
+	const following = campaign.edges.find(
+		(edge) => edge.fromId === chosen.id && edge.handle === handle,
+	);
+	if (!following) return chosen;
+
+	const next = campaign.nodes.find((node) => node.id === following.toId);
+	return next?.kind === "EXIT" ? next : chosen;
+}
+
 export function withNode(
 	campaign: CampaignGraph,
 	kind: NewKind,
@@ -210,7 +228,7 @@ export function withNode(
 	}));
 
 	const outgoing = new Set(edges.map((edge) => edge.fromId));
-	const anchor =
+	const chosen =
 		(afterId
 			? campaign.nodes.find((node) => node.id === afterId)
 			: undefined) ??
@@ -220,6 +238,8 @@ export function withNode(
 		campaign.nodes.findLast((node) => APPEND_KINDS.has(node.kind)) ??
 		campaign.nodes[campaign.nodes.length - 1] ??
 		null;
+
+	const anchor = kind === "EXIT" ? exitAnchor(campaign, chosen) : chosen;
 
 	const id = newId();
 	nodes.push({ id, ...NEW_NODE[kind] } as (typeof nodes)[number]);

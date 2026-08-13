@@ -1,6 +1,6 @@
 import { createHash, randomBytes } from "node:crypto";
 import { apiUrl } from "@crm/auth";
-import { type Db, Prisma } from "@crm/db";
+import type { Db } from "@crm/db";
 import {
 	RESEND_OAUTH,
 	readMarketingSettings,
@@ -10,6 +10,8 @@ import { SETTINGS_ID } from "@crm/db/settings";
 import { BadRequestException, Injectable, Logger } from "@nestjs/common";
 import { z } from "zod";
 import { InjectDatabase } from "../database/database.constants";
+import { MARKETING_LOCKS, RETRYABLE_STATUS } from "./marketing-config";
+import { underLock } from "./marketing-lock";
 
 const registration = z.object({
 	client_id: z.string().min(1),
@@ -84,6 +86,7 @@ export class ResendOauthService {
 				...headers,
 			},
 			body: json ? JSON.stringify(body) : new URLSearchParams(body).toString(),
+			signal: AbortSignal.timeout(RESEND_OAUTH.requestMs),
 		});
 
 		return {
@@ -179,33 +182,38 @@ export class ResendOauthService {
 		return { url: `${RESEND_OAUTH.authorize}?${query.toString()}` };
 	}
 
-	private async consume(state: string): Promise<PendingAttempt | null> {
-		try {
-			const attempt = await this.db.marketingResendAuthAttempt.delete({
-				where: { state },
-				select: { verifier: true, returnTo: true, createdAt: true },
-			});
+	private async pending(state: string): Promise<PendingAttempt | null> {
+		const attempt = await this.db.marketingResendAuthAttempt.findUnique({
+			where: { state },
+			select: { verifier: true, returnTo: true, createdAt: true },
+		});
 
-			const expired =
-				attempt.createdAt.getTime() < Date.now() - RESEND_OAUTH.attemptTtlMs;
+		if (!attempt) return null;
 
-			return expired
-				? null
-				: { verifier: attempt.verifier, returnTo: attempt.returnTo };
-		} catch (error) {
-			if (
-				error instanceof Prisma.PrismaClientKnownRequestError &&
-				error.code === "P2025"
-			) {
-				return null;
-			}
-			throw error;
+		if (attempt.createdAt.getTime() < Date.now() - RESEND_OAUTH.attemptTtlMs) {
+			await this.spend(state);
+			return null;
 		}
+
+		return { verifier: attempt.verifier, returnTo: attempt.returnTo };
+	}
+
+	private async spend(state: string): Promise<void> {
+		await this.db.marketingResendAuthAttempt.deleteMany({ where: { state } });
 	}
 
 	async abandon(state: string): Promise<{ returnTo: string | null }> {
-		const attempt = await this.consume(state);
+		const attempt = await this.pending(state);
+		await this.spend(state);
 		return { returnTo: attempt?.returnTo ?? null };
+	}
+
+	async destination(state: string): Promise<string | null> {
+		const attempt = await this.db.marketingResendAuthAttempt
+			.findUnique({ where: { state }, select: { returnTo: true } })
+			.catch(() => null);
+
+		return attempt?.returnTo ?? null;
 	}
 
 	async finish(
@@ -214,7 +222,7 @@ export class ResendOauthService {
 	): Promise<{
 		returnTo: string | null;
 	}> {
-		const attempt = await this.consume(state);
+		const attempt = await this.pending(state);
 
 		if (!attempt) {
 			throw new BadRequestException(
@@ -242,14 +250,37 @@ export class ResendOauthService {
 			form.client_secret = settings.resendClientSecret;
 		}
 
-		const result = await this.post(RESEND_OAUTH.token, form);
+		let result = await this.post(RESEND_OAUTH.token, form);
+
+		if (RETRYABLE_STATUS.has(result.status)) {
+			this.logger.warn({
+				message: "Resend did not answer the code exchange, trying once more",
+				status: result.status,
+			});
+
+			result = await this.post(RESEND_OAUTH.token, form);
+		}
+
+		if (RETRYABLE_STATUS.has(result.status)) {
+			this.logger.warn({
+				message: "Resend would not exchange the code, so the attempt is kept",
+				reason: why(result.body, "Unknown"),
+			});
+
+			throw new BadRequestException(
+				"Resend did not answer the sign-in. Reload this page to try again.",
+			);
+		}
 
 		if (result.status >= 400) {
+			await this.spend(state);
+
 			throw new BadRequestException(
 				why(result.body, "Resend would not complete the sign-in."),
 			);
 		}
 
+		await this.spend(state);
 		await this.store(result.body);
 
 		return { returnTo: attempt.returnTo };
@@ -267,31 +298,57 @@ export class ResendOauthService {
 		if (settings.resendAccessToken && fresh) return settings.resendAccessToken;
 		if (!settings.resendRefreshToken) return settings.resendAccessToken;
 
-		this.refreshing ??= this.refresh(
-			settings.resendRefreshToken,
-			settings.resendClientId,
-			settings.resendClientSecret,
-		).finally(() => {
+		this.refreshing ??= this.refreshAlone().finally(() => {
 			this.refreshing = null;
 		});
 
 		return this.refreshing;
 	}
 
-	private async refresh(
-		refreshToken: string,
-		clientId: string | null,
-		clientSecret: string | null,
-	): Promise<string | null> {
-		if (!clientId) return null;
+	private async refreshAlone(): Promise<string | null> {
+		try {
+			return await underLock(this.db, MARKETING_LOCKS.resendRefresh, () =>
+				this.refresh(),
+			);
+		} catch (error) {
+			this.logger.error(
+				{
+					message:
+						"The Resend token refresh did not run, so marketing cannot send until the next tick",
+				},
+				error instanceof Error ? error.stack : String(error),
+			);
+
+			return null;
+		}
+	}
+
+	private async refresh(): Promise<string | null> {
+		const settings = await readMarketingSettings(this.db);
+		const refreshToken = settings.resendRefreshToken;
+
+		if (!refreshToken) return settings.resendAccessToken;
+
+		const expires = settings.resendTokenExpires?.getTime() ?? 0;
+
+		if (
+			settings.resendAccessToken &&
+			expires - RESEND_OAUTH.refreshSkewMs > Date.now()
+		) {
+			return settings.resendAccessToken;
+		}
+
+		if (!settings.resendClientId) return null;
 
 		const form: Record<string, string> = {
 			grant_type: "refresh_token",
 			refresh_token: refreshToken,
-			client_id: clientId,
+			client_id: settings.resendClientId,
 		};
 
-		if (clientSecret) form.client_secret = clientSecret;
+		if (settings.resendClientSecret) {
+			form.client_secret = settings.resendClientSecret;
+		}
 
 		const result = await this.post(RESEND_OAUTH.token, form);
 

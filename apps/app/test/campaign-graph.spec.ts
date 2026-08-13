@@ -7,6 +7,7 @@ import {
 } from "@crm/db/marketing";
 import {
 	type CampaignGraph,
+	GRAPH_NODE_ID,
 	type NewKind,
 	withNode,
 	withoutNode,
@@ -116,6 +117,46 @@ describe("adding a step from the canvas", () => {
 		expect(next.edges.find((edge) => edge.toId === added?.id)?.fromId).toBe(
 			"b",
 		);
+	});
+
+	test("a new node carries an id the eve proxy accepts", () => {
+		const next = withNode(graph(), "EMAIL", "a");
+		const added = next.nodes.find((row) => row.id !== "a");
+
+		expect(GRAPH_NODE_ID.test(added?.id ?? "")).toBe(true);
+	});
+
+	test("an exit replaces the exit at the end instead of pointing at it", () => {
+		const ending: CampaignGraph = {
+			nodes: [node("a", "EMAIL"), node("b", "EMAIL"), node("x", "EXIT")],
+			edges: [
+				{ fromId: "a", toId: "b", handle: "next", label: null, weight: 100 },
+				{ fromId: "b", toId: "x", handle: "next", label: null, weight: 100 },
+			],
+		};
+
+		const next = withNode(ending, "EXIT", null);
+		const added = next.nodes.find((row) => row.kind === "EXIT");
+
+		expect(next.nodes.some((row) => row.id === "x")).toBe(false);
+		expect(next.edges.find((edge) => edge.toId === added?.id)?.fromId).toBe(
+			"b",
+		);
+		expect(errorsIn(next)).toEqual([]);
+	});
+
+	test("an exit after an email that already ends replaces that ending", () => {
+		const ending: CampaignGraph = {
+			nodes: [node("a", "EMAIL"), node("x", "EXIT")],
+			edges: [
+				{ fromId: "a", toId: "x", handle: "next", label: null, weight: 100 },
+			],
+		};
+
+		const next = withNode(ending, "EXIT", "a");
+
+		expect(next.nodes.some((row) => row.id === "x")).toBe(false);
+		expect(errorsIn(next)).toEqual([]);
 	});
 });
 

@@ -15,6 +15,7 @@ import {
 	AttachmentActions,
 	AttachmentContent,
 	AttachmentGroup,
+	AttachmentImage,
 	AttachmentMedia,
 	AttachmentTitle,
 	AttachmentTrigger,
@@ -61,7 +62,9 @@ import {
 import {
 	AGENT_ATTACHMENTS,
 	type DraftAttachment,
+	IMAGE_ACCEPT,
 	isImage,
+	isUnsupportedImage,
 	sizeLimitLabel,
 	toDraftAttachment,
 	tooLarge,
@@ -243,6 +246,7 @@ function Thread({
 	});
 	const [draft, setDraft] = useState("");
 	const [attachments, setAttachments] = useState<DraftAttachment[]>([]);
+	const [reading, setReading] = useState(0);
 	const filePicker = useRef<HTMLInputElement>(null);
 
 	const opening = useRef<string | null>(conversation?.title ?? null);
@@ -260,8 +264,13 @@ function Thread({
 	const question = pendingQuestion(agent.data.messages);
 
 	const { locked, ended } = composerState(thread, busy);
+	const loading = reading > 0;
 
 	const addFiles = (files: File[]) => {
+		if (files.some(isUnsupportedImage)) {
+			toast.error(AGENT_ATTACHMENTS.copy.unsupportedType);
+		}
+
 		const images = files.filter(isImage);
 		if (images.length === 0) return;
 
@@ -280,13 +289,18 @@ function Thread({
 				);
 				continue;
 			}
-			void toDraftAttachment(image).then((attachment) =>
-				setAttachments((current) =>
-					current.length < AGENT_ATTACHMENTS.image.maxCount
-						? [...current, attachment]
-						: current,
-				),
-			);
+
+			setReading((count) => count + 1);
+			void toDraftAttachment(image)
+				.then((attachment) =>
+					setAttachments((current) =>
+						current.length < AGENT_ATTACHMENTS.image.maxCount
+							? [...current, attachment]
+							: current,
+					),
+				)
+				.catch(() => toast.error(AGENT_ATTACHMENTS.copy.readFailed))
+				.finally(() => setReading((count) => count - 1));
 		}
 	};
 
@@ -315,7 +329,7 @@ function Thread({
 
 	const ask = (message: string) => {
 		const text = message.trim();
-		if (locked || (!text && attachments.length === 0)) return;
+		if (locked || loading || (!text && attachments.length === 0)) return;
 		opening.current ||= text || "Sent an image";
 		setDraft("");
 		setAttachments([]);
@@ -409,7 +423,7 @@ function Thread({
 								{attachments.map((attachment) => (
 									<Attachment key={attachment.id} size="sm" state="done">
 										<AttachmentMedia variant="image">
-											<img
+											<AttachmentImage
 												src={attachment.dataUrl}
 												alt={attachment.filename ?? "Pasted image"}
 											/>
@@ -461,7 +475,7 @@ function Thread({
 							<input
 								ref={filePicker}
 								type="file"
-								accept="image/*"
+								accept={IMAGE_ACCEPT}
 								multiple
 								className="sr-only"
 								onChange={(event) => {
@@ -483,9 +497,9 @@ function Thread({
 								type="submit"
 								size="icon-sm"
 								variant="outline"
-								disabled={locked}
+								disabled={locked || loading}
 							>
-								{busy ? <Spinner /> : <Icon icon={Send} />}
+								{busy || loading ? <Spinner /> : <Icon icon={Send} />}
 								<span className="sr-only">Ask</span>
 							</Button>
 						</form>
@@ -607,7 +621,7 @@ function Item({ item }: { item: TranscriptItem }) {
 					<Attachment size="sm" state="done">
 						{item.url && item.mediaType.startsWith("image/") ? (
 							<AttachmentMedia variant="image">
-								<img src={item.url} alt={label} />
+								<AttachmentImage src={item.url} alt={label} />
 							</AttachmentMedia>
 						) : (
 							<AttachmentMedia variant="icon">

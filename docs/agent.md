@@ -216,6 +216,16 @@ wall of image; this tool is how the agent catches that before a rep does.
   (`CHROME_EXECUTABLE_PATH`, or a standard location found automatically). No
   screenshot vendor: rendered marketing copy stays on this machine, per the egress
   rules above. The page runs with JavaScript disabled.
+- **The browser fetches public addresses only.** An email holds addresses the
+  agent did not choose, and a headless browser on our own network is an SSRF
+  vector. Every request is intercepted: `data:` loads, `http(s)` loads when the
+  host resolves to a public address, and everything else is refused — loopback,
+  link-local, private, CGNAT, unique-local, multicast and reserved ranges, and
+  any other scheme. The one exception is this install's own origin (`APP_URL`),
+  so a picture served by the app in dev still draws. `lib/email-requests.ts`
+  holds the rule and reuses `resolvesToPublicHost` from `@crm/db/safe-fetch`. A
+  refused address becomes a finding rather than a silent gap: a reader on
+  another network cannot reach it either.
 - **It is a capability like the others.** No browser means the capability is off at
   boot, stated in the session instructions, and the tool returns the shared
   not-configured result. It never throws, and it costs nothing when unused.

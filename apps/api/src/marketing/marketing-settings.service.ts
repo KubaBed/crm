@@ -15,7 +15,9 @@ import { BadRequestException, Injectable } from "@nestjs/common";
 import { AgentTriggerService } from "../agent/agent-trigger.service";
 import { blankToNull, normalizeEmail } from "../crm/values";
 import { InjectDatabase } from "../database/database.constants";
+import { MARKETING_LOCKS } from "./marketing-config";
 import { MarketingDrainService } from "./marketing-drain.service";
+import { underLock } from "./marketing-lock";
 import type { DnsRecord } from "./resend.service";
 import { ResendService } from "./resend.service";
 import { ResendOauthService } from "./resend-oauth.service";
@@ -140,6 +142,10 @@ export class MarketingSettingsService {
 
 	async abandonConnect(state: string): Promise<{ returnTo: string | null }> {
 		return this.oauth.abandon(state);
+	}
+
+	async connectDestination(state: string): Promise<string | null> {
+		return this.oauth.destination(state);
 	}
 
 	async saveIdentity(input: {
@@ -326,6 +332,12 @@ export class MarketingSettingsService {
 		const sendable = await assertSendable(this.db);
 		if (!sendable.ok) throw new BadRequestException(sendable.reason);
 
+		if (!(await this.resend.ready())) {
+			throw new BadRequestException(
+				"Resend is not answering with a usable token. Try the test again in a moment.",
+			);
+		}
+
 		const user = await this.db.user.findUnique({
 			where: { id: userId },
 			select: { email: true, name: true },
@@ -394,7 +406,9 @@ export class MarketingSettingsService {
 	}
 
 	async markOnboarded(): Promise<void> {
-		await ensureDefaultSegments(this.db);
-		await writeMarketingSettings(this.db, { onboardedAt: new Date() });
+		await underLock(this.db, MARKETING_LOCKS.onboarding, async () => {
+			await ensureDefaultSegments(this.db);
+			await writeMarketingSettings(this.db, { onboardedAt: new Date() });
+		});
 	}
 }

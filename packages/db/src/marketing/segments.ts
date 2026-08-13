@@ -354,8 +354,10 @@ export async function ensureDefaultSegments(db: Db): Promise<number> {
 			continue;
 		}
 
-		await db.marketingSegment.create({
-			data: {
+		await db.marketingSegment.upsert({
+			where: { name: segment.name },
+			update: { isDefault: true, archivedAt: null },
+			create: {
 				name: segment.name,
 				description: segment.description,
 				definition: segment.definition as Prisma.InputJsonValue,

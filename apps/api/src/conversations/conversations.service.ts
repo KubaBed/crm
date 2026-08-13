@@ -14,6 +14,7 @@ import {
 	isPreviewableImage,
 } from "./conversation-attachments";
 import { conversationShareTokenHash } from "./conversation-share-token";
+import { violatedForeignKey } from "./conversations.constraints";
 import type {
 	BuilderConversationCreateInput,
 	BuilderConversationSubmitInput,
@@ -769,7 +770,7 @@ export class ConversationsService {
 		rawInput: ConversationSaveInput,
 		userId: string,
 	): Promise<{ id: string }> {
-		const input = await this.withLiveNode(rawInput);
+		let input = await this.withLiveNode(rawInput);
 		const recordId = this.recordId(input);
 		const updateExisting = async (existing: {
 			id: string;
@@ -854,13 +855,10 @@ export class ConversationsService {
 				shellId: true,
 			},
 		});
-		let conversation: { id: string };
 
-		if (existing) {
-			conversation = await updateExisting(existing);
-		} else {
+		const createScoped = async (): Promise<{ id: string }> => {
 			try {
-				conversation = await this.db.agentConversation.create({
+				return await this.db.agentConversation.create({
 					data: {
 						sessionId: input.sessionId,
 						continuationToken: input.continuationToken ?? null,
@@ -880,11 +878,6 @@ export class ConversationsService {
 					select: { id: true },
 				});
 			} catch (error) {
-				if (isForeignKeyConstraint(error)) {
-					throw new BadRequestException(
-						"That conversation points at a record that no longer exists.",
-					);
-				}
 				if (!isUniqueConstraint(error)) throw error;
 				const winner = await this.db.agentConversation.findUnique({
 					where: { sessionId: input.sessionId },
@@ -903,11 +896,41 @@ export class ConversationsService {
 					},
 				});
 				if (!winner) throw error;
-				conversation = await updateExisting(winner);
+				return updateExisting(winner);
 			}
-		}
+		};
 
-		return conversation;
+		const createDroppingLostNode = async (
+			droppable: boolean,
+		): Promise<{ id: string }> => {
+			try {
+				return await createScoped();
+			} catch (error) {
+				const violated = violatedForeignKey(error);
+
+				if (droppable && violated === "campaignNode" && input.campaignNodeId) {
+					this.logger.debug({
+						message: "Conversation saved without a step deleted mid-save",
+						campaignId: input.campaignId,
+					});
+					input = { ...input, campaignNodeId: undefined };
+
+					return createDroppingLostNode(false);
+				}
+
+				if (violated) {
+					throw new BadRequestException(
+						"That conversation points at a record that no longer exists.",
+					);
+				}
+
+				throw error;
+			}
+		};
+
+		return existing
+			? await updateExisting(existing)
+			: await createDroppingLostNode(true);
 	}
 
 	async events(input: ConversationEventsInput, userId: string) {
@@ -1172,13 +1195,6 @@ export class ConversationsService {
 
 		return { id: existing.id };
 	}
-}
-
-function isForeignKeyConstraint(error: unknown): boolean {
-	return (
-		error instanceof PrismaNamespace.PrismaClientKnownRequestError &&
-		error.code === "P2003"
-	);
 }
 
 function isUniqueConstraint(error: unknown): boolean {

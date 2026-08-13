@@ -82,23 +82,21 @@ function conditionUsesOpened(condition: unknown): boolean {
 	return walk(parsed.data);
 }
 
-export function validateGraph(
-	nodes: GraphNode[],
+function outgoingByNode(edges: GraphEdge[]): Map<string, GraphEdge[]> {
+	const out = new Map<string, GraphEdge[]>();
+	for (const edge of edges) {
+		const list = out.get(edge.fromId) ?? [];
+		list.push(edge);
+		out.set(edge.fromId, list);
+	}
+	return out;
+}
+
+function danglingEdgeProblems(
+	byId: Map<string, GraphNode>,
 	edges: GraphEdge[],
-	options: { openTracking?: boolean } = {},
 ): GraphProblem[] {
 	const problems: GraphProblem[] = [];
-	const byId = new Map(nodes.map((node) => [node.id, node]));
-
-	if (nodes.length === 0) {
-		problems.push({
-			level: "error",
-			code: "empty",
-			message: "A campaign needs at least one email.",
-		});
-		return problems;
-	}
-
 	for (const edge of edges) {
 		if (!byId.has(edge.fromId)) {
 			problems.push({
@@ -117,7 +115,14 @@ export function validateGraph(
 			});
 		}
 	}
+	return problems;
+}
 
+function rootProblems(
+	nodes: GraphNode[],
+	byId: Map<string, GraphNode>,
+	edges: GraphEdge[],
+): GraphProblem[] {
 	const incoming = new Map<string, number>();
 	for (const node of nodes) incoming.set(node.id, 0);
 	for (const edge of edges) {
@@ -127,30 +132,29 @@ export function validateGraph(
 
 	const roots = nodes.filter((node) => (incoming.get(node.id) ?? 0) === 0);
 	if (roots.length === 0) {
-		problems.push({
-			level: "error",
-			code: "no-root",
-			message:
-				"Every node has something pointing at it, so nothing can start. The graph must not loop.",
-		});
-	} else if (roots.length > 1) {
-		for (const root of roots.slice(1)) {
-			problems.push({
+		return [
+			{
 				level: "error",
-				code: "many-roots",
-				nodeId: root.id,
-				message: "A campaign has one starting point, and this is a second one.",
-			});
-		}
+				code: "no-root",
+				message:
+					"Every node has something pointing at it, so nothing can start. The graph must not loop.",
+			},
+		];
 	}
 
-	const out = new Map<string, GraphEdge[]>();
-	for (const edge of edges) {
-		const list = out.get(edge.fromId) ?? [];
-		list.push(edge);
-		out.set(edge.fromId, list);
-	}
+	return roots.slice(1).map((root) => ({
+		level: "error" as const,
+		code: "many-roots",
+		nodeId: root.id,
+		message: "A campaign has one starting point, and this is a second one.",
+	}));
+}
 
+function cycleProblems(
+	nodes: GraphNode[],
+	byId: Map<string, GraphNode>,
+	out: Map<string, GraphEdge[]>,
+): GraphProblem[] {
 	const state = new Map<string, "open" | "done">();
 	const cycle = (id: string): boolean => {
 		const seen = state.get(id);
@@ -166,158 +170,208 @@ export function validateGraph(
 
 	for (const node of nodes) {
 		if (cycle(node.id)) {
-			problems.push({
+			return [
+				{
+					level: "error",
+					code: "cycle",
+					nodeId: node.id,
+					message:
+						"This node is part of a loop. A campaign runs forwards only.",
+				},
+			];
+		}
+	}
+
+	return [];
+}
+
+function emailProblems(node: GraphNode, outgoing: GraphEdge[]): GraphProblem[] {
+	const problems: GraphProblem[] = [];
+	if (!node.document && !node.templateId) {
+		problems.push({
+			level: "error",
+			code: "email-empty",
+			nodeId: node.id,
+			message: "This email has no content and no template.",
+		});
+	}
+	if (!node.subject?.trim() && !node.templateId) {
+		problems.push({
+			level: "error",
+			code: "email-no-subject",
+			nodeId: node.id,
+			message: "This email has no subject.",
+		});
+	}
+	if (outgoing.length > 1) {
+		problems.push({
+			level: "error",
+			code: "email-many-out",
+			nodeId: node.id,
+			message: "An email leads to one next step.",
+		});
+	}
+	return problems;
+}
+
+function waitProblems(node: GraphNode, outgoing: GraphEdge[]): GraphProblem[] {
+	const problems: GraphProblem[] = [];
+	if (node.delayHours === null || node.delayHours === undefined) {
+		problems.push({
+			level: "error",
+			code: "wait-no-delay",
+			nodeId: node.id,
+			message: "This wait has no length.",
+		});
+	}
+	if (outgoing.length > 1) {
+		problems.push({
+			level: "error",
+			code: "wait-many-out",
+			nodeId: node.id,
+			message: "A wait leads to one next step.",
+		});
+	}
+	return problems;
+}
+
+function branchConditionProblems(node: GraphNode): GraphProblem[] {
+	if (!node.condition) {
+		return [
+			{
 				level: "error",
-				code: "cycle",
+				code: "branch-no-condition",
 				nodeId: node.id,
-				message: "This node is part of a loop. A campaign runs forwards only.",
-			});
-			break;
-		}
+				message: "This branch has no condition.",
+			},
+		];
+	}
+	if (!filterSchema.safeParse(node.condition).success) {
+		return [
+			{
+				level: "error",
+				code: "branch-bad-condition",
+				nodeId: node.id,
+				message: "This branch's condition is not a valid rule.",
+			},
+		];
+	}
+	return [];
+}
+
+function branchOpenTrackingProblems(
+	node: GraphNode,
+	openTracking: boolean | undefined,
+): GraphProblem[] {
+	if (!conditionUsesOpened(node.condition)) return [];
+	if (openTracking === false) {
+		return [
+			{
+				level: "error",
+				code: "branch-open-tracking-off",
+				nodeId: node.id,
+				message:
+					"This branch asks whether somebody opened an email, but open tracking is off at Resend. Nobody will ever take the yes path. Turn tracking on, or branch on a click instead.",
+			},
+		];
+	}
+	return [
+		{
+			level: "warning",
+			code: "branch-opens-are-inflated",
+			nodeId: node.id,
+			message:
+				"Apple Mail opens every email before a person does, so the yes path collects Apple Mail readers whether or not they looked. Branching on a click is more reliable.",
+		},
+	];
+}
+
+function branchProblems(
+	node: GraphNode,
+	outgoing: GraphEdge[],
+	openTracking: boolean | undefined,
+): GraphProblem[] {
+	const handles = new Set(outgoing.map((edge) => edge.handle ?? "next"));
+	const missing = BRANCH_HANDLES.filter(
+		(handle) => !handles.has(handle),
+	).map<GraphProblem>((handle) => ({
+		level: "error",
+		code: "branch-missing-arm",
+		nodeId: node.id,
+		message: `This branch has no "${handle}" path.`,
+	}));
+
+	return [
+		...branchConditionProblems(node),
+		...missing,
+		...branchOpenTrackingProblems(node, openTracking),
+	];
+}
+
+function splitProblems(node: GraphNode, outgoing: GraphEdge[]): GraphProblem[] {
+	if (outgoing.length < 2) {
+		return [
+			{
+				level: "error",
+				code: "split-one-arm",
+				nodeId: node.id,
+				message: "A split needs at least two paths.",
+			},
+		];
 	}
 
-	for (const node of nodes) {
-		const outgoing = out.get(node.id) ?? [];
+	const total = outgoing.reduce((sum, edge) => sum + (edge.weight ?? 0), 0);
+	if (total === 100) return [];
 
-		switch (node.kind) {
-			case "EMAIL": {
-				if (!node.document && !node.templateId) {
-					problems.push({
-						level: "error",
-						code: "email-empty",
-						nodeId: node.id,
-						message: "This email has no content and no template.",
-					});
-				}
-				if (!node.subject?.trim() && !node.templateId) {
-					problems.push({
-						level: "error",
-						code: "email-no-subject",
-						nodeId: node.id,
-						message: "This email has no subject.",
-					});
-				}
-				if (outgoing.length > 1) {
-					problems.push({
-						level: "error",
-						code: "email-many-out",
-						nodeId: node.id,
-						message: "An email leads to one next step.",
-					});
-				}
-				break;
-			}
-			case "WAIT": {
-				if (node.delayHours === null || node.delayHours === undefined) {
-					problems.push({
-						level: "error",
-						code: "wait-no-delay",
-						nodeId: node.id,
-						message: "This wait has no length.",
-					});
-				}
-				if (outgoing.length > 1) {
-					problems.push({
-						level: "error",
-						code: "wait-many-out",
-						nodeId: node.id,
-						message: "A wait leads to one next step.",
-					});
-				}
-				break;
-			}
-			case "BRANCH": {
-				if (!node.condition) {
-					problems.push({
-						level: "error",
-						code: "branch-no-condition",
-						nodeId: node.id,
-						message: "This branch has no condition.",
-					});
-				} else if (!filterSchema.safeParse(node.condition).success) {
-					problems.push({
-						level: "error",
-						code: "branch-bad-condition",
-						nodeId: node.id,
-						message: "This branch's condition is not a valid rule.",
-					});
-				}
+	return [
+		{
+			level: "error",
+			code: "split-weights",
+			nodeId: node.id,
+			message: `The split's paths add up to ${total}%, not 100%.`,
+		},
+	];
+}
 
-				const handles = new Set(outgoing.map((edge) => edge.handle ?? "next"));
-				for (const handle of BRANCH_HANDLES) {
-					if (!handles.has(handle)) {
-						problems.push({
-							level: "error",
-							code: "branch-missing-arm",
-							nodeId: node.id,
-							message: `This branch has no "${handle}" path.`,
-						});
-					}
-				}
+function exitProblems(node: GraphNode, outgoing: GraphEdge[]): GraphProblem[] {
+	if (outgoing.length === 0) return [];
+	return [
+		{
+			level: "error",
+			code: "exit-has-out",
+			nodeId: node.id,
+			message: "An exit is the end. It leads nowhere.",
+		},
+	];
+}
 
-				if (conditionUsesOpened(node.condition)) {
-					if (options.openTracking === false) {
-						problems.push({
-							level: "error",
-							code: "branch-open-tracking-off",
-							nodeId: node.id,
-							message:
-								"This branch asks whether somebody opened an email, but open tracking is off at Resend. Nobody will ever take the yes path. Turn tracking on, or branch on a click instead.",
-						});
-					} else {
-						problems.push({
-							level: "warning",
-							code: "branch-opens-are-inflated",
-							nodeId: node.id,
-							message:
-								"Apple Mail opens every email before a person does, so the yes path collects Apple Mail readers whether or not they looked. Branching on a click is more reliable.",
-						});
-					}
-				}
-				break;
-			}
-			case "SPLIT": {
-				if (outgoing.length < 2) {
-					problems.push({
-						level: "error",
-						code: "split-one-arm",
-						nodeId: node.id,
-						message: "A split needs at least two paths.",
-					});
-					break;
-				}
-				const total = outgoing.reduce(
-					(sum, edge) => sum + (edge.weight ?? 0),
-					0,
-				);
-				if (total !== 100) {
-					problems.push({
-						level: "error",
-						code: "split-weights",
-						nodeId: node.id,
-						message: `The split's paths add up to ${total}%, not 100%.`,
-					});
-				}
-				break;
-			}
-			case "EXIT": {
-				if (outgoing.length > 0) {
-					problems.push({
-						level: "error",
-						code: "exit-has-out",
-						nodeId: node.id,
-						message: "An exit is the end. It leads nowhere.",
-					});
-				}
-				break;
-			}
-		}
+function nodeProblems(
+	node: GraphNode,
+	outgoing: GraphEdge[],
+	openTracking: boolean | undefined,
+): GraphProblem[] {
+	switch (node.kind) {
+		case "EMAIL":
+			return emailProblems(node, outgoing);
+		case "WAIT":
+			return waitProblems(node, outgoing);
+		case "BRANCH":
+			return branchProblems(node, outgoing, openTracking);
+		case "SPLIT":
+			return splitProblems(node, outgoing);
+		case "EXIT":
+			return exitProblems(node, outgoing);
+		default:
+			return [];
 	}
+}
 
-	const handleSeen = new Set<string>();
+function duplicateHandleProblems(edges: GraphEdge[]): GraphProblem[] {
+	const problems: GraphProblem[] = [];
+	const seen = new Set<string>();
 	for (const edge of edges) {
 		const key = `${edge.fromId}:${edge.handle ?? "next"}`;
-		if (handleSeen.has(key)) {
+		if (seen.has(key)) {
 			problems.push({
 				level: "error",
 				code: "duplicate-handle",
@@ -326,10 +380,38 @@ export function validateGraph(
 				message: "Two paths leave this node by the same route.",
 			});
 		}
-		handleSeen.add(key);
+		seen.add(key);
+	}
+	return problems;
+}
+
+export function validateGraph(
+	nodes: GraphNode[],
+	edges: GraphEdge[],
+	options: { openTracking?: boolean } = {},
+): GraphProblem[] {
+	if (nodes.length === 0) {
+		return [
+			{
+				level: "error",
+				code: "empty",
+				message: "A campaign needs at least one email.",
+			},
+		];
 	}
 
-	return problems;
+	const byId = new Map(nodes.map((node) => [node.id, node]));
+	const out = outgoingByNode(edges);
+
+	return [
+		...danglingEdgeProblems(byId, edges),
+		...rootProblems(nodes, byId, edges),
+		...cycleProblems(nodes, byId, out),
+		...nodes.flatMap((node) =>
+			nodeProblems(node, out.get(node.id) ?? [], options.openTracking),
+		),
+		...duplicateHandleProblems(edges),
+	];
 }
 
 export function graphErrors(problems: GraphProblem[]): GraphProblem[] {

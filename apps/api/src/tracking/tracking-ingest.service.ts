@@ -123,17 +123,13 @@ export class TrackingIngestService {
 		const firstSeen = new Date(Math.min(...stamps));
 		const lastSeen = new Date(Math.max(...stamps));
 
-		const bumped = await this.db.trackedVisitor.updateMany({
-			where: { id: visitorId, lastSeen: { lt: lastSeen } },
-			data: { lastSeen },
-		});
-
-		if (bumped.count === 0) {
-			await this.db.trackedVisitor.createMany({
-				data: [{ id: visitorId, firstSeen, lastSeen }],
-				skipDuplicates: true,
-			});
-		}
+		await this.db.$executeRaw`
+			INSERT INTO "trackedVisitor" ("id", "firstSeen", "lastSeen")
+			VALUES (${visitorId}, ${firstSeen}, ${lastSeen})
+			ON CONFLICT ("id") DO UPDATE
+				SET "firstSeen" = LEAST("trackedVisitor"."firstSeen", EXCLUDED."firstSeen"),
+					"lastSeen" = GREATEST("trackedVisitor"."lastSeen", EXCLUDED."lastSeen");
+		`;
 	}
 
 	private async events(

@@ -27,6 +27,7 @@ import {
 	splitSegments,
 } from "@/components/marketing/segment-picker";
 import { useImageUpload } from "@/components/marketing/use-image-upload";
+import { useCampaignOptionsInvalidation } from "@/components/marketing/use-marketing-facets";
 import { useTRPC } from "@/lib/trpc/client";
 import type { RouterOutputs } from "@/lib/trpc/types";
 import { useWorkspaceUrl } from "@/lib/use-workspace-url";
@@ -72,6 +73,7 @@ export function BlastComposer({
 	const uploadImage = useImageUpload();
 	const queryClient = useQueryClient();
 	const workspaceUrl = useWorkspaceUrl();
+	const invalidateCampaignOptions = useCampaignOptionsInvalidation();
 
 	const node = campaign.nodes.find(
 		(candidate: Campaign["nodes"][number]) => candidate.kind === "EMAIL",
@@ -124,7 +126,10 @@ export function BlastComposer({
 
 	const rename = useMutation(
 		trpc.marketingCampaigns.update.mutationOptions({
-			onSuccess: () => onChanged(),
+			onSuccess: () => {
+				onChanged();
+				void invalidateCampaignOptions();
+			},
 			onError: (error) => toast.error(error.message),
 		}),
 	);

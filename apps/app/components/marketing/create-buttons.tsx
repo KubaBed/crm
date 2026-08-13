@@ -8,6 +8,7 @@ import { useMutation } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { type ReactNode, Suspense } from "react";
 import { toast } from "sonner";
+import { useCampaignOptionsInvalidation } from "@/components/marketing/use-marketing-facets";
 import { useTRPC } from "@/lib/trpc/client";
 import { useWorkspaceUrl } from "@/lib/use-workspace-url";
 
@@ -54,11 +55,14 @@ function CampaignButton() {
 	const trpc = useTRPC();
 	const router = useRouter();
 	const workspaceUrl = useWorkspaceUrl();
+	const invalidateCampaignOptions = useCampaignOptionsInvalidation();
 
 	const create = useMutation(
 		trpc.marketingCampaigns.create.mutationOptions({
-			onSuccess: (row) =>
-				router.push(workspaceUrl(`/marketing/campaigns/${row.id}`)),
+			onSuccess: (row) => {
+				void invalidateCampaignOptions();
+				router.push(workspaceUrl(`/marketing/campaigns/${row.id}`));
+			},
 			onError: (error) => toast.error(error.message),
 		}),
 	);

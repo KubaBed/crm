@@ -12,6 +12,7 @@ import { captureEmail } from "../agent/lib/email-screenshot";
 
 const suffix = process.env.TEST_RUN_ID ?? "email-review-spec";
 const TAG = `review-${suffix}`;
+const APP_URL = "http://localhost:3000";
 
 const DOCUMENT = {
 	version: 1,
@@ -46,7 +47,7 @@ beforeAll(async () => {
 		update: { marketingPostalAddress: "1 Test Street" },
 	});
 
-	process.env.APP_URL = "http://localhost:3000";
+	process.env.APP_URL = APP_URL;
 
 	const template = await db.marketingTemplate.create({
 		data: {
@@ -143,18 +144,20 @@ describe("composing the preview", () => {
 	});
 
 	it("says what is missing rather than rendering a shell-less email", async () => {
-		delete process.env.APP_URL;
-
 		const resolved = await resolveReviewSource({ templateId });
 		if ("error" in resolved) throw new Error(resolved.error);
 
-		const composed = await composeReviewHtml(resolved);
+		delete process.env.APP_URL;
 
-		process.env.APP_URL = "http://localhost:3000";
+		try {
+			const composed = await composeReviewHtml(resolved);
 
-		expect("blocked" in composed).toBe(true);
-		if (!("blocked" in composed)) return;
-		expect(composed.blocked).toContain("APP_URL");
+			expect("blocked" in composed).toBe(true);
+			if (!("blocked" in composed)) return;
+			expect(composed.blocked).toContain("APP_URL");
+		} finally {
+			process.env.APP_URL = APP_URL;
+		}
 	});
 
 	it("returns a browser failure as a result, never a throw", async () => {
@@ -224,6 +227,56 @@ describe("rendering in a real browser", () => {
 			).toBeGreaterThanOrEqual(paragraph.length);
 			expect(screen.measurements.horizontalOverflowPx).toBe(0);
 			expect(findingsFor(screen.measurements)).toEqual([]);
+		},
+		30_000,
+	);
+
+	it.skipIf(chrome === null)(
+		"counts only the lines above the fold (skipped without a Chrome executable)",
+		async () => {
+			const paragraph = "Readable words. ".repeat(60).trim();
+			const html = `<!doctype html><html><body style="margin:0"><p style="font:14px/20px sans-serif">${paragraph}</p></body></html>`;
+
+			const screens = await captureEmail(
+				html,
+				[{ view: "mobile", width: 390, height: 100 }],
+				chrome ?? "",
+			);
+
+			const screen = screens[0];
+			if (!screen) throw new Error("no screen captured");
+
+			const counted = screen.measurements.firstScreenTextCharacters;
+			expect(counted).toBeGreaterThan(0);
+			expect(counted).toBeLessThan(paragraph.length / 2);
+		},
+		30_000,
+	);
+
+	it.skipIf(chrome === null)(
+		"never fetches an image on a private address (skipped without a Chrome executable)",
+		async () => {
+			const metadata = "http://169.254.169.254/latest/meta-data/";
+			const html = [
+				'<!doctype html><html><body style="margin:0">',
+				`<img src="${metadata}" width="300" height="200">`,
+				'<p style="font:14px sans-serif">A caption a reader can read.</p>',
+				"</body></html>",
+			].join("");
+
+			const screens = await captureEmail(
+				html,
+				[{ view: "desktop", width: 600, height: 640 }],
+				chrome ?? "",
+			);
+
+			const screen = screens[0];
+			if (!screen) throw new Error("no screen captured");
+
+			expect(screen.measurements.blockedRequests).toEqual([metadata]);
+			expect(findingsFor(screen.measurements).map((one) => one.code)).toContain(
+				"address-not-loaded",
+			);
 		},
 		30_000,
 	);

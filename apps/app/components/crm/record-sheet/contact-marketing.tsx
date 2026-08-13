@@ -95,6 +95,7 @@ export function ContactMarketing({ contactId }: { contactId: string }) {
 	if (!data) return <Empty>Nothing to show.</Empty>;
 
 	const recipient = data.recipient;
+	const written = data.sends.length > 0;
 
 	return (
 		<div className="flex flex-col gap-6 p-5">
@@ -115,6 +116,17 @@ export function ContactMarketing({ contactId }: { contactId: string }) {
 									{recipient.statusReason}
 								</span>
 							) : null}
+						</>
+					) : written ? (
+						<>
+							<span className="font-medium text-xs">
+								The address is on another contact
+							</span>
+							<span className="text-muted-foreground text-xs">
+								Marketing has written to this person. Another contact holds the
+								same address, so the subscription status lives there. The sends
+								below are still theirs.
+							</span>
 						</>
 					) : (
 						<>

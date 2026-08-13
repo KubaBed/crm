@@ -82,9 +82,12 @@ It warns about a subject over 50 characters, and about a missing preheader.
 
 ## When a write is refused
 
-The tool returns `problems` with a `path` and a `message` for each — read them
-rather than guessing again. It also returns `shapes`, which is this vocabulary.
-One corrected call is the expectation, not ten probes.
+The tool returns `problems` — read them rather than guessing again. A body the
+tool cannot read at all is refused before the linter: each problem is a `path`
+and a `message`, and `shapes` comes back with them, which is this vocabulary. A
+body it can read and the linter refuses comes back with a `code`, a `message`
+and the `blockIndex` the problem applies to. One corrected call is the
+expectation, not ten probes.
 
 ## After a write is accepted
 

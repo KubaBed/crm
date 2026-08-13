@@ -31,6 +31,7 @@ import { toast } from "sonner";
 import { CampaignKind } from "@/components/marketing/campaign-kind";
 import { CopilotRail } from "@/components/marketing/copilot-rail";
 import { MarketingEditorShell } from "@/components/marketing/editor-shell";
+import { useCampaignOptionsInvalidation } from "@/components/marketing/use-marketing-facets";
 import {
 	ENTRY,
 	entryDetail,
@@ -212,6 +213,7 @@ export function CampaignCanvas({ campaignId }: { campaignId: string }) {
 	const trpc = useTRPC();
 	const queryClient = useQueryClient();
 	const workspaceUrl = useWorkspaceUrl();
+	const invalidateCampaignOptions = useCampaignOptionsInvalidation();
 	const [{ node: selectedId, view }, setParams] = useQueryStates(canvasParams);
 	const [targetId, setTargetId] = useState<string | null>(null);
 	const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
@@ -248,7 +250,10 @@ export function CampaignCanvas({ campaignId }: { campaignId: string }) {
 
 	const rename = useMutation(
 		trpc.marketingCampaigns.update.mutationOptions({
-			onSuccess: () => invalidate(),
+			onSuccess: () => {
+				void invalidate();
+				void invalidateCampaignOptions();
+			},
 			onError: (error) => toast.error(error.message),
 		}),
 	);
@@ -324,14 +329,16 @@ export function CampaignCanvas({ campaignId }: { campaignId: string }) {
 	const removal = target ? withoutNode(data, target.id) : null;
 	const activatable = data.kind === "DRIP" && data.status === "DRAFT";
 
-	const removeStep = (change: Removal, stepId: string) =>
+	const removeStep = (change: Removal) =>
 		addNode.mutate(
 			{ campaignId, ...change },
 			{
 				onSuccess: (result) => {
 					if (!result.ok) return;
 					setTargetId(null);
-					if (selectedId === stepId) setSelectedId(null);
+					if (selectedId === null || selectedId === ENTRY.id) return;
+					const survives = change.nodes.some((node) => node.id === selectedId);
+					if (!survives) setSelectedId(null);
 				},
 			},
 		);
@@ -500,7 +507,7 @@ export function CampaignCanvas({ campaignId }: { campaignId: string }) {
 													setConfirmDelete(target.id);
 													return;
 												}
-												removeStep(removal, target.id);
+												removeStep(removal);
 											}}
 										>
 											{removal === null
@@ -546,9 +553,7 @@ export function CampaignCanvas({ campaignId }: { campaignId: string }) {
 								<AlertDialogCancel>Cancel</AlertDialogCancel>
 								<AlertDialogAction
 									onClick={() => {
-										if (removal && confirmDelete) {
-											removeStep(removal, confirmDelete);
-										}
+										if (removal && confirmDelete) removeStep(removal);
 										setConfirmDelete(null);
 									}}
 								>

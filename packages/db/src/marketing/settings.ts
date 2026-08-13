@@ -5,7 +5,7 @@ import { SETTINGS_ID } from "../settings";
 const DAY_MS = 24 * 60 * 60_000;
 
 export const MARKETING = {
-	send: { perMinute: 300, dailyCap: 0 },
+	send: { perMinute: 300, dailyCap: 0, batchSize: 100 },
 	quiet: { start: 8, end: 20, timeZone: "UTC" },
 	cap: { windowMs: DAY_MS },
 	overview: { windowMs: 30 * DAY_MS },
@@ -42,6 +42,8 @@ export const RESEND_OAUTH = {
 	callbackPath: "/api/marketing/resend/callback",
 	refreshSkewMs: 60_000,
 	attemptTtlMs: 15 * 60_000,
+	requestMs: 15_000,
+	retryableStatus: [408, 429, 500, 502, 503, 504],
 } as const;
 
 export type MarketingSettings = {

@@ -1,4 +1,5 @@
-import puppeteer, { type Page } from "puppeteer-core";
+import puppeteer, { type HTTPRequest, type Page } from "puppeteer-core";
+import { ownOrigins, requestVerdict } from "./email-requests";
 import { EMAIL_REVIEW } from "./email-review-config";
 
 export type ViewName = "desktop" | "mobile";
@@ -27,6 +28,7 @@ export type ViewMeasurements = {
 	horizontalOverflowPx: number;
 	firstScreenTextCharacters: number;
 	images: ImageBox[];
+	blockedRequests: string[];
 };
 
 export type Screen = {
@@ -51,14 +53,21 @@ export async function captureEmail(
 		timeout: EMAIL_REVIEW.capture.launchTimeoutMs,
 	});
 
+	const allowedOrigins = ownOrigins();
+
 	try {
 		const screens: Screen[] = [];
 
 		for (const viewport of viewports) {
 			const page = await browser.newPage();
+			const blockedRequests: string[] = [];
 
 			try {
 				await page.setJavaScriptEnabled(false);
+				await page.setRequestInterception(true);
+				page.on("request", (request) => {
+					void gate(request, allowedOrigins, blockedRequests);
+				});
 				await page.setViewport({
 					width: viewport.width,
 					height: viewport.height,
@@ -71,7 +80,7 @@ export async function captureEmail(
 					.catch(() => undefined);
 				await waitForImages(page);
 
-				const measurements = await measure(page, viewport);
+				const measurements = await measure(page, viewport, blockedRequests);
 				const screenshotBase64 = await screenshot(page, measurements);
 
 				screens.push({ measurements, screenshotBase64 });
@@ -83,6 +92,29 @@ export async function captureEmail(
 		return screens;
 	} finally {
 		await browser.close();
+	}
+}
+
+async function gate(
+	request: HTTPRequest,
+	allowedOrigins: readonly string[],
+	blockedRequests: string[],
+): Promise<void> {
+	const verdict = await requestVerdict(request.url(), allowedOrigins);
+
+	try {
+		if (verdict.allowed) {
+			await request.continue();
+			return;
+		}
+
+		if (!blockedRequests.includes(request.url())) {
+			blockedRequests.push(request.url());
+		}
+
+		await request.abort("blockedbyclient");
+	} catch {
+		return;
 	}
 }
 
@@ -105,6 +137,7 @@ async function waitForImages(page: Page): Promise<void> {
 async function measure(
 	page: Page,
 	viewport: NamedViewport,
+	blockedRequests: string[],
 ): Promise<ViewMeasurements> {
 	const raw = await page.evaluate((foldHeight: number) => {
 		const root = document.documentElement;
@@ -122,6 +155,36 @@ async function measure(
 			};
 		});
 
+		const visibleCharacters = (node: Text): number => {
+			const characters = node.data;
+			const range = document.createRange();
+			range.selectNodeContents(node);
+			const box = range.getBoundingClientRect();
+
+			if (box.height <= 0) return 0;
+			if (box.top + window.scrollY >= foldHeight) return 0;
+			if (box.bottom + window.scrollY <= foldHeight) {
+				return characters.trim().length;
+			}
+
+			const topAt = (index: number): number => {
+				range.setStart(node, index);
+				range.setEnd(node, characters.length);
+				return range.getBoundingClientRect().top + window.scrollY;
+			};
+
+			let low = 0;
+			let high = characters.length;
+
+			while (low < high) {
+				const middle = Math.floor((low + high) / 2);
+				if (topAt(middle) < foldHeight) low = middle + 1;
+				else high = middle;
+			}
+
+			return characters.slice(0, low).trim().length;
+		};
+
 		const walker = document.createTreeWalker(
 			document.body,
 			NodeFilter.SHOW_TEXT,
@@ -129,16 +192,11 @@ async function measure(
 		let firstScreenTextCharacters = 0;
 
 		while (walker.nextNode()) {
-			const text = walker.currentNode.textContent?.trim() ?? "";
-			if (!text) continue;
+			const node = walker.currentNode;
+			if (!(node instanceof Text)) continue;
+			if (!node.data.trim()) continue;
 
-			const range = document.createRange();
-			range.selectNodeContents(walker.currentNode);
-			const rect = range.getBoundingClientRect();
-
-			if (rect.height > 0 && rect.top + window.scrollY < foldHeight) {
-				firstScreenTextCharacters += text.length;
-			}
+			firstScreenTextCharacters += visibleCharacters(node);
 		}
 
 		return {
@@ -153,6 +211,7 @@ async function measure(
 		view: viewport.view,
 		width: viewport.width,
 		foldHeight: viewport.height,
+		blockedRequests: [...blockedRequests],
 		...raw,
 	};
 }

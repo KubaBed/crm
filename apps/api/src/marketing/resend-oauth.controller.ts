@@ -37,8 +37,10 @@ export class ResendOauthController {
 		@Res() response: Response,
 	): Promise<void> {
 		if (error) {
-			const { returnTo } = state
-				? await this.settings.abandonConnect(state)
+			const abandoned = state
+				? await this.settings
+						.abandonConnect(state)
+						.catch(() => ({ returnTo: null }))
 				: { returnTo: null };
 
 			this.logger.warn({
@@ -46,7 +48,7 @@ export class ResendOauthController {
 				reason: description ?? error,
 			});
 
-			response.redirect(landing(returnTo, "failed", FAILED_SAFELY));
+			response.redirect(landing(abandoned.returnTo, "failed", FAILED_SAFELY));
 			return;
 		}
 
@@ -56,6 +58,8 @@ export class ResendOauthController {
 			);
 			return;
 		}
+
+		const started = await this.settings.connectDestination(state);
 
 		try {
 			const { returnTo } = await this.settings.connectFinish(code, state);
@@ -69,7 +73,7 @@ export class ResendOauthController {
 						: "Resend refused the sign-in.",
 			});
 
-			response.redirect(landing(null, "failed", FAILED_SAFELY));
+			response.redirect(landing(started, "failed", FAILED_SAFELY));
 		}
 	}
 }

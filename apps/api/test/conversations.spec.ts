@@ -4,6 +4,7 @@ import { db } from "@crm/db";
 import { workspaceSlug } from "@crm/db/workspace";
 import {
 	builderConversationCreateInput,
+	type ConversationSaveInput,
 	conversationListInput,
 	conversationSaveInput,
 } from "../src/conversations/conversations.contracts";
@@ -13,9 +14,12 @@ const suffix = process.env.TEST_RUN_ID ?? "conversations-spec";
 const email = `conversation.subject.${suffix}@example.test`;
 const userId = `user-${suffix}`;
 const memberId = `conversation-member-${suffix}`;
+const campaignName = `Conversations ${suffix}`;
+const otherCampaignName = `other-${suffix}`;
 
 let contactId: string;
 let campaignId: string;
+let otherCampaignId: string;
 let nodeId: string;
 let secondNodeId: string;
 let service: ConversationsService;
@@ -63,13 +67,18 @@ beforeAll(async () => {
 	contactId = contact.id;
 
 	await db.marketingCampaign.deleteMany({
-		where: { name: `Conversations ${suffix}` },
+		where: { name: { in: [campaignName, otherCampaignName] } },
 	});
 	const campaign = await db.marketingCampaign.create({
-		data: { name: `Conversations ${suffix}`, kind: "DRIP" },
+		data: { name: campaignName, kind: "DRIP" },
 		select: { id: true },
 	});
 	campaignId = campaign.id;
+	const otherCampaign = await db.marketingCampaign.create({
+		data: { name: otherCampaignName, kind: "DRIP", status: "DRAFT" },
+		select: { id: true },
+	});
+	otherCampaignId = otherCampaign.id;
 	const [node, secondNode] = await Promise.all([
 		db.marketingCampaignNode.create({
 			data: { campaignId, kind: "EMAIL" },
@@ -98,7 +107,7 @@ afterAll(async () => {
 	await db.contact.deleteMany({ where: { email } });
 	await db.agentConversation.deleteMany({ where: { userId } });
 	await db.marketingCampaign.deleteMany({
-		where: { name: `Conversations ${suffix}` },
+		where: { name: { in: [campaignName, otherCampaignName] } },
 	});
 	await db.member.deleteMany({ where: { id: memberId } });
 	await db.user.deleteMany({ where: { id: userId } });
@@ -942,15 +951,59 @@ describe("node-scoped conversations", () => {
 		).toEqual({ campaignId, campaignNodeId: null });
 	});
 
-	it("does not file a step that belongs to another campaign", async () => {
-		const other = await db.marketingCampaign.create({
-			data: { name: `other-${suffix}`, kind: "DRIP", status: "DRAFT" },
+	it("saves under the campaign when the step goes after the check", async () => {
+		const doomed = await db.marketingCampaignNode.create({
+			data: { campaignId, kind: "EMAIL" },
 			select: { id: true },
 		});
+		await db.marketingCampaignNode.delete({ where: { id: doomed.id } });
+
+		const racing = new ConversationsService(db);
+		Object.assign(racing, {
+			withLiveNode: (input: ConversationSaveInput) => Promise.resolve(input),
+		});
+
+		const sessionId = `ses_${suffix}_node_raced`;
+		await racing.save(
+			{ campaignId, campaignNodeId: doomed.id, sessionId },
+			userId,
+		);
+
+		expect(
+			await db.agentConversation.findUnique({
+				where: { sessionId },
+				select: { campaignId: true, campaignNodeId: true },
+			}),
+		).toEqual({ campaignId, campaignNodeId: null });
+	});
+
+	it("refuses a conversation whose campaign is gone", async () => {
+		const racing = new ConversationsService(db);
+		Object.assign(racing, {
+			withLiveNode: (input: ConversationSaveInput) => Promise.resolve(input),
+		});
+
+		let saveError: unknown;
+		try {
+			await racing.save(
+				{
+					campaignId: `${campaignId}-deleted`,
+					sessionId: `ses_${suffix}_campaign_gone`,
+				},
+				userId,
+			);
+		} catch (error) {
+			saveError = error;
+		}
+
+		expect((saveError as Error).message).toContain("no longer exists");
+	});
+
+	it("does not file a step that belongs to another campaign", async () => {
 		const sessionId = `ses_${suffix}_node_foreign`;
 
 		await service.save(
-			{ campaignId: other.id, campaignNodeId: nodeId, sessionId },
+			{ campaignId: otherCampaignId, campaignNodeId: nodeId, sessionId },
 			userId,
 		);
 

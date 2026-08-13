@@ -521,7 +521,7 @@ model AgentConversation {
   campaignId     String?
   campaign       MarketingCampaign?     @relation(fields: [campaignId], references: [id], onDelete: Cascade)
   campaignNodeId String?
-  campaignNode   MarketingCampaignNode? @relation(fields: [campaignNodeId], references: [id], onDelete: Cascade)
+  campaignNode   MarketingCampaignNode? @relation(fields: [campaignNodeId], references: [id], onDelete: SetNull)
   segmentId      String?
   segment        MarketingSegment?      @relation(fields: [segmentId], references: [id], onDelete: Cascade)
   templateId     String?
@@ -1340,6 +1340,7 @@ model MarketingResendAuthAttempt {
   returnTo  String?
   createdAt DateTime @default(now())
 
+  @@index([createdAt])
   @@map("marketingResendAuthAttempt")
 }
 

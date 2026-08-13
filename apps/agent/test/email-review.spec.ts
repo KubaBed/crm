@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import { resolveChrome } from "../agent/lib/chrome";
+import { requestVerdict } from "../agent/lib/email-requests";
 import {
 	findingsFor,
 	firstScreenImageCoverage,
@@ -31,6 +32,7 @@ function view(overrides: Partial<ViewMeasurements> = {}): ViewMeasurements {
 		horizontalOverflowPx: 0,
 		firstScreenTextCharacters: 400,
 		images: [],
+		blockedRequests: [],
 		...overrides,
 	};
 }
@@ -116,6 +118,51 @@ describe("findings", () => {
 		const found = codes(view({ images: [image({ top: 2000, height: 700 })] }));
 
 		expect(found).toEqual([]);
+	});
+});
+
+describe("what the renderer is allowed to fetch", () => {
+	const own = ["http://localhost:3000"];
+
+	it("loads an inline image", async () => {
+		expect(await requestVerdict("data:image/png;base64,iVBORw0=", [])).toEqual({
+			allowed: true,
+		});
+	});
+
+	it("loads this install's own origin, loopback and all", async () => {
+		expect(await requestVerdict("http://localhost:3000/logo.png", own)).toEqual(
+			{ allowed: true },
+		);
+	});
+
+	it("refuses loopback that is not this install", async () => {
+		const verdict = await requestVerdict("http://127.0.0.1:9200/_all", own);
+
+		expect(verdict.allowed).toBe(false);
+	});
+
+	it("refuses a private, a link-local and a unique-local address", async () => {
+		for (const url of [
+			"http://10.0.0.5/secret",
+			"http://169.254.169.254/latest/meta-data/",
+			"http://[fd00::1]/inside",
+			"http://100.64.0.1/carrier",
+		]) {
+			expect((await requestVerdict(url, own)).allowed).toBe(false);
+		}
+	});
+
+	it("loads a public address", async () => {
+		expect(await requestVerdict("https://93.184.216.34/hero.png", own)).toEqual(
+			{ allowed: true },
+		);
+	});
+
+	it("refuses a scheme that is not http", async () => {
+		const verdict = await requestVerdict("file:///etc/passwd", own);
+
+		expect(verdict.allowed).toBe(false);
 	});
 });
 

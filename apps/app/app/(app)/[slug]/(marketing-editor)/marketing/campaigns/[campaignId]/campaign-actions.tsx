@@ -24,10 +24,11 @@ import { useMutation } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
+import { useCampaignOptionsInvalidation } from "@/components/marketing/use-marketing-facets";
 import { useTRPC } from "@/lib/trpc/client";
 import { useWorkspaceUrl } from "@/lib/use-workspace-url";
 
-type Dialog = "resume" | "archive" | null;
+type Dialog = "resume" | "archive" | "cancel" | null;
 
 export function CampaignActions({
 	campaignId,
@@ -43,6 +44,7 @@ export function CampaignActions({
 	const trpc = useTRPC();
 	const router = useRouter();
 	const workspaceUrl = useWorkspaceUrl();
+	const invalidateCampaignOptions = useCampaignOptionsInvalidation();
 	const [dialog, setDialog] = useState<Dialog>(null);
 
 	const after = (message: string) => ({
@@ -71,6 +73,7 @@ export function CampaignActions({
 		trpc.marketingCampaigns.duplicate.mutationOptions({
 			onSuccess: (copy) => {
 				toast.success("Copied. This is the copy, as a draft.");
+				void invalidateCampaignOptions();
 				router.push(workspaceUrl(`/marketing/campaigns/${copy.id}`));
 			},
 			onError: (error) => toast.error(error.message),
@@ -82,10 +85,17 @@ export function CampaignActions({
 			onSuccess: () => {
 				toast.success("Archived.");
 				setDialog(null);
+				void invalidateCampaignOptions();
 				router.push(workspaceUrl("/marketing/campaigns"));
 			},
 			onError: (error) => toast.error(error.message),
 		}),
+	);
+
+	const cancel = useMutation(
+		trpc.marketingCampaigns.cancel.mutationOptions(
+			after("Cancelled. The queued emails are dropped and nothing goes out."),
+		),
 	);
 
 	const busy =
@@ -93,6 +103,7 @@ export function CampaignActions({
 		resume.isPending ||
 		drain.isPending ||
 		duplicate.isPending ||
+		cancel.isPending ||
 		archive.isPending;
 
 	return (
@@ -133,6 +144,15 @@ export function CampaignActions({
 						</DropdownMenuItem>
 					) : null}
 
+					{status === "SCHEDULED" ? (
+						<DropdownMenuItem
+							variant="destructive"
+							onSelect={() => setDialog("cancel")}
+						>
+							Cancel this send
+						</DropdownMenuItem>
+					) : null}
+
 					<DropdownMenuItem onSelect={() => setDialog("archive")}>
 						Archive
 					</DropdownMenuItem>
@@ -169,6 +189,30 @@ export function CampaignActions({
 							}
 						>
 							Restart the clocks
+						</AlertDialogAction>
+					</AlertDialogFooter>
+				</AlertDialogContent>
+			</AlertDialog>
+
+			<AlertDialog
+				open={dialog === "cancel"}
+				onOpenChange={(open) => !open && setDialog(null)}
+			>
+				<AlertDialogContent>
+					<AlertDialogHeader>
+						<AlertDialogTitle>Cancel this scheduled send</AlertDialogTitle>
+						<AlertDialogDescription>
+							Nothing goes out and every queued email is dropped. A cancelled
+							send does not go back to a draft, so make a copy first if you want
+							to send it later.
+						</AlertDialogDescription>
+					</AlertDialogHeader>
+					<AlertDialogFooter>
+						<AlertDialogCancel>Keep it scheduled</AlertDialogCancel>
+						<AlertDialogAction
+							onClick={() => cancel.mutate({ id: campaignId })}
+						>
+							Cancel the send
 						</AlertDialogAction>
 					</AlertDialogFooter>
 				</AlertDialogContent>

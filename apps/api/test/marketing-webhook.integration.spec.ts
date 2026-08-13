@@ -167,7 +167,10 @@ describe("the Resend delivery webhook", () => {
 
 		const first = await db.marketingSend.findUniqueOrThrow({
 			where: { id: sendId },
-			select: { clickedAt: true, events: { select: { type: true, url: true } } },
+			select: {
+				clickedAt: true,
+				events: { select: { type: true, url: true } },
+			},
 		});
 
 		expect(first.clickedAt).not.toBeNull();

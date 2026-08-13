@@ -1041,7 +1041,12 @@ export class MarketingCampaignsService {
 
 		const result = await materialise(this.db, input.id, { dueAt: at });
 
-		return { scheduledAt: at, at: input.at, ...result };
+		const moved = await this.db.marketingSend.updateMany({
+			where: { campaignId: input.id, status: "QUEUED", dueAt: { not: at } },
+			data: { dueAt: at },
+		});
+
+		return { scheduledAt: at, at: input.at, ...result, moved: moved.count };
 	}
 
 	async setKind(id: string, kind: "BLAST" | "DRIP") {
@@ -1545,17 +1550,35 @@ export class MarketingCampaignsService {
 		};
 	}
 
+	private async recipientOf(contactId: string) {
+		const select = {
+			address: true,
+			status: true,
+			statusReason: true,
+			statusAt: true,
+		} as const;
+
+		const owned = await this.db.marketingRecipient.findFirst({
+			where: { contactId },
+			select,
+		});
+		if (owned) return owned;
+
+		const contact = await this.db.contact.findUnique({
+			where: { id: contactId },
+			select: { email: true },
+		});
+		if (!contact?.email) return null;
+
+		return this.db.marketingRecipient.findUnique({
+			where: { address: contact.email.toLowerCase() },
+			select,
+		});
+	}
+
 	async forContact(contactId: string) {
 		const [recipient, enrolments, sends] = await Promise.all([
-			this.db.marketingRecipient.findFirst({
-				where: { contactId },
-				select: {
-					address: true,
-					status: true,
-					statusReason: true,
-					statusAt: true,
-				},
-			}),
+			this.recipientOf(contactId),
 			this.db.marketingEnrolment.findMany({
 				where: { contactId },
 				orderBy: { enrolledAt: "desc" },

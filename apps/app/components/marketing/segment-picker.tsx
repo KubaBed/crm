@@ -74,8 +74,7 @@ export function SegmentPicker({
 	const options = all
 		.filter((segment) => !chosen.has(segment.id))
 		.filter(
-			(segment) =>
-				query === "" || segment.name.toLowerCase().includes(query),
+			(segment) => query === "" || segment.name.toLowerCase().includes(query),
 		)
 		.map((segment) => ({ value: segment.id, label: segment.name }));
 

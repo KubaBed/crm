@@ -83,7 +83,8 @@ export function textOf(block: EmailBlock): string {
 	if (block.type === "spacer") return block.size;
 	if (block.type === "columns")
 		return block.columns
-			.map((column) => column.map(textOf).join(" "))
+			.map((column) => column.map(textOf).join(" ").trim())
+			.filter((summary) => summary.length > 0)
 			.join(" · ");
 	return "";
 }
@@ -186,16 +187,30 @@ export function EmailBlockEditor({
 	const latest = useRef(blocks);
 	latest.current = blocks;
 
+	const notify = useRef(onChange);
+	notify.current = onChange;
+
+	const update = (index: number, next: (block: EmailBlock) => EmailBlock) => {
+		const rows = latest.current;
+		const row = rows[index];
+		if (!row) return;
+		notify.current(
+			rows.map((current, at) => (at === index ? next(row) : current)),
+		);
+	};
+
 	const replace = (index: number, block: EmailBlock) =>
-		onChange(blocks.map((current, at) => (at === index ? block : current)));
+		update(index, () => block);
 
 	const uploaded = (
+		index: number,
 		block: Extract<EmailBlock, { type: "image" }>,
 		src: string,
 	) => {
-		const rows = latest.current;
-		if (!rows.includes(block)) return;
-		onChange(rows.map((row) => (row === block ? { ...block, src } : row)));
+		const moved = latest.current.indexOf(block);
+		update(moved >= 0 ? moved : index, (current) =>
+			current.type === "image" ? { ...current, src } : current,
+		);
 	};
 
 	const editRun = (
@@ -213,17 +228,22 @@ export function EmailBlockEditor({
 
 	const move = (index: number, by: number) => {
 		const target = index + by;
-		if (target < 0 || target >= blocks.length) return;
-		const next = [...blocks];
+		if (target < 0 || target >= latest.current.length) return;
+		const next = [...latest.current];
 		const [row] = next.splice(index, 1);
 		if (row) next.splice(target, 0, row);
-		onChange(next);
+		notify.current(next);
 		onSelect(target);
 	};
 
 	const remove = (index: number) => {
-		onChange(blocks.filter((_block, at) => at !== index));
+		notify.current(latest.current.filter((_block, at) => at !== index));
 		onSelect(null);
+	};
+
+	const add = (block: EmailBlock) => {
+		notify.current([...latest.current, block]);
+		onSelect(latest.current.length);
 	};
 
 	return (
@@ -319,12 +339,16 @@ export function EmailBlockEditor({
 												blocks={column}
 												onUploadImage={onUploadImage}
 												onChange={(next) =>
-													replace(index, {
-														...block,
-														columns: block.columns.map((rows, at) =>
-															at === columnIndex ? next : rows,
-														),
-													})
+													update(index, (current) =>
+														current.type === "columns"
+															? {
+																	...current,
+																	columns: current.columns.map((rows, at) =>
+																		at === columnIndex ? next : rows,
+																	),
+																}
+															: current,
+													)
 												}
 											/>
 										))}
@@ -342,7 +366,7 @@ export function EmailBlockEditor({
 										/>
 										{onUploadImage ? (
 											<ImageUpload
-												onUploaded={(src) => uploaded(block, src)}
+												onUploaded={(src) => uploaded(index, block, src)}
 												upload={onUploadImage}
 											/>
 										) : null}
@@ -405,10 +429,7 @@ export function EmailBlockEditor({
 					{ADDABLE.map((entry) => (
 						<DropdownMenuItem
 							key={entry.type}
-							onSelect={() => {
-								onChange([...blocks, entry.make()]);
-								onSelect(blocks.length);
-							}}
+							onSelect={() => add(entry.make())}
 						>
 							{entry.label}
 						</DropdownMenuItem>

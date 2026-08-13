@@ -52,7 +52,10 @@ a rep into a workspace with no lists. While four live defaults exist it does
 nothing, so a rep who renames one keeps the rename and no copy appears. Below
 four it repairs each name: a deleted default comes back, a rep's own segment
 holding a default's name becomes that default, and a missing one is created —
-so a partial first run heals on the next. Every one of them carries
+so a partial first run heals on the next. An archived segment holding a
+default's name comes back as that default, because `name` is unique and no
+second row can hold it. The create is an upsert on `name`, so two finishes at
+once cannot make one of them fail on the unique index and skip `onboardedAt`. Every one of them carries
 `contact.hasEmail`, because a contact with no address is queued and skipped.
 
 ## Entry and exit are set operations

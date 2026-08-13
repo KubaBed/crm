@@ -1,10 +1,20 @@
 "use client";
 
 import type { FacetSpec } from "@crm/ui/components/rule-tree";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo } from "react";
 import { facetsWith, TEXT_FIELD_TYPES } from "@/lib/marketing-facets";
 import { useTRPC } from "@/lib/trpc/client";
+
+export function useCampaignOptionsInvalidation(): () => Promise<void> {
+	const trpc = useTRPC();
+	const queryClient = useQueryClient();
+
+	return () =>
+		queryClient.invalidateQueries({
+			queryKey: trpc.marketingSegments.campaignOptions.queryKey(),
+		});
+}
 
 export function useMarketingFacets(): FacetSpec[] {
 	const trpc = useTRPC();

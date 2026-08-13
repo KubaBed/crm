@@ -269,6 +269,22 @@ export function findingsFor(measurements: ViewMeasurements): Finding[] {
 		}
 	}
 
+	const blocked = measurements.blockedRequests;
+
+	if (blocked.length > 0) {
+		const named = blocked
+			.slice(0, EMAIL_REVIEW.requests.maxReported)
+			.map(shortSrc)
+			.join(", ");
+		const rest = blocked.length - EMAIL_REVIEW.requests.maxReported;
+
+		findings.push({
+			code: "address-not-loaded",
+			view,
+			observed: `Nothing was loaded from ${named}${rest > 0 ? `, and ${rest} more address(es)` : ""}. The renderer loads public addresses and this install's own origin only. A reader on another network cannot reach that address either, so they see a gap.`,
+		});
+	}
+
 	if (measurements.horizontalOverflowPx > 0) {
 		findings.push({
 			code: "horizontal-overflow",

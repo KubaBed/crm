@@ -16,6 +16,12 @@ export const EMAIL_REVIEW = {
 		imagePollMs: 200,
 	},
 
+	requests: {
+		dnsTimeoutMs: 3 * SECOND_MS,
+		ownOriginVariables: ["APP_URL"],
+		maxReported: 5,
+	},
+
 	firstScreen: {
 		imageDominancePercent: 60,
 		minTextCharacters: 40,

@@ -1,18 +1,23 @@
 import { afterAll, beforeAll, describe, expect, it } from "bun:test";
 import { db } from "@crm/db";
+import { ActivityStampService } from "../src/crm/activity-stamp.service";
 import { MarketingActivityService } from "../src/marketing/marketing-activity.service";
 
 const TAG = `mktactivity${Date.now()}`;
 
 const activity = new MarketingActivityService(db);
+const stamp = new ActivityStampService(db);
 
 let ownedId: string;
 let unownedId: string;
+let companyId: string;
+let ownerId: string;
 let quietAt: Date;
 
 async function clean() {
 	await db.activity.deleteMany({ where: { contact: { lastName: TAG } } });
 	await db.contact.deleteMany({ where: { lastName: TAG } });
+	await db.company.deleteMany({ where: { name: TAG } });
 	await db.user.deleteMany({ where: { email: `${TAG}@example.test` } });
 }
 
@@ -30,6 +35,12 @@ beforeAll(async () => {
 	});
 
 	quietAt = new Date(Date.now() - 90 * 86_400_000);
+	ownerId = owner.id;
+
+	const company = await db.company.create({
+		data: { name: TAG, lastActivityAt: quietAt },
+		select: { id: true },
+	});
 
 	const [owned, unowned] = await Promise.all([
 		db.contact.create({
@@ -38,6 +49,7 @@ beforeAll(async () => {
 				lastName: TAG,
 				email: `owned.${TAG}@example.test`,
 				ownerId: owner.id,
+				companyId: company.id,
 				lastActivityAt: quietAt,
 			},
 			select: { id: true },
@@ -55,6 +67,7 @@ beforeAll(async () => {
 
 	ownedId = owned.id;
 	unownedId = unowned.id;
+	companyId = company.id;
 });
 
 afterAll(clean);
@@ -92,6 +105,59 @@ describe("a marketing send on the timeline", () => {
 				sentAt: new Date(),
 			},
 		]);
+
+		const contact = await db.contact.findUniqueOrThrow({
+			where: { id: ownedId },
+			select: { lastActivityAt: true },
+		});
+
+		expect(contact.lastActivityAt?.getTime()).toBe(quietAt.getTime());
+	});
+
+	it("stays out of a recompute, so a rebuild keeps the quiet window", async () => {
+		await db.activity.create({
+			data: {
+				type: "CALL",
+				subject: "The one a person made",
+				contactId: ownedId,
+				companyId,
+				createdById: ownerId,
+				createdAt: quietAt,
+			},
+		});
+
+		await activity.file([
+			{
+				contactId: ownedId,
+				subject: "A campaign, today",
+				campaignName: null,
+				sentAt: new Date(),
+			},
+		]);
+
+		await stamp.recomputeAll();
+
+		const [contact, company] = await Promise.all([
+			db.contact.findUniqueOrThrow({
+				where: { id: ownedId },
+				select: { lastActivityAt: true },
+			}),
+			db.company.findUniqueOrThrow({
+				where: { id: companyId },
+				select: { lastActivityAt: true },
+			}),
+		]);
+
+		expect(contact.lastActivityAt?.getTime()).toBe(quietAt.getTime());
+		expect(company.lastActivityAt?.getTime()).toBe(quietAt.getTime());
+	});
+
+	it("stays out of a scoped restamp too", async () => {
+		await stamp.recomputeMany({
+			companyIds: [companyId],
+			contactIds: [ownedId],
+			dealIds: [],
+		});
 
 		const contact = await db.contact.findUniqueOrThrow({
 			where: { id: ownedId },

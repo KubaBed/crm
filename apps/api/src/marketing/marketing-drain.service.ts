@@ -28,6 +28,8 @@ import { InjectDatabase } from "../database/database.constants";
 import type { FiledSend } from "./marketing-activity.service";
 import { MarketingActivityService } from "./marketing-activity.service";
 import { MarketingComposeService } from "./marketing-compose.service";
+
+import type { SendOne, SendOutcome } from "./resend.service";
 import { ResendService } from "./resend.service";
 
 type ComposedBody = NonNullable<
@@ -127,6 +129,14 @@ export class MarketingDrainService implements OnModuleInit, OnModuleDestroy {
 			now,
 		});
 
+		if (!(await this.resend.ready())) {
+			this.logger.warn({
+				message:
+					"Resend has no usable token, so no marketing send was claimed this tick",
+			});
+			return { sent: 0, failed: 0 };
+		}
+
 		const limit: number = Math.min(perTick, MARKETING.drain.claimLimit);
 		const claimed = await skipOverCap(
 			this.db,
@@ -142,13 +152,28 @@ export class MarketingDrainService implements OnModuleInit, OnModuleDestroy {
 
 		const filed: FiledSend[] = [];
 		const names = new Map<string, string | null>();
+		const batchable: { send: ClaimedSend; body: ComposedBody }[] = [];
+
+		const record = async (
+			send: ClaimedSend,
+			body: ComposedBody,
+			outcome: SendOutcome,
+		): Promise<void> => {
+			await settle(this.db, send.id, outcome);
+
+			if (outcome.ok) {
+				sent += 1;
+				this.remember(filed, names, send, body);
+			} else {
+				failed += 1;
+			}
+		};
 
 		for (const send of claimed) {
 			if (!readDocument(send.document)) {
 				await settle(this.db, send.id, {
 					ok: false,
-					error:
-						"This email's content cannot be read, so it cannot be built.",
+					error: "This email's content cannot be read, so it cannot be built.",
 					retry: false,
 				});
 				failed += 1;
@@ -191,36 +216,76 @@ export class MarketingDrainService implements OnModuleInit, OnModuleDestroy {
 				continue;
 			}
 
-			const outcome = await this.resend.sendOne({
-				to: send.address,
-				fromName: send.fromName,
-				subject: body.subject,
-				html: body.html,
-				text: body.text,
-				replyTo: send.replyTo,
-				headers: body.headers,
-				idempotencyKey: `send/${send.id}`,
-				attachments: send.hasAttachments
-					? send.attachments.map((attachment) => ({
-							filename: attachment.filename,
-							path: attachment.url,
-						}))
-					: undefined,
-			});
+			if (send.hasAttachments) {
+				const outcome = await this.resend.sendOne({
+					...this.messageFor(send, body),
+					idempotencyKey: `send/${send.id}`,
+					attachments: send.attachments.map((attachment) => ({
+						filename: attachment.filename,
+						path: attachment.url,
+					})),
+				});
 
-			await settle(this.db, send.id, outcome);
+				await record(send, body, outcome);
+				continue;
+			}
 
-			if (outcome.ok) {
-				sent += 1;
-				this.remember(filed, names, send, body);
-			} else {
-				failed += 1;
+			batchable.push({ send, body });
+		}
+
+		for (
+			let index = 0;
+			index < batchable.length;
+			index += MARKETING.send.batchSize
+		) {
+			const slice = batchable.slice(index, index + MARKETING.send.batchSize);
+
+			const outcomes = await this.resend.sendBatch(
+				slice.map(({ send, body }) => ({
+					...this.messageFor(send, body),
+					sendId: send.id,
+				})),
+			);
+
+			for (const { send, body } of slice) {
+				const outcome = outcomes.get(send.id) ?? {
+					ok: false as const,
+					error: "Resend did not answer for this message.",
+					retry: true,
+				};
+
+				await record(send, body, await this.rescue(send, body, outcome));
 			}
 		}
 
 		await this.fileActivity(filed, names);
 
 		return { sent, failed };
+	}
+
+	private messageFor(send: ClaimedSend, body: ComposedBody): SendOne {
+		return {
+			to: send.address,
+			fromName: send.fromName,
+			subject: body.subject,
+			html: body.html,
+			text: body.text,
+			replyTo: send.replyTo,
+			headers: body.headers,
+		};
+	}
+
+	private async rescue(
+		send: ClaimedSend,
+		body: ComposedBody,
+		outcome: SendOutcome,
+	): Promise<SendOutcome> {
+		if (outcome.ok || outcome.retry) return outcome;
+
+		return this.resend.sendOne({
+			...this.messageFor(send, body),
+			idempotencyKey: `send/${send.id}`,
+		});
 	}
 
 	private remember(

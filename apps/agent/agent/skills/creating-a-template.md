@@ -71,6 +71,8 @@ every send. `read_shell` reports which brand line applies.
 ## Before you save
 
 `write_template` lints first and refuses errors back as `problems`, each with
-a `path` and a `message` — fix them and call again. When updating, pass the
-existing `templateId`; leaving it out creates a second template and the rep
-keeps looking at the old one.
+a `code`, a `message` and the `blockIndex` it applies to — fix them and call
+again. A body it cannot read at all is refused before the linter, and those
+`problems` carry a `path` and a `message` instead, plus `shapes`: the whole
+block vocabulary. When updating, pass the existing `templateId`; leaving it
+out creates a second template and the rep keeps looking at the old one.

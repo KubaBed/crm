@@ -191,6 +191,56 @@ describe("connecting Resend with OAuth", () => {
 		);
 	});
 
+	it("keeps the attempt when Resend is merely down, so the callback can be retried", async () => {
+		let exchanges = 0;
+
+		stub((url) => {
+			if (url === RESEND_OAUTH.register)
+				return reply(200, { client_id: "client-1" });
+
+			exchanges += 1;
+
+			return exchanges <= 2
+				? reply(503, { error: "server_error" })
+				: reply(200, { access_token: "access-1", expires_in: 900 });
+		});
+
+		const { url } = await oauth.start();
+		const state = stateOf(url);
+
+		await expect(oauth.finish("code-1", state)).rejects.toThrow(/try again/i);
+
+		expect(
+			await db.marketingResendAuthAttempt.count({ where: { state } }),
+		).toBe(1);
+
+		await oauth.finish("code-1", state);
+
+		expect((await readMarketingSettings(db)).resendAccessToken).toBe(
+			"access-1",
+		);
+		expect(
+			await db.marketingResendAuthAttempt.count({ where: { state } }),
+		).toBe(0);
+	});
+
+	it("spends the attempt when Resend refuses the code, so nothing replays it", async () => {
+		stub((url) =>
+			url === RESEND_OAUTH.register
+				? reply(200, { client_id: "client-1" })
+				: reply(400, { error: "invalid_grant" }),
+		);
+
+		const { url } = await oauth.start();
+		const state = stateOf(url);
+
+		await expect(oauth.finish("code-1", state)).rejects.toThrow();
+
+		expect(
+			await db.marketingResendAuthAttempt.count({ where: { state } }),
+		).toBe(0);
+	});
+
 	it("hands Resend's own refusal back rather than a generic one", async () => {
 		stub((url) =>
 			url === RESEND_OAUTH.register
@@ -324,6 +374,46 @@ describe("keeping the Resend token fresh", () => {
 		expect(settings.resendAccessToken).toBeNull();
 		expect(settings.resendRefreshToken).toBeNull();
 		expect(resendConnection(settings)).toBeNull();
+	});
+
+	it("lets one instance rotate the grant, and the other reads the new token", async () => {
+		let exchanges = 0;
+
+		stub(async () => {
+			exchanges += 1;
+
+			if (exchanges > 1) return reply(400, { error: "invalid_grant" });
+
+			await new Promise((resolve) => setTimeout(resolve, 50));
+
+			return reply(200, {
+				access_token: "access-2",
+				refresh_token: "refresh-2",
+				expires_in: 900,
+			});
+		});
+
+		await writeMarketingSettings(db, {
+			resendClientId: "client-1",
+			resendAccessToken: "access-1",
+			resendRefreshToken: "refresh-1",
+			resendTokenExpires: new Date(Date.now() - 1),
+		});
+
+		const other = new ResendOauthService(db);
+
+		const [mine, theirs] = await Promise.all([
+			oauth.accessToken(),
+			other.accessToken(),
+		]);
+
+		expect(exchanges).toBe(1);
+		expect(mine).toBe("access-2");
+		expect(theirs).toBe("access-2");
+
+		const settings = await readMarketingSettings(db);
+		expect(settings.resendRefreshToken).toBe("refresh-2");
+		expect(resendConnection(settings)).toBe("oauth");
 	});
 
 	it("falls back to the API key once a dead grant is cleared", async () => {
