@@ -79,12 +79,12 @@ export class ConversationsService {
 		const rows = await this.db.agentConversation.findMany({
 			where: {
 				userId,
-				...(input.contactId ? { contactId: input.contactId } : {}),
-				...(input.companyId ? { companyId: input.companyId } : {}),
-				...(input.dealId ? { dealId: input.dealId } : {}),
-				...(input.campaignId ? { campaignId: input.campaignId } : {}),
-				...(input.segmentId ? { segmentId: input.segmentId } : {}),
-				...(input.templateId ? { templateId: input.templateId } : {}),
+				contactId: input.contactId ?? undefined,
+				companyId: input.companyId ?? undefined,
+				dealId: input.dealId ?? undefined,
+				campaignId: input.campaignId ?? undefined,
+				segmentId: input.segmentId ?? undefined,
+				templateId: input.templateId ?? undefined,
 			},
 			orderBy: { lastMessageAt: "desc" },
 			take: 20,
@@ -1184,10 +1184,11 @@ function pendingBuilderQuestionOf(value: unknown) {
 			{
 				id: option.id,
 				label: option.label,
-				...(typeof option.description === "string"
-					? { description: option.description }
-					: {}),
-				...(style ? { style } : {}),
+				description:
+					typeof option.description === "string"
+						? option.description
+						: undefined,
+				style,
 			},
 		];
 	});
@@ -1196,7 +1197,7 @@ function pendingBuilderQuestionOf(value: unknown) {
 		kind: "question" as const,
 		requestId: request.requestId,
 		prompt: request.prompt,
-		...(display ? { display } : {}),
+		display,
 		options,
 		allowFreeform:
 			request.allowFreeform === true ||
