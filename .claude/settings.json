@@ -1,8 +1,0 @@
-{
-  "worktree": {
-    "bgIsolation": "none"
-  },
-  "enabledPlugins": {
-    "paper-desktop@paper": true
-  }
-}
