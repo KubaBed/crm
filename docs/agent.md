@@ -22,6 +22,35 @@ agent and the API both need it.
 - **Not a frontier model, deliberately** — refusing wrong answers is enforced by the
   tools and evidence model, not model strength.
 
+### `inference_model_` routes around the gateway
+
+A model id is a **gateway id by default** — `zai/glm-5.2-fast` resolves through
+the Vercel AI Gateway, as every model here always has. Prefixing it with
+`inference_model_` routes that one model to Inference.net's own endpoint
+instead, through an `@ai-sdk/openai-compatible` provider.
+
+```
+zai/glm-5.2-fast                  -> Vercel AI Gateway
+inference_model_glm-5.2-fast      -> Inference.net, as "glm-5.2-fast"
+```
+
+`lib/model.ts` owns the rule and `routeOf` is the whole of it. eve accepts
+either a gateway id string or an AI SDK `LanguageModel` instance, and classifies
+the second as `external` routing, so the gateway is bypassed rather than
+wrapped.
+
+- **The prefix is stripped before the id is sent.** Inference prices
+  `glm-5.2-fast`; the gateway calls the same model `zai/glm-5.2-fast`. Sending
+  the prefixed or provider-qualified name is why cost came back null.
+- **A missing `INFERENCE_API_KEY` is a capability that is off, not an error.**
+  `routeOf` returns `unavailable`, one line is logged, and the agent falls back
+  to the compiled default model rather than failing the session.
+- **The provider is memoised on base URL and key**, so a model change per
+  session does not rebuild it.
+- **`startsWith`, never `includes`.** A gateway id that merely contains the
+  prefix stays on the gateway.
+- **`includeUsage: true`** so the provider returns token counts.
+
 ## Pictures are copied, never linked
 
 `mirror()` copies bytes to Vercel Blob; the record points at our copy. Lives in
@@ -325,6 +354,17 @@ name, call id, arguments and result.
   `user.id` and `session.id`, so the dashboard attributes a turn to the rep who
   started it and groups a conversation. `principalOf` parses `session.auth`,
   which the integration types as `unknown` — parse it, never cast it.
+- **Set those two on the span, not only in `runtimeContext`.** The integration
+  copies **an allowlist** out of runtime context — the ten `$eve.*` keys and
+  nothing else — so anything of ours returned there arrives as
+  `ai.settings.context.user.id` and never becomes the attribute the dashboard's
+  `userId` column reads. `trace.getActiveSpan()?.setAttribute` is what lands it.
+  The `runtimeContext` copy is kept so child spans inherit it.
+- **Only a `principalType` of `user` is a user.** Background research runs as
+  `eve:app` with `principalType: "runtime"` (`lib/app-auth.ts`); a rep through
+  the bridge is `principalType: "user"` (`channels/eve.ts`). Attributing a
+  dispatch sweep to `eve:app` would fill the people facet with a robot, so
+  `principalOf` returns null for it and those traces carry no user at all.
 - **The session initiator wins over the current principal**, so a subagent turn
   is still attributed to the person who started the root session.
 - **A blank key is unset.** `resolveTraceDestination` refuses an empty or

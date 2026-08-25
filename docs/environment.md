@@ -119,6 +119,7 @@ single place that knows what is set.
 | `INFERENCE_API_KEY` | Agent traces to Inference.net — **includes customer text**, see `agent.md` |
 | `INFERENCE_OTLP_ENDPOINT` | A self-hosted collector instead of Inference's |
 | `INFERENCE_SERVICE_NAME` | The `service.name` traces file under. Defaults to `crm-agent` |
+| `INFERENCE_BASE_URL` | Where `inference_model_*` model calls go. Defaults to their gateway |
 
 `BLOB_READ_WRITE_TOKEN` is also in `env.validation.ts` and `apps/api/turbo.json`
 because the API and the seed write pictures too. The Next.js app is deliberately

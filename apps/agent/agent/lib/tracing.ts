@@ -43,18 +43,25 @@ function trimmed(value: string | undefined): string | null {
 	return text && text.length > 0 ? text : null;
 }
 
+const principal = z.object({
+	principalId: z.string().trim().min(1),
+	principalType: z.string().trim().min(1),
+});
+
 const sessionAuth = z.object({
-	initiator: z.object({ principalId: z.string().trim().min(1) }).nullish(),
-	current: z.object({ principalId: z.string().trim().min(1) }).nullish(),
+	initiator: principal.nullish(),
+	current: principal.nullish(),
 });
 
 export function principalOf(auth: unknown): string | null {
 	const parsed = sessionAuth.safeParse(auth);
 	if (!parsed.success) return null;
 
-	return (
-		parsed.data.initiator?.principalId ??
-		parsed.data.current?.principalId ??
-		null
-	);
+	for (const held of [parsed.data.initiator, parsed.data.current]) {
+		if (held?.principalType === TRACING.principals.human) {
+			return held.principalId;
+		}
+	}
+
+	return null;
 }

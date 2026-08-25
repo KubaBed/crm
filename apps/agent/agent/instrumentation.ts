@@ -1,6 +1,7 @@
 import "@crm/env/load";
 
 import { defineCatalystEveInstrumentation } from "@inference/tracing/eve";
+import { trace } from "@opentelemetry/api";
 import {
 	environmentOf,
 	principalOf,
@@ -38,6 +39,10 @@ export default defineCatalystEveInstrumentation({
 	events: {
 		"step.started"(input) {
 			const userId = principalOf(input.session.auth);
+			const span = trace.getActiveSpan();
+
+			span?.setAttribute(TRACING.attributes.convoId, input.session.id);
+			if (userId) span?.setAttribute(TRACING.attributes.userId, userId);
 
 			return {
 				runtimeContext: {

@@ -12,6 +12,10 @@ export const TRACING = {
 		convoId: "session.id",
 	},
 
+	principals: {
+		human: "user",
+	},
+
 	content: {
 		recordInputs: true,
 		recordOutputs: true,
