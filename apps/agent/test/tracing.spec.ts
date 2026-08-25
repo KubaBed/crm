@@ -1,126 +1,107 @@
 import { describe, expect, it } from "bun:test";
-import { parseHeaders, resolveTraceDestination } from "../agent/lib/tracing";
+import {
+	environmentOf,
+	principalOf,
+	resolveTraceDestination,
+} from "../agent/lib/tracing";
 import { TRACING } from "../agent/lib/tracing-config";
 
 describe("resolveTraceDestination", () => {
-	it("is off when nothing is configured", () => {
+	it("is off when no API key is set", () => {
 		const destination = resolveTraceDestination({});
 
 		expect(destination.kind).toBe("off");
-		expect(destination.label).toContain(TRACING.raindrop.keyVar);
-		expect(destination.label).toContain(TRACING.otlp.endpointVar);
+		expect(destination.label).toContain(TRACING.inference.keyVar);
 	});
 
-	it("treats a blank key as unset rather than sending Bearer undefined", () => {
-		expect(resolveTraceDestination({ RAINDROP_WRITE_KEY: "" }).kind).toBe("off");
-		expect(resolveTraceDestination({ RAINDROP_WRITE_KEY: "   " }).kind).toBe(
+	it("treats a blank key as unset rather than exporting with no token", () => {
+		expect(resolveTraceDestination({ INFERENCE_API_KEY: "" }).kind).toBe("off");
+		expect(resolveTraceDestination({ INFERENCE_API_KEY: "   " }).kind).toBe(
 			"off",
 		);
 	});
 
-	it("sends to Raindrop when the write key is set", () => {
+	it("sends to Inference once the key is set", () => {
 		const destination = resolveTraceDestination({
-			RAINDROP_WRITE_KEY: "rd_live_123",
+			INFERENCE_API_KEY: "inf_live_123",
 		});
 
-		if (destination.kind !== "raindrop") throw new Error("expected Raindrop");
-		expect(destination.writeKey).toBe("rd_live_123");
+		if (destination.kind !== "inference") throw new Error("expected an export");
+		expect(destination.token).toBe("inf_live_123");
+		expect(destination.endpoint).toBe(TRACING.inference.defaultEndpoint);
+		expect(destination.serviceName).toBe(TRACING.inference.defaultServiceName);
 	});
 
-	it("never puts the key in the label a boot line prints", () => {
+	it("never puts the token in the label a boot line prints", () => {
 		const destination = resolveTraceDestination({
-			RAINDROP_WRITE_KEY: "rd_live_secret",
+			INFERENCE_API_KEY: "inf_live_secret",
 		});
 
-		expect(destination.label).toBe("Raindrop");
-		expect(destination.label).not.toContain("rd_live_secret");
+		expect(destination.label).not.toContain("inf_live_secret");
 	});
 
-	it("falls back to any OTLP endpoint, so a local Jaeger works", () => {
+	it("takes a self-hosted endpoint over the default", () => {
 		const destination = resolveTraceDestination({
-			OTEL_EXPORTER_OTLP_ENDPOINT: "http://localhost:4318",
+			INFERENCE_API_KEY: "inf_live_123",
+			INFERENCE_OTLP_ENDPOINT: "https://telemetry.internal.example",
 		});
 
-		if (destination.kind !== "otlp") throw new Error("expected an exporter");
-		expect(destination.url).toBe("http://localhost:4318/v1/traces");
+		if (destination.kind !== "inference") throw new Error("expected an export");
+		expect(destination.endpoint).toBe("https://telemetry.internal.example");
 	});
 
-	it("prefers Raindrop when both are set", () => {
+	it("takes a service name over the default, so deployments stay apart", () => {
 		const destination = resolveTraceDestination({
-			RAINDROP_WRITE_KEY: "rd_live_123",
-			OTEL_EXPORTER_OTLP_ENDPOINT: "http://localhost:4318",
+			INFERENCE_API_KEY: "inf_live_123",
+			INFERENCE_SERVICE_NAME: "crm-agent-staging",
 		});
 
-		expect(destination.kind).toBe("raindrop");
+		if (destination.kind !== "inference") throw new Error("expected an export");
+		expect(destination.serviceName).toBe("crm-agent-staging");
+	});
+});
+
+describe("principalOf", () => {
+	it("prefers the session initiator, so a subagent is attributed to the rep", () => {
+		expect(
+			principalOf({
+				initiator: { principalId: "user_root" },
+				current: { principalId: "user_child" },
+			}),
+		).toBe("user_root");
 	});
 
-	it("does not double the traces path a backend already names", () => {
-		const destination = resolveTraceDestination({
-			OTEL_EXPORTER_OTLP_ENDPOINT: "https://api.honeycomb.io/v1/traces",
-		});
-
-		if (destination.kind !== "otlp") throw new Error("expected an exporter");
-		expect(destination.url).toBe("https://api.honeycomb.io/v1/traces");
+	it("falls back to the current principal", () => {
+		expect(principalOf({ current: { principalId: "user_child" } })).toBe(
+			"user_child",
+		);
 	});
 
-	it("tolerates a trailing slash on the endpoint", () => {
-		const destination = resolveTraceDestination({
-			OTEL_EXPORTER_OTLP_ENDPOINT: "http://localhost:4318/",
-		});
-
-		if (destination.kind !== "otlp") throw new Error("expected an exporter");
-		expect(destination.url).toBe("http://localhost:4318/v1/traces");
+	it("reads an unauthenticated session as nobody rather than throwing", () => {
+		expect(principalOf({ initiator: null, current: null })).toBeNull();
+		expect(principalOf({})).toBeNull();
 	});
 
-	it("carries the OTLP headers a backend needs to authorise", () => {
-		const destination = resolveTraceDestination({
-			OTEL_EXPORTER_OTLP_ENDPOINT: "https://api.honeycomb.io",
-			OTEL_EXPORTER_OTLP_HEADERS: "x-honeycomb-team=abc123",
-		});
+	it("refuses a shape it does not recognise", () => {
+		expect(principalOf(undefined)).toBeNull();
+		expect(principalOf("nonsense")).toBeNull();
+		expect(principalOf({ initiator: { principalId: "" } })).toBeNull();
+	});
+});
 
-		if (destination.kind !== "otlp") throw new Error("expected an exporter");
-		expect(destination.headers).toEqual({ "x-honeycomb-team": "abc123" });
+describe("environmentOf", () => {
+	it("names the deployment environment for the dashboard facet", () => {
+		expect(environmentOf({ NODE_ENV: "production" })).toBe("production");
+	});
+
+	it("defaults to development rather than leaving the facet blank", () => {
+		expect(environmentOf({})).toBe("development");
 	});
 });
 
 describe("what a span carries", () => {
-	it("names the keys Raindrop reads, not names of our own", () => {
-		expect(TRACING.attributes.userId).toBe(
-			"traceloop.association.properties.user_id",
-		);
-		expect(TRACING.attributes.convoId).toBe(
-			"traceloop.association.properties.convo_id",
-		);
-	});
-
-	it("keeps full content and no redaction, as the owner decided", () => {
+	it("keeps full content, as the owner decided", () => {
 		expect(TRACING.content.recordInputs).toBe(true);
 		expect(TRACING.content.recordOutputs).toBe(true);
-		expect(TRACING.content.redactPii).toBe(false);
-	});
-});
-
-describe("parseHeaders", () => {
-	it("reads the comma-separated form every backend documents", () => {
-		expect(parseHeaders("a=1,b=2")).toEqual({ a: "1", b: "2" });
-	});
-
-	it("keeps a value that contains an equals sign", () => {
-		expect(parseHeaders("authorization=Basic dXNlcjpwYXNz==")).toEqual({
-			authorization: "Basic dXNlcjpwYXNz==",
-		});
-	});
-
-	it("ignores whitespace and empty pairs", () => {
-		expect(parseHeaders(" a = 1 , , b=2 ")).toEqual({ a: "1", b: "2" });
-	});
-
-	it("reads nothing as no headers", () => {
-		expect(parseHeaders(undefined)).toEqual({});
-		expect(parseHeaders("")).toEqual({});
-	});
-
-	it("drops a pair with no name", () => {
-		expect(parseHeaders("=novalue,ok=1")).toEqual({ ok: "1" });
 	});
 });

@@ -298,18 +298,47 @@ egress:
 `agent/instrumentation.ts` sets `recordInputs` and `recordOutputs` to `true`, so
 every span carries the system prompt, the full message history and the model's
 reply. On this CRM that is customer email bodies, contact names, addresses and
-deal amounts, sent to whichever backend `RAINDROP_WRITE_KEY` or
-`OTEL_EXPORTER_OTLP_ENDPOINT` names.
+deal amounts, sent to Inference.net.
 
 The owner chose it, to debug agents while they are being built. **Redaction is
 not written.** Until it is, treat the tracing backend as holding the same data
 the CRM does: it needs the same access control, and it belongs in the privacy
 materials.
 
-Both flags are set **explicitly** rather than left to default. eve 0.29.4's own
-types say they default to `true` when the file is present and the published
-guide says `false`; naming them means an eve upgrade cannot quietly change what
-leaves. `lib/tracing-config.ts` is the one place to flip them.
+Both flags are set **explicitly** rather than left to default, so an upgrade of
+either eve or the tracing SDK cannot quietly change what leaves.
+`lib/tracing-config.ts` is the one place to flip them.
+
+## Tracing goes through Inference's eve integration
+
+`@inference/tracing/eve` has a first-class eve integration, so
+`agent/instrumentation.ts` exports `defineCatalystEveInstrumentation()` rather
+than eve's own `defineInstrumentation`. It installs the OTel provider from eve's
+startup hook and enriches the exported spans with OpenInference attributes and
+the `$eve.*` workflow tags.
+
+A turn arrives as an `ai.eve.turn` CHAIN span, `invoke_agent` as an AGENT span,
+each AI SDK model call as an LLM span, and each tool as a TOOL span with its
+name, call id, arguments and result.
+
+- **It composes `events["step.started"]`, it does not replace it.** Our hook adds
+  `user.id` and `session.id`, so the dashboard attributes a turn to the rep who
+  started it and groups a conversation. `principalOf` parses `session.auth`,
+  which the integration types as `unknown` — parse it, never cast it.
+- **The session initiator wins over the current principal**, so a subagent turn
+  is still attributed to the person who started the root session.
+- **A blank key is unset.** `resolveTraceDestination` refuses an empty or
+  whitespace-only value, so an install without one runs untraced rather than
+  exporting with no token.
+- **The boot line never prints the token**, only the endpoint and service name.
+- **`instrumentation.ts` imports `@crm/env/load` itself.** eve runs it at server
+  startup *before any agent code*, so `agent.ts`'s own load has not happened yet
+  and the root `.env` would not be read.
+
+| Set | Where spans go |
+| --- | --- |
+| `INFERENCE_API_KEY` | Inference.net, at `INFERENCE_OTLP_ENDPOINT` or their default |
+| nothing | nowhere, and one line at boot says so |
 
 ## Tracing replaces the local trace store
 
@@ -318,29 +347,6 @@ installed** — `eve traces ls` and the `/traces` TUI record nothing, whether or
 not a backend is configured. eve's local runtime is internal and throws if a
 second OTel runtime registers, so it cannot be kept as a fallback. Deleting the
 file is the only way back.
-
-`lib/tracing.ts` resolves where spans go, and is the whole rule:
-
-| Set | Where spans go |
-| --- | --- |
-| `RAINDROP_WRITE_KEY` | Raindrop |
-| `OTEL_EXPORTER_OTLP_ENDPOINT` | that backend — a local Jaeger, Honeycomb, Grafana |
-| neither | nowhere, and one line at boot says so |
-
-- **A blank key is unset.** The scaffold `eve add` writes interpolates the key
-  with no guard, so an install without one sends `Bearer undefined` to the
-  vendor on every turn. `resolveTraceDestination` refuses an empty or
-  whitespace-only value, which is what makes this optional in the sense
-  `AGENTS.md` means.
-- **`registerOTel` is wrapped.** A tracing failure logs and the agent runs
-  untraced. It never takes the agent down.
-- **The boot line never prints the key**, only the destination's name.
-- **`instrumentation.ts` imports `@crm/env/load` itself.** eve runs it at server
-  startup *before any agent code*, so `agent.ts`'s own load has not happened yet
-  and the root `.env` would not be read.
-- **The variable belongs in the root `.env`.** `eve add` writes
-  `apps/agent/.env.local`, which is a per-package env file and against the rule
-  in `AGENTS.md`. Delete it if a later `eve add` puts it back.
 
 ## Sandbox
 

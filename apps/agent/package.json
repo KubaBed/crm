@@ -23,11 +23,9 @@
 		"@crm/env": "workspace:*",
 		"@crm/telemetry": "workspace:*",
 		"@crm/validation": "workspace:*",
-		"@opentelemetry/api": "^1.9.1",
-		"@vercel/otel": "^2.1.3",
+		"@inference/tracing": "^0.1.11",
 		"context.dev": "2.10.0",
 		"eve": "^0.29.4",
-		"raindrop-ai": "^0.4.0-otelv2",
 		"zod": "^4.4.3"
 	},
 	"devDependencies": {

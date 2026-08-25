@@ -1,60 +1,60 @@
+import { z } from "zod";
 import { TRACING } from "./tracing-config";
 
 export type TraceDestination =
-	| { kind: "raindrop"; label: string; writeKey: string }
 	| {
-			kind: "otlp";
+			kind: "inference";
 			label: string;
-			url: string;
-			headers: Record<string, string>;
+			token: string;
+			endpoint: string;
+			serviceName: string;
 	  }
 	| { kind: "off"; label: string };
 
 export type TraceEnv = Readonly<Record<string, string | undefined>>;
 
 export function resolveTraceDestination(env: TraceEnv): TraceDestination {
-	const key = trimmed(env[TRACING.raindrop.keyVar]);
-	if (key) return { kind: "raindrop", label: "Raindrop", writeKey: key };
+	const token = trimmed(env[TRACING.inference.keyVar]);
 
-	const endpoint = trimmed(env[TRACING.otlp.endpointVar]);
-	if (endpoint) {
+	if (!token) {
 		return {
-			kind: "otlp",
-			label: endpoint,
-			url: tracesUrl(endpoint),
-			headers: parseHeaders(env[TRACING.otlp.headersVar]),
+			kind: "off",
+			label: `no ${TRACING.inference.keyVar}`,
 		};
 	}
 
-	return {
-		kind: "off",
-		label: `no ${TRACING.raindrop.keyVar} and no ${TRACING.otlp.endpointVar}`,
-	};
+	const endpoint =
+		trimmed(env[TRACING.inference.endpointVar]) ??
+		TRACING.inference.defaultEndpoint;
+
+	const serviceName =
+		trimmed(env[TRACING.inference.serviceNameVar]) ??
+		TRACING.inference.defaultServiceName;
+
+	return { kind: "inference", label: endpoint, token, endpoint, serviceName };
 }
 
-export function parseHeaders(
-	value: string | undefined,
-): Record<string, string> {
-	const headers: Record<string, string> = {};
-
-	for (const pair of (value ?? "").split(",")) {
-		const at = pair.indexOf("=");
-		if (at < 1) continue;
-
-		const name = pair.slice(0, at).trim();
-		const content = pair.slice(at + 1).trim();
-		if (name && content) headers[name] = content;
-	}
-
-	return headers;
-}
-
-function tracesUrl(endpoint: string): string {
-	const base = endpoint.replace(/\/+$/, "");
-	return base.endsWith("/v1/traces") ? base : `${base}/v1/traces`;
+export function environmentOf(env: TraceEnv): string {
+	return trimmed(env.NODE_ENV) ?? "development";
 }
 
 function trimmed(value: string | undefined): string | null {
 	const text = value?.trim();
 	return text && text.length > 0 ? text : null;
+}
+
+const sessionAuth = z.object({
+	initiator: z.object({ principalId: z.string().trim().min(1) }).nullish(),
+	current: z.object({ principalId: z.string().trim().min(1) }).nullish(),
+});
+
+export function principalOf(auth: unknown): string | null {
+	const parsed = sessionAuth.safeParse(auth);
+	if (!parsed.success) return null;
+
+	return (
+		parsed.data.initiator?.principalId ??
+		parsed.data.current?.principalId ??
+		null
+	);
 }
