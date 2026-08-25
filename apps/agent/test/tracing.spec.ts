@@ -23,10 +23,8 @@ describe("resolveTraceDestination", () => {
 			RAINDROP_WRITE_KEY: "rd_live_123",
 		});
 
-		expect(destination.kind).toBe("raindrop");
-		if (destination.kind === "off") throw new Error("expected an exporter");
-		expect(destination.url).toBe(TRACING.raindrop.url);
-		expect(destination.headers.Authorization).toBe("Bearer rd_live_123");
+		if (destination.kind !== "raindrop") throw new Error("expected Raindrop");
+		expect(destination.writeKey).toBe("rd_live_123");
 	});
 
 	it("never puts the key in the label a boot line prints", () => {
@@ -43,8 +41,7 @@ describe("resolveTraceDestination", () => {
 			OTEL_EXPORTER_OTLP_ENDPOINT: "http://localhost:4318",
 		});
 
-		expect(destination.kind).toBe("otlp");
-		if (destination.kind === "off") throw new Error("expected an exporter");
+		if (destination.kind !== "otlp") throw new Error("expected an exporter");
 		expect(destination.url).toBe("http://localhost:4318/v1/traces");
 	});
 
@@ -62,7 +59,7 @@ describe("resolveTraceDestination", () => {
 			OTEL_EXPORTER_OTLP_ENDPOINT: "https://api.honeycomb.io/v1/traces",
 		});
 
-		if (destination.kind === "off") throw new Error("expected an exporter");
+		if (destination.kind !== "otlp") throw new Error("expected an exporter");
 		expect(destination.url).toBe("https://api.honeycomb.io/v1/traces");
 	});
 
@@ -71,7 +68,7 @@ describe("resolveTraceDestination", () => {
 			OTEL_EXPORTER_OTLP_ENDPOINT: "http://localhost:4318/",
 		});
 
-		if (destination.kind === "off") throw new Error("expected an exporter");
+		if (destination.kind !== "otlp") throw new Error("expected an exporter");
 		expect(destination.url).toBe("http://localhost:4318/v1/traces");
 	});
 
@@ -81,8 +78,25 @@ describe("resolveTraceDestination", () => {
 			OTEL_EXPORTER_OTLP_HEADERS: "x-honeycomb-team=abc123",
 		});
 
-		if (destination.kind === "off") throw new Error("expected an exporter");
+		if (destination.kind !== "otlp") throw new Error("expected an exporter");
 		expect(destination.headers).toEqual({ "x-honeycomb-team": "abc123" });
+	});
+});
+
+describe("what a span carries", () => {
+	it("names the keys Raindrop reads, not names of our own", () => {
+		expect(TRACING.attributes.userId).toBe(
+			"traceloop.association.properties.user_id",
+		);
+		expect(TRACING.attributes.convoId).toBe(
+			"traceloop.association.properties.convo_id",
+		);
+	});
+
+	it("keeps full content and no redaction, as the owner decided", () => {
+		expect(TRACING.content.recordInputs).toBe(true);
+		expect(TRACING.content.recordOutputs).toBe(true);
+		expect(TRACING.content.redactPii).toBe(false);
 	});
 });
 

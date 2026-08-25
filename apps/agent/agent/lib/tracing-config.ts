@@ -1,6 +1,5 @@
 export const TRACING = {
 	raindrop: {
-		url: "https://api.raindrop.ai/v1/traces",
 		keyVar: "RAINDROP_WRITE_KEY",
 	},
 
@@ -9,8 +8,14 @@ export const TRACING = {
 		headersVar: "OTEL_EXPORTER_OTLP_HEADERS",
 	},
 
+	attributes: {
+		userId: "traceloop.association.properties.user_id",
+		convoId: "traceloop.association.properties.convo_id",
+	},
+
 	content: {
 		recordInputs: true,
 		recordOutputs: true,
+		redactPii: false,
 	},
 } as const;

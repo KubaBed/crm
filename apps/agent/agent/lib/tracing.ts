@@ -1,8 +1,9 @@
 import { TRACING } from "./tracing-config";
 
 export type TraceDestination =
+	| { kind: "raindrop"; label: string; writeKey: string }
 	| {
-			kind: "raindrop" | "otlp";
+			kind: "otlp";
 			label: string;
 			url: string;
 			headers: Record<string, string>;
@@ -13,14 +14,7 @@ export type TraceEnv = Readonly<Record<string, string | undefined>>;
 
 export function resolveTraceDestination(env: TraceEnv): TraceDestination {
 	const key = trimmed(env[TRACING.raindrop.keyVar]);
-	if (key) {
-		return {
-			kind: "raindrop",
-			label: "Raindrop",
-			url: TRACING.raindrop.url,
-			headers: { Authorization: `Bearer ${key}` },
-		};
-	}
+	if (key) return { kind: "raindrop", label: "Raindrop", writeKey: key };
 
 	const endpoint = trimmed(env[TRACING.otlp.endpointVar]);
 	if (endpoint) {
