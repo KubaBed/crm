@@ -116,6 +116,9 @@ single place that knows what is set.
 | `BLOB_READ_WRITE_TOKEN` | Mirrors logos and photos into Blob |
 | `AI_GATEWAY_API_KEY` | The model. Not needed on Vercel (OIDC) |
 | `AGENT_BRIDGE_SECRET` | The rep-facing Agent panel — see `agent.md` |
+| `RAINDROP_WRITE_KEY` | Agent traces to Raindrop — **includes customer text**, see `agent.md` |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | Agent traces to any other OTLP backend, when the above is unset |
+| `OTEL_EXPORTER_OTLP_HEADERS` | Headers that backend needs, `name=value,name=value` |
 
 `BLOB_READ_WRITE_TOKEN` is also in `env.validation.ts` and `apps/api/turbo.json`
 because the API and the seed write pictures too. The Next.js app is deliberately

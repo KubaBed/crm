@@ -292,6 +292,56 @@ egress:
 
 `skills/data-boundaries.md` is the agent's copy. Keep them in step.
 
+### Traces leave with the customer text in them
+
+**This is a deliberate exception to rule 1 above, and the only one.**
+`agent/instrumentation.ts` sets `recordInputs` and `recordOutputs` to `true`, so
+every span carries the system prompt, the full message history and the model's
+reply. On this CRM that is customer email bodies, contact names, addresses and
+deal amounts, sent to whichever backend `RAINDROP_WRITE_KEY` or
+`OTEL_EXPORTER_OTLP_ENDPOINT` names.
+
+The owner chose it, to debug agents while they are being built. **Redaction is
+not written.** Until it is, treat the tracing backend as holding the same data
+the CRM does: it needs the same access control, and it belongs in the privacy
+materials.
+
+Both flags are set **explicitly** rather than left to default. eve 0.29.4's own
+types say they default to `true` when the file is present and the published
+guide says `false`; naming them means an eve upgrade cannot quietly change what
+leaves. `lib/tracing-config.ts` is the one place to flip them.
+
+## Tracing replaces the local trace store
+
+`agent/instrumentation.ts` exists, so eve's zero-config writer is **not
+installed** — `eve traces ls` and the `/traces` TUI record nothing, whether or
+not a backend is configured. eve's local runtime is internal and throws if a
+second OTel runtime registers, so it cannot be kept as a fallback. Deleting the
+file is the only way back.
+
+`lib/tracing.ts` resolves where spans go, and is the whole rule:
+
+| Set | Where spans go |
+| --- | --- |
+| `RAINDROP_WRITE_KEY` | Raindrop |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | that backend — a local Jaeger, Honeycomb, Grafana |
+| neither | nowhere, and one line at boot says so |
+
+- **A blank key is unset.** The scaffold `eve add` writes interpolates the key
+  with no guard, so an install without one sends `Bearer undefined` to the
+  vendor on every turn. `resolveTraceDestination` refuses an empty or
+  whitespace-only value, which is what makes this optional in the sense
+  `AGENTS.md` means.
+- **`registerOTel` is wrapped.** A tracing failure logs and the agent runs
+  untraced. It never takes the agent down.
+- **The boot line never prints the key**, only the destination's name.
+- **`instrumentation.ts` imports `@crm/env/load` itself.** eve runs it at server
+  startup *before any agent code*, so `agent.ts`'s own load has not happened yet
+  and the root `.env` would not be read.
+- **The variable belongs in the root `.env`.** `eve add` writes
+  `apps/agent/.env.local`, which is a per-package env file and against the rule
+  in `AGENTS.md`. Delete it if a later `eve add` puts it back.
+
 ## Sandbox
 
 `agent/sandbox/sandbox.ts`: `bash`, file tools, `/workspace`, **`deny-all` egress on
