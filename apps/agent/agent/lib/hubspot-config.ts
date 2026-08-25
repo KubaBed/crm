@@ -39,5 +39,4 @@ export const HUBSPOT_READS = {
 
 export const HUBSPOT_CAPABILITY = "HUBSPOT_CONNECTION";
 
-export const HUBSPOT_CAPABILITY_SOURCE =
-	"HubSpot (Settings → Connections → HubSpot)";
+export const HUBSPOT_CAPABILITY_SOURCE = "Settings → Connections";
