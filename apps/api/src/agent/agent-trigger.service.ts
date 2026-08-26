@@ -555,6 +555,38 @@ export class AgentTriggerService {
 		void this.redeliverCancellations();
 	}
 
+	async slackEventReceived(input: {
+		eventId: string;
+		type: string;
+		teamId?: string;
+		channelId?: string;
+		payload: Prisma.InputJsonValue;
+	}): Promise<{ stored: boolean }> {
+		const existing = await this.db.slackEventInbox.findUnique({
+			where: { eventId: input.eventId },
+			select: { id: true },
+		});
+
+		if (existing) return { stored: false };
+
+		try {
+			await this.db.slackEventInbox.create({
+				data: {
+					eventId: input.eventId,
+					type: input.type,
+					teamId: input.teamId ?? null,
+					channelId: input.channelId ?? null,
+					payload: input.payload,
+				},
+			});
+		} catch {
+			return { stored: false };
+		}
+
+		this.poke();
+		return { stored: true };
+	}
+
 	private poke(): void {
 		this.pokeRoute("/internal/crm/dispatch");
 	}

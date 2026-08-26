@@ -6,7 +6,7 @@ import {
 	type NestExpressApplication,
 } from "@nestjs/platform-express";
 import { DocumentBuilder, SwaggerModule } from "@nestjs/swagger";
-import type { NextFunction, Request, Response } from "express";
+import { type NextFunction, type Request, type Response, raw } from "express";
 import helmet from "helmet";
 import { AppRouterHost } from "nestjs-trpc";
 import {
@@ -15,6 +15,7 @@ import {
 } from "trpc-to-openapi";
 import { AppModule } from "./app.module";
 import { ContextLogger } from "./logging/context-logger";
+import { SLACK_EVENTS_PATH } from "./slack/slack-events.controller";
 import { REST_BRIDGE_PATH } from "./trpc/openapi";
 import { createBaseTrpcContext } from "./trpc/trpc.context";
 
@@ -26,6 +27,7 @@ export async function createApp(): Promise<NestExpressApplication> {
 	);
 
 	app.use(helmet());
+	app.use(SLACK_EVENTS_PATH, collectRawBody);
 	app.useGlobalPipes(
 		new ValidationPipe({
 			whitelist: true,
@@ -113,4 +115,19 @@ export async function createApp(): Promise<NestExpressApplication> {
 	});
 
 	return app;
+}
+
+function collectRawBody(
+	request: Request,
+	_response: Response,
+	next: NextFunction,
+): void {
+	const chunks: Buffer[] = [];
+
+	request.on("data", (chunk: Buffer) => chunks.push(chunk));
+	request.on("end", () => {
+		request.body = Buffer.concat(chunks);
+		next();
+	});
+	request.on("error", next);
 }
