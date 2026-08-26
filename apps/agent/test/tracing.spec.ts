@@ -111,8 +111,15 @@ describe("environmentOf", () => {
 });
 
 describe("what a span carries", () => {
-	it("keeps full content, as the owner decided", () => {
-		expect(TRACING.content.recordInputs).toBe(true);
-		expect(TRACING.content.recordOutputs).toBe(true);
+	it("does not send model inputs or outputs to the tracing vendor", () => {
+		expect(TRACING.content.recordInputs).toBe(false);
+		expect(TRACING.content.recordOutputs).toBe(false);
+	});
+
+	it("names both flags explicitly, so an SDK upgrade cannot flip them", () => {
+		expect(Object.keys(TRACING.content)).toEqual([
+			"recordInputs",
+			"recordOutputs",
+		]);
 	});
 });
