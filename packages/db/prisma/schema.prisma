@@ -108,6 +108,26 @@ model SlackWorkspaceGrant {
   @@map("slackWorkspaceGrant")
 }
 
+model SlackEventInbox {
+  id String @id @default(cuid())
+
+  eventId   String  @unique
+  teamId    String?
+  channelId String?
+  type      String
+  payload   Json
+
+  runId String?
+
+  receivedAt  DateTime  @default(now())
+  processedAt DateTime?
+  outcome     String?
+
+  @@index([processedAt, receivedAt])
+  @@index([channelId])
+  @@map("slackEventInbox")
+}
+
 model Session {
   id        String   @id
   expiresAt DateTime
