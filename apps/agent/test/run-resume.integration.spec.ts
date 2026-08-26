@@ -2,7 +2,11 @@ import { afterAll, beforeAll, describe, expect, it } from "bun:test";
 import { db } from "@crm/db";
 import type { SendFn } from "eve/channels";
 import { runToken } from "../agent/lib/custom-agent-dispatch";
-import { resumeAgentRun } from "../agent/lib/run-resume";
+import {
+	claimSlackChannel,
+	resumeAgentRun,
+	runOnSlackChannel,
+} from "../agent/lib/run-resume";
 
 const suffix = crypto.randomUUID();
 const userId = `resume-user-${suffix}`;
@@ -240,5 +244,55 @@ describe("resuming a parked run from an outside event", () => {
 			select: { status: true },
 		});
 		expect(after?.status).toBe("WAITING_FOR_APPROVAL");
+	});
+});
+
+describe("finding the run an event belongs to", () => {
+	it("finds the live run that owns a channel", async () => {
+		const runId = await makeRun({ status: "WAITING_FOR_APPROVAL" });
+		const channelId = `C-${crypto.randomUUID()}`;
+
+		await claimSlackChannel(runId, channelId);
+
+		expect(await runOnSlackChannel(channelId)).toBe(runId);
+	});
+
+	it("ignores a finished run, so its channel stops routing", async () => {
+		const runId = await makeRun({ status: "SUCCEEDED" });
+		const channelId = `C-${crypto.randomUUID()}`;
+
+		await claimSlackChannel(runId, channelId);
+
+		expect(await runOnSlackChannel(channelId)).toBeNull();
+	});
+
+	it("prefers the newest live run when a channel is reused", async () => {
+		const channelId = `C-${crypto.randomUUID()}`;
+		const older = await makeRun({ status: "WAITING_FOR_APPROVAL" });
+		await claimSlackChannel(older, channelId);
+
+		await new Promise((resolve) => setTimeout(resolve, 10));
+
+		const newer = await makeRun({ status: "WAITING_FOR_APPROVAL" });
+		await claimSlackChannel(newer, channelId);
+
+		expect(await runOnSlackChannel(channelId)).toBe(newer);
+	});
+
+	it("does not reassign a channel a run already claimed", async () => {
+		const runId = await makeRun({ status: "RUNNING" });
+		const first = `C-${crypto.randomUUID()}`;
+		const second = `C-${crypto.randomUUID()}`;
+
+		await claimSlackChannel(runId, first);
+		await claimSlackChannel(runId, second);
+
+		expect(await runOnSlackChannel(first)).toBe(runId);
+		expect(await runOnSlackChannel(second)).toBeNull();
+	});
+
+	it("reads an unknown or blank channel as nobody", async () => {
+		expect(await runOnSlackChannel(`C-${crypto.randomUUID()}`)).toBeNull();
+		expect(await runOnSlackChannel("   ")).toBeNull();
 	});
 });

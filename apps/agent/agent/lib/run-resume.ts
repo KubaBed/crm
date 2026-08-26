@@ -89,3 +89,31 @@ export async function resumeAgentRun(
 		};
 	}
 }
+
+export async function runOnSlackChannel(
+	channelId: string,
+): Promise<string | null> {
+	const trimmed = channelId.trim();
+	if (!trimmed) return null;
+
+	const run = await db.agentRun.findFirst({
+		where: {
+			slackChannelId: trimmed,
+			status: { in: [...LIVE_STATUSES] },
+		},
+		orderBy: { createdAt: "desc" },
+		select: { id: true },
+	});
+
+	return run?.id ?? null;
+}
+
+export async function claimSlackChannel(
+	runId: string,
+	channelId: string,
+): Promise<void> {
+	await db.agentRun.updateMany({
+		where: { id: runId, slackChannelId: null },
+		data: { slackChannelId: channelId.trim() },
+	});
+}

@@ -793,6 +793,7 @@ model AgentRun {
 
   triggerType    AgentTriggerType
   status         AgentRunStatus   @default(QUEUED)
+  slackChannelId String?
   principalId    String?
   sessionId      String?          @unique
   idempotencyKey String           @unique
@@ -827,6 +828,7 @@ model AgentRun {
   @@index([versionId, createdAt])
   @@index([status, createdAt])
   @@index([triggerId, createdAt])
+  @@index([slackChannelId, status])
   @@map("agentRun")
 }
 
