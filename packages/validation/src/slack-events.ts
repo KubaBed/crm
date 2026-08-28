@@ -5,6 +5,7 @@ const trimmed = z.string().trim().min(1);
 export const SLACK_EVENT_TYPES = {
 	MEMBER_JOINED: "member_joined_channel",
 	MESSAGE: "message",
+	APP_MENTION: "app_mention",
 } as const;
 
 export const urlVerification = z.object({
@@ -44,6 +45,9 @@ export function isActionable(event: SlackEvent): boolean {
 	if (isFromApp(event)) return false;
 
 	if (event.type === SLACK_EVENT_TYPES.MEMBER_JOINED) return true;
+	if (event.type === SLACK_EVENT_TYPES.APP_MENTION) {
+		return Boolean(event.text?.trim());
+	}
 
 	return (
 		event.type === SLACK_EVENT_TYPES.MESSAGE &&
