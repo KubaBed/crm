@@ -95,6 +95,29 @@ describe("isActionable", () => {
 		expect(isActionable(message({ text: "   " }))).toBe(false);
 	});
 
+	it("acts on a mention, which is how somebody asks the agent for help", () => {
+		expect(
+			isActionable({ type: "app_mention", channel: "C1", text: "<@U1> help" }),
+		).toBe(true);
+	});
+
+	it("ignores a mention with no words after it", () => {
+		expect(
+			isActionable({ type: "app_mention", channel: "C1", text: " " }),
+		).toBe(false);
+	});
+
+	it("ignores a mention our own bot posted", () => {
+		expect(
+			isActionable({
+				type: "app_mention",
+				channel: "C1",
+				text: "<@U1> hi",
+				bot_id: "B1",
+			}),
+		).toBe(false);
+	});
+
 	it("ignores event types we do not handle", () => {
 		expect(isActionable({ type: "reaction_added", channel: "C1" })).toBe(false);
 	});

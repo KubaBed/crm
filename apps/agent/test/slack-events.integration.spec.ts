@@ -241,6 +241,19 @@ describe("what the agent is told", () => {
 		expect(message).toContain("Carry on");
 	});
 
+	it("says the agent was mentioned, not that a message arrived", () => {
+		const message = describeEvent({
+			type: "app_mention",
+			channel: "C1",
+			user: "U3",
+			text: "<@U1> where are we",
+		});
+
+		expect(message).toContain("mentioned");
+		expect(message).toContain("U3");
+		expect(message).toContain("where are we");
+	});
+
 	it("truncates a very long message rather than sending the lot", () => {
 		const message = describeEvent({
 			type: "message",

@@ -111,9 +111,16 @@ export async function runOnSlackChannel(
 export async function claimSlackChannel(
 	runId: string,
 	channelId: string,
-): Promise<void> {
+): Promise<string | null> {
 	await db.agentRun.updateMany({
 		where: { id: runId, slackChannelId: null },
 		data: { slackChannelId: channelId.trim() },
 	});
+
+	const run = await db.agentRun.findUnique({
+		where: { id: runId },
+		select: { slackChannelId: true },
+	});
+
+	return run?.slackChannelId ?? null;
 }

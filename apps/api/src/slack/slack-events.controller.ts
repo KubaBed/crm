@@ -76,6 +76,7 @@ export class SlackEventsController {
 			type: event.type,
 			teamId: team_id,
 			channelId: event.channel,
+			messageTs: event.ts,
 			payload: JSON.parse(body),
 		});
 

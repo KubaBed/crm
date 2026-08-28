@@ -291,6 +291,15 @@ describe("finding the run an event belongs to", () => {
 		expect(await runOnSlackChannel(second)).toBeNull();
 	});
 
+	it("says which channel the run watches, so a second claim is not silent", async () => {
+		const runId = await makeRun({ status: "RUNNING" });
+		const first = `C-${crypto.randomUUID()}`;
+		const second = `C-${crypto.randomUUID()}`;
+
+		expect(await claimSlackChannel(runId, first)).toBe(first);
+		expect(await claimSlackChannel(runId, second)).toBe(first);
+	});
+
 	it("reads an unknown or blank channel as nobody", async () => {
 		expect(await runOnSlackChannel(`C-${crypto.randomUUID()}`)).toBeNull();
 		expect(await runOnSlackChannel("   ")).toBeNull();

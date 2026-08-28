@@ -560,6 +560,7 @@ export class AgentTriggerService {
 		type: string;
 		teamId?: string;
 		channelId?: string;
+		messageTs?: string;
 		payload: Prisma.InputJsonValue;
 	}): Promise<{ stored: boolean }> {
 		const existing = await this.db.slackEventInbox.findUnique({
@@ -576,6 +577,7 @@ export class AgentTriggerService {
 					type: input.type,
 					teamId: input.teamId ?? null,
 					channelId: input.channelId ?? null,
+					messageTs: input.messageTs ?? null,
 					payload: input.payload,
 				},
 			});

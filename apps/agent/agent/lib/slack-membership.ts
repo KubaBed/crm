@@ -15,6 +15,8 @@ const ALREADY_IN_CHANNEL = "already_in_channel";
 
 const CHANNEL_NOT_FOUND = "channel_not_found";
 
+const NAME_TAKEN = "name_taken";
+
 const channelInfo = schemas.slack.reply.extend({
 	channel: z
 		.object({
@@ -222,6 +224,23 @@ function explain(error: string): string {
 	}
 }
 
+async function channelNamed(
+	name: string,
+): Promise<{ id: string; name: string } | { error: string }> {
+	const channel = await db.slackChannel.findFirst({
+		where: { name },
+		select: { id: true, name: true },
+	});
+
+	if (channel) return channel;
+
+	await requestSlackInventorySync();
+
+	return {
+		error: `#${name} already exists in Slack, and Comp AI cannot see it yet.`,
+	};
+}
+
 export async function createSlackChannel(
 	name: string,
 	isPrivate: boolean,
@@ -253,7 +272,9 @@ export async function createSlackChannel(
 		return { error: "Slack sent back something unreadable." };
 
 	if (!parsed.data.ok || !parsed.data.channel) {
-		return { error: explain(parsed.data.error ?? "rejected") };
+		const error = parsed.data.error ?? "rejected";
+		if (error === NAME_TAKEN) return channelNamed(name);
+		return { error: explain(error) };
 	}
 
 	const channel = parsed.data.channel;

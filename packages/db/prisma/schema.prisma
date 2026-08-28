@@ -114,6 +114,7 @@ model SlackEventInbox {
   eventId   String  @unique
   teamId    String?
   channelId String?
+  messageTs String?
   type      String
   payload   Json
 
@@ -123,6 +124,7 @@ model SlackEventInbox {
   processedAt DateTime?
   outcome     String?
 
+  @@unique([channelId, messageTs])
   @@index([processedAt, receivedAt])
   @@index([channelId])
   @@map("slackEventInbox")

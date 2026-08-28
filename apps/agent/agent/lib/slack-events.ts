@@ -114,6 +114,14 @@ export function describe(event: SlackEvent): string {
 
 	const text = event.text?.trim() ?? "";
 
+	if (event.type === SLACK_EVENT_TYPES.APP_MENTION) {
+		return [
+			`Somebody mentioned Comp AI in the Slack channel this run is working in (${event.channel})`,
+			event.user ? ` from ${event.user}` : "",
+			`: ${text.slice(0, SLACK_EVENTS.maxTextChars)}`,
+		].join("");
+	}
+
 	return [
 		`A message arrived in the Slack channel this run is working in (${event.channel})`,
 		event.user ? ` from ${event.user}` : "",

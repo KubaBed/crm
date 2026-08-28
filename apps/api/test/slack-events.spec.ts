@@ -10,6 +10,7 @@ type Stored = {
 	type: string;
 	teamId?: string;
 	channelId?: string;
+	messageTs?: string;
 };
 
 const stored: Stored[] = [];
@@ -87,6 +88,24 @@ describe("the Slack events endpoint", () => {
 		);
 
 		expect(stored).toHaveLength(1);
+	});
+
+	it("stores a mention, which is how somebody asks the agent for help", async () => {
+		await post(
+			callback({
+				type: "app_mention",
+				channel: "C1",
+				user: "U1",
+				text: "<@U9> where are we",
+				ts: "1700000000.000100",
+			}),
+		);
+
+		expect(stored).toHaveLength(1);
+		expect(stored[0]).toMatchObject({
+			type: "app_mention",
+			messageTs: "1700000000.000100",
+		});
 	});
 
 	it("refuses a body that was not signed with our secret", async () => {
