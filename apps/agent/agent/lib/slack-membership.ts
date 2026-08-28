@@ -1,7 +1,7 @@
 import { db } from "@crm/db";
 import { schemas } from "@crm/validation";
 import { z } from "zod";
-import { SLACK } from "./slack-config";
+import { slackGet, slackPost } from "./slack-api";
 import { slackAccessToken, slackUserToken } from "./slack-connection";
 import { requestSlackInventorySync } from "./slack-people";
 
@@ -30,70 +30,42 @@ async function call(
 	token: string,
 	method: string,
 	body: Record<string, string>,
-	attempt = 1,
 ): Promise<{ ok: boolean; error?: string }> {
-	const response = await fetch(`https://slack.com/api/${method}`, {
-		method: "POST",
-		headers: {
-			authorization: `Bearer ${token}`,
-			"content-type": "application/json; charset=utf-8",
-		},
-		body: JSON.stringify(body),
-		signal: AbortSignal.timeout(SLACK.request.timeoutMs),
-	});
-
-	const parsed = schemas.slack.reply.safeParse(await response.json());
-	if (!parsed.success) return { ok: false, error: "unreadable_reply" };
-	if (parsed.data.ok) return { ok: true };
-
-	if (
-		parsed.data.error === "ratelimited" &&
-		attempt < SLACK.request.maxAttempts
-	) {
-		const wait = Number(response.headers.get("retry-after") ?? "1");
-		await new Promise((resolve) =>
-			setTimeout(resolve, wait * SLACK.request.retryUnitMs),
-		);
-		return call(token, method, body, attempt + 1);
-	}
-
-	return { ok: false, error: parsed.data.error };
+	const outcome = await slackPost(token, method, body, schemas.slack.reply);
+	return outcome.ok ? { ok: true } : { ok: false, error: outcome.error };
 }
 
 async function botUserId(token: string): Promise<string | null> {
-	const response = await fetch("https://slack.com/api/auth.test", {
-		headers: { authorization: `Bearer ${token}` },
-		signal: AbortSignal.timeout(SLACK.request.timeoutMs),
-	});
-	const parsed = schemas.slack.authTest.safeParse(await response.json());
-	return parsed.success && parsed.data.ok
-		? (parsed.data.user_id ?? null)
-		: null;
+	const outcome = await slackGet(
+		token,
+		"auth.test",
+		{},
+		schemas.slack.authTest,
+	);
+
+	return outcome.ok ? (outcome.data.user_id ?? null) : null;
 }
 
 async function liveChannelState(
 	token: string,
 	channelId: string,
 ): Promise<ChannelState | null> {
-	const url = new URL("https://slack.com/api/conversations.info");
-	url.searchParams.set("channel", channelId);
-
 	try {
-		const response = await fetch(url, {
-			headers: { authorization: `Bearer ${token}` },
-			signal: AbortSignal.timeout(SLACK.request.timeoutMs),
-		});
-		const parsed = channelInfo.safeParse(await response.json());
-		if (!parsed.success) return null;
+		const outcome = await slackGet(
+			token,
+			"conversations.info",
+			{ channel: channelId },
+			channelInfo,
+		);
 
-		if (parsed.data.ok && parsed.data.channel) {
+		if (outcome.ok && outcome.data.channel) {
 			return {
-				isPrivate: parsed.data.channel.is_private ?? false,
-				isMember: parsed.data.channel.is_member ?? false,
+				isPrivate: outcome.data.channel.is_private ?? false,
+				isMember: outcome.data.channel.is_member ?? false,
 			};
 		}
 
-		return parsed.data.error === CHANNEL_NOT_FOUND
+		return !outcome.ok && outcome.error === CHANNEL_NOT_FOUND
 			? { isPrivate: true, isMember: false }
 			: null;
 	} catch {
@@ -257,27 +229,23 @@ export async function createSlackChannel(
 		};
 	}
 
-	const response = await fetch("https://slack.com/api/conversations.create", {
-		method: "POST",
-		headers: {
-			authorization: `Bearer ${token}`,
-			"content-type": "application/json; charset=utf-8",
-		},
-		body: JSON.stringify({ name, is_private: isPrivate }),
-		signal: AbortSignal.timeout(SLACK.request.timeoutMs),
-	});
+	const outcome = await slackPost(
+		token,
+		"conversations.create",
+		{ name, is_private: isPrivate },
+		schemas.slack.createReply,
+	);
 
-	const parsed = schemas.slack.createReply.safeParse(await response.json());
-	if (!parsed.success)
-		return { error: "Slack sent back something unreadable." };
-
-	if (!parsed.data.ok || !parsed.data.channel) {
-		const error = parsed.data.error ?? "rejected";
-		if (error === NAME_TAKEN) return channelNamed(name);
-		return { error: explain(error) };
+	if (!outcome.ok) {
+		if (outcome.error === NAME_TAKEN) return channelNamed(name);
+		return { error: explain(outcome.error) };
 	}
 
-	const channel = parsed.data.channel;
+	if (!outcome.data.channel) {
+		return { error: "Slack sent back something unreadable." };
+	}
+
+	const channel = outcome.data.channel;
 
 	await db.slackChannel.upsert({
 		where: { id: channel.id },

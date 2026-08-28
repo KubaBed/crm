@@ -78,6 +78,7 @@ const VERBS: ToolVerbs = {
 	record_job_change: "Raised a job change",
 	list_deals: "Reviewed the deal pipeline",
 	open_slack_channel: "Opened a Slack channel and watched it",
+	invite_to_slack_channel: "Invited people to the Slack channel",
 	list_outstanding_work: "Looked for outstanding work",
 	set_chat_title: "Named this chat",
 	list_fields: "Read what this workspace tracks",

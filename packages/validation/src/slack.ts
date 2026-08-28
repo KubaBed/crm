@@ -28,6 +28,15 @@ export const reply = z.object({
 	error: z.string().optional(),
 });
 
+export const lookupByEmail = reply.extend({
+	user: z.object({ id: z.string().trim().min(1) }).nullish(),
+});
+
+export const inviteShared = reply.extend({
+	invite_id: z.string().trim().min(1).optional(),
+	url: z.string().trim().min(1).optional(),
+});
+
 export const authTest = reply.extend({
 	user_id: z.string().trim().min(1).optional(),
 });
