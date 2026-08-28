@@ -6,6 +6,7 @@ import {
 	AGENT_ACTION_TYPES,
 	type AgentManifestResource,
 	parseAgentManifest,
+	SLACK_WORKSPACE_RESOURCE_ID,
 } from "@crm/validation/agent-manifest";
 import { z } from "zod";
 import { readCompanyHistory, readDealHistory } from "./accounts";
@@ -13,12 +14,16 @@ import { AGENT_ACTION_EXECUTORS, isAgentActionType } from "./agent-actions";
 import { readCrmHistory } from "./crm";
 import { DISPATCH } from "./dispatch-config";
 import { searchCrm } from "./lookup";
+import { channelOfRun, claimSlackChannel } from "./run-resume";
 import {
 	type LockedAgentRun,
 	lockAgentRun,
 	runTerminalEventId,
 } from "./run-state";
+import { toChannelName } from "./slack-channel-name";
 import { slackAccessToken } from "./slack-connection";
+import { inviteToSlackChannel } from "./slack-invite";
+import { createSlackChannel } from "./slack-membership";
 
 const ACTION_LEASE_MS = DISPATCH.run.actionLeaseMs;
 const NO_ACTION_TRIGGER_TYPES = new Set<AgentTriggerType>(
@@ -1021,18 +1026,202 @@ function assertActivityAllowed(
 	}
 }
 
+function assertSlackActionApproved(
+	manifest: Prisma.JsonValue,
+	type: (typeof AGENT_ACTION_TYPES)[keyof typeof AGENT_ACTION_TYPES],
+): void {
+	if (!manifestActions(manifest).some((action) => action.type === type)) {
+		throw new Error(`Agent version does not allow ${type}.`);
+	}
+}
+
+export async function openRunSlackChannel(
+	runId: string,
+	callId: string,
+	input: { name: string; isPrivate: boolean },
+) {
+	const run = await activeRunForSlack(
+		runId,
+		AGENT_ACTION_TYPES.SLACK_CHANNEL_OPEN,
+	);
+
+	const channelName = toChannelName(input.name);
+	if (!channelName) {
+		throw new Error("That name has no letters or numbers Slack accepts.");
+	}
+
+	const idempotencyKey = `${runId}:${callId}`;
+	const requestHash = hashRequest({ channelName, isPrivate: input.isPrivate });
+	const existing = await findRunAction(idempotencyKey, requestHash);
+	if (existing?.status === "SUCCEEDED") {
+		return {
+			actionId: existing.id,
+			channelId: existing.externalId,
+			channelName,
+			watching: (await channelOfRun(runId)) === existing.externalId,
+			replayed: true,
+		};
+	}
+
+	const claim = await claimRunAction(existing, idempotencyKey, requestHash, {
+		agentId: run.agentId,
+		runId,
+		type: AGENT_ACTION_TYPES.SLACK_CHANNEL_OPEN,
+		provider: "slack",
+		targetType: "channel",
+		targetId: channelName,
+		targetLabel: `#${channelName}`,
+		summary: `Open #${channelName}`,
+	});
+	if (!claim.claimed) {
+		return {
+			actionId: claim.actionId,
+			channelId: claim.externalId,
+			channelName,
+			watching: (await channelOfRun(runId)) === claim.externalId,
+			replayed: true,
+		};
+	}
+
+	try {
+		await assertRunActive(runId);
+		const outcome = await createSlackChannel(channelName, input.isPrivate);
+		if ("error" in outcome) throw new Error(outcome.error);
+
+		const watching = await claimSlackChannel(runId, outcome.id);
+		await settleRunAction(claim, outcome.id);
+
+		return {
+			actionId: claim.actionId,
+			channelId: outcome.id,
+			channelName: outcome.name,
+			watching: watching === outcome.id,
+			replayed: false,
+		};
+	} catch (error) {
+		const message = error instanceof Error ? error.message : String(error);
+		await failRunAction(claim, slackActionErrorCode(message), message);
+		throw error;
+	}
+}
+
+export async function inviteToRunSlackChannel(
+	runId: string,
+	callId: string,
+	input: { emails: string[] },
+) {
+	const run = await activeRunForSlack(
+		runId,
+		AGENT_ACTION_TYPES.SLACK_CHANNEL_INVITE,
+	);
+
+	const channelId = await channelOfRun(runId);
+	if (!channelId) {
+		throw new Error(
+			"This run has no Slack channel yet. Open one with open_slack_channel first.",
+		);
+	}
+
+	const emails = [...new Set(input.emails.map((email) => email.trim()))].sort();
+	const idempotencyKey = `${runId}:${callId}`;
+	const requestHash = hashRequest({ channelId, emails: emails.join(",") });
+	const existing = await findRunAction(idempotencyKey, requestHash);
+	if (existing?.status === "SUCCEEDED") {
+		return { actionId: existing.id, channelId, replayed: true };
+	}
+
+	const claim = await claimRunAction(existing, idempotencyKey, requestHash, {
+		agentId: run.agentId,
+		runId,
+		type: AGENT_ACTION_TYPES.SLACK_CHANNEL_INVITE,
+		provider: "slack",
+		targetType: "channel",
+		targetId: channelId,
+		targetLabel: channelId,
+		summary: `Invite ${emails.length} to ${channelId}`,
+	});
+	if (!claim.claimed) {
+		return { actionId: claim.actionId, channelId, replayed: true };
+	}
+
+	try {
+		await assertRunActive(runId);
+		const outcomes = [];
+		for (const email of emails) {
+			outcomes.push(await inviteToSlackChannel(channelId, email));
+		}
+
+		const invited = outcomes.filter((outcome) => outcome.invited);
+		const refused = outcomes.filter((outcome) => !outcome.invited);
+		if (invited.length === 0) {
+			throw new Error(
+				refused.map((outcome) => outcome.reason).join(" ") ||
+					"Slack refused every invitation.",
+			);
+		}
+
+		await settleRunAction(claim, channelId);
+
+		return {
+			actionId: claim.actionId,
+			channelId,
+			invited,
+			refused,
+			replayed: false,
+		};
+	} catch (error) {
+		const message = error instanceof Error ? error.message : String(error);
+		await failRunAction(claim, slackActionErrorCode(message), message);
+		throw error;
+	}
+}
+
+async function activeRunForSlack(
+	runId: string,
+	type: (typeof AGENT_ACTION_TYPES)[keyof typeof AGENT_ACTION_TYPES],
+) {
+	const run = await db.agentRun.findUnique({
+		where: { id: runId },
+		select: {
+			id: true,
+			status: true,
+			agentId: true,
+			version: { select: { manifest: true } },
+		},
+	});
+	if (!run) throw new Error("This agent run is unavailable.");
+	if (run.status !== "RUNNING") {
+		throw new Error("This agent run is not active.");
+	}
+
+	assertSlackWorkspaceApproved(run.version.manifest);
+	assertSlackActionApproved(run.version.manifest, type);
+
+	return run;
+}
+
+async function settleRunAction(
+	claim: Extract<RunActionClaim, { claimed: true }>,
+	externalId: string,
+): Promise<void> {
+	const completed = await db.agentAction.updateMany({
+		where: {
+			id: claim.actionId,
+			status: "RUNNING",
+			startedAt: claim.claimedAt,
+		},
+		data: { status: "SUCCEEDED", externalId, completedAt: new Date() },
+	});
+	if (completed.count === 0) {
+		await recordDeliveryOutsideClaim(claim.actionId, externalId);
+		throw new Error("This agent run stopped while Slack was still working.");
+	}
+}
+
 export function approvedSlackDestination(
 	manifest: Prisma.JsonValue,
 ): SlackRunDestination {
-	const scope = manifestDataScope(manifest);
-	if (
-		!scope.resources.some(
-			(resource) =>
-				resource.kind === "integration" && resource.id === "slack:workspace",
-		)
-	) {
-		throw new Error("Agent version does not allow Slack.");
-	}
+	assertSlackWorkspaceApproved(manifest);
 
 	const destinations = manifestActions(manifest).flatMap((action) =>
 		action.type === AGENT_ACTION_TYPES.SLACK_MESSAGE_POST
@@ -1053,6 +1242,19 @@ export function approvedSlackDestination(
 	}
 
 	return destination;
+}
+
+function assertSlackWorkspaceApproved(manifest: Prisma.JsonValue): void {
+	const scope = manifestDataScope(manifest);
+	if (
+		!scope.resources.some(
+			(resource) =>
+				resource.kind === "integration" &&
+				resource.id === SLACK_WORKSPACE_RESOURCE_ID,
+		)
+	) {
+		throw new Error("Agent version does not allow Slack.");
+	}
 }
 
 function assertResourceAllowed(

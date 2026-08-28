@@ -108,6 +108,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
 	await db.slackEventInbox.deleteMany({ where: { teamId: "T1" } });
+	await db.agentAction.deleteMany({ where: { agentId } });
 	await db.agentRun.deleteMany({ where: { agentId } });
 	await db.agentDefinition.updateMany({
 		where: { id: agentId },

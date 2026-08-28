@@ -55,7 +55,19 @@ const action = z.discriminatedUnion("type", [
 			label: z.string().trim().min(1).max(120),
 		}),
 	}),
+	z.object({
+		type: z.literal(AGENT_ACTION_TYPES.SLACK_CHANNEL_OPEN),
+		provider: z.literal("slack"),
+		summary: z.string().trim().min(1).max(240),
+	}),
+	z.object({
+		type: z.literal(AGENT_ACTION_TYPES.SLACK_CHANNEL_INVITE),
+		provider: z.literal("slack"),
+		summary: z.string().trim().min(1).max(240),
+	}),
 ]);
+
+export type DraftAction = z.infer<typeof action>;
 
 export const builderDraftToolInput = z.object({
 	name: z.string().trim().min(1).max(100),

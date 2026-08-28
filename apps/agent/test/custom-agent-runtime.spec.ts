@@ -245,7 +245,7 @@ describe("deployed Slack actions", () => {
 				...manifest,
 				dataScope: { ...manifest.dataScope, resources: [] },
 			}),
-		).toThrow("does not allow Slack");
+		).toThrow("needs the slack:workspace resource");
 	});
 
 	it("posts with a stable Slack replay id", async () => {
