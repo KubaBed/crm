@@ -31,6 +31,8 @@ export const result = z.discriminatedUnion("type", [
 
 export const storedResult = result.nullable();
 
+export const agentActionResult = result;
+
 export type AgentActionResult = z.infer<typeof result>;
 
 function issues(error: z.ZodError): string {
