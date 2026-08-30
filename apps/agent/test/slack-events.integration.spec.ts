@@ -7,6 +7,7 @@ import {
 	it,
 } from "bun:test";
 import { db } from "@crm/db";
+import type { SlackEvent } from "@crm/validation";
 import type { SendFn } from "eve/channels";
 import { runToken } from "../agent/lib/custom-agent-dispatch";
 import { claimSlackChannel } from "../agent/lib/run-resume";
@@ -24,10 +25,14 @@ let versionId = "";
 
 const deliveries: { message: string; continuationToken?: string }[] = [];
 
-const send = (async (message: string, options: Record<string, unknown>) => {
+type EveSendOptions = {
+	continuationToken?: string;
+};
+
+const send = (async (message: string, options?: EveSendOptions) => {
 	deliveries.push({
 		message,
-		continuationToken: options?.continuationToken as string,
+		continuationToken: options?.continuationToken,
 	});
 	return { id: `ses_${deliveries.length}` };
 }) as unknown as SendFn;
@@ -53,7 +58,7 @@ async function makeRun(
 	return run.id;
 }
 
-async function inbox(event: Record<string, unknown>, channelId: string | null) {
+async function inbox(event: SlackEvent, channelId: string | null) {
 	const eventId = `Ev-${crypto.randomUUID()}`;
 	const row = await db.slackEventInbox.create({
 		data: {

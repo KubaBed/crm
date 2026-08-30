@@ -3,6 +3,14 @@ import { SLACK } from "./slack-config";
 
 type Reply = { ok: boolean; error?: string };
 
+export type SlackPostBody = {
+	channel?: string;
+	users?: string;
+	emails?: string[];
+	name?: string;
+	is_private?: boolean;
+};
+
 export type SlackOutcome<T> =
 	| { ok: true; data: T }
 	| { ok: false; error: string };
@@ -38,7 +46,7 @@ async function read<T extends Reply>(
 export async function slackPost<T extends Reply>(
 	token: string,
 	method: string,
-	body: Record<string, unknown>,
+	body: SlackPostBody,
 	schema: z.ZodType<T>,
 	attempt = 1,
 ): Promise<SlackOutcome<T>> {

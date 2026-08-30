@@ -5,6 +5,7 @@ import {
 	isFromApp,
 	SLACK_EVENT_TYPES,
 	slackEnvelope,
+	type SlackEvent,
 } from "../src/slack-events";
 
 const joined = {
@@ -18,7 +19,7 @@ const joined = {
 	},
 };
 
-const message = (over: Record<string, unknown> = {}) => ({
+const message = (over: Partial<SlackEvent> = {}) => ({
 	type: SLACK_EVENT_TYPES.MESSAGE,
 	channel: "C1",
 	user: "U1",

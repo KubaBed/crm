@@ -21,15 +21,20 @@ type Delivery = {
 	attributes?: Record<string, string>;
 };
 
+type EveSendOptions = {
+	continuationToken?: string;
+	mode?: string;
+	auth?: { attributes?: Record<string, string> };
+};
+
 const deliveries: Delivery[] = [];
 
-const send = (async (message: string, options: Record<string, unknown>) => {
-	const auth = options?.auth as { attributes?: Record<string, string> };
+const send = (async (message: string, options?: EveSendOptions) => {
 	deliveries.push({
 		message,
-		continuationToken: options?.continuationToken as string,
-		mode: options?.mode as string,
-		attributes: auth?.attributes,
+		continuationToken: options?.continuationToken,
+		mode: options?.mode,
+		attributes: options?.auth?.attributes,
 	});
 	return { id: `ses_${deliveries.length}` };
 }) as unknown as SendFn;

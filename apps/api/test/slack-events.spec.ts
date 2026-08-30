@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from "bun:test";
 import { signBody } from "@crm/auth";
+import type { SlackEnvelope, SlackEvent } from "@crm/validation";
 import { UnauthorizedException } from "@nestjs/common";
 import { SlackEventsController } from "../src/slack/slack-events.controller";
 
@@ -30,7 +31,7 @@ const config = {
 const controller = new SlackEventsController(agent, config);
 
 const post = (
-	payload: unknown,
+	payload: SlackEnvelope | { type: string; nested?: { a: number } },
 	over: { secret?: string; skew?: number } = {},
 ) => {
 	const body = JSON.stringify(payload);
@@ -40,7 +41,7 @@ const post = (
 	return controller.events(Buffer.from(body), timestamp, signature);
 };
 
-const callback = (event: Record<string, unknown>, eventId = "Ev1") => ({
+const callback = (event: SlackEvent, eventId = "Ev1") => ({
 	type: "event_callback",
 	event_id: eventId,
 	team_id: "T1",
