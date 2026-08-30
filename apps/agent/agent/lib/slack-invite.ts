@@ -3,7 +3,13 @@ import { slackGet, slackPost } from "./slack-api";
 import { slackAccessToken } from "./slack-connection";
 
 export type InviteOutcome =
-	| { invited: true; email: string; kind: "member" | "connect"; url?: string }
+	| {
+			invited: true;
+			email: string;
+			kind: "member" | "connect";
+			invite_id?: string;
+			url?: string;
+	  }
 	| { invited: false; email: string; reason: string };
 
 const ALREADY_IN_CHANNEL = "already_in_channel";
@@ -69,7 +75,13 @@ async function inviteGuest(
 	);
 
 	if (outcome.ok) {
-		return { invited: true, email, kind: "connect", url: outcome.data.url };
+		return {
+			invited: true,
+			email,
+			kind: "connect",
+			invite_id: outcome.data.invite_id,
+			url: outcome.data.url,
+		};
 	}
 
 	if (outcome.error === ALREADY_IN_CHANNEL) {

@@ -1,5 +1,6 @@
 import type { ZodType, z } from "zod";
 import * as activityMeta from "./activity-meta";
+import * as agentAction from "./agent-action";
 import * as agentEvents from "./agent-events";
 import * as agentManifest from "./agent-manifest";
 import * as agents from "./agents";
@@ -11,6 +12,7 @@ import * as slackEvents from "./slack-events";
 
 export const schemas = {
 	activityMeta,
+	agentAction,
 	agentEvents,
 	agentManifest,
 	agents,
@@ -22,6 +24,7 @@ export const schemas = {
 } as const;
 
 export type { ActivityMeta, ActivityMetaFields } from "./activity-meta";
+export type { AgentActionResult } from "./agent-action";
 export type { CrmEventTask } from "./agent-events";
 export type {
 	AgentActionType,

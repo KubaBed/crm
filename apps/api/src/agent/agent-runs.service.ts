@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { type Db, Prisma } from "@crm/db";
 import type { AgentRunStatus } from "@crm/db/enums";
 import { lockIdempotencyKey } from "@crm/db/idempotency";
+import { readAgentActionResult } from "@crm/validation/agent-action";
 import {
 	BadRequestException,
 	ConflictException,
@@ -85,6 +86,7 @@ export class AgentRunsService {
 						attemptCount: true,
 						errorCode: true,
 						errorMessage: true,
+						result: true,
 						plannedAt: true,
 						startedAt: true,
 						completedAt: true,
@@ -110,6 +112,7 @@ export class AgentRunsService {
 			})),
 			actions: run.actions.map((action) => ({
 				...action,
+				result: readAgentActionResult(action.type, action.result),
 				plannedAt: action.plannedAt.toISOString(),
 				startedAt: action.startedAt?.toISOString() ?? null,
 				completedAt: action.completedAt?.toISOString() ?? null,

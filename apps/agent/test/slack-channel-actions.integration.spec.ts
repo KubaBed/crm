@@ -298,8 +298,50 @@ describe("inviting people as a deployed run", () => {
 			emails: ["buyer@customer.test"],
 		});
 
-		expect(outcome).toMatchObject({ channelId, replayed: false });
+		expect(outcome).toMatchObject({
+			channelId,
+			replayed: false,
+			result: {
+				type: "slack.channel.invite",
+				invite_id: "I1",
+				url: "https://slack.com/invite/x",
+				email: "buyer@customer.test",
+				kind: "connect",
+			},
+		});
 		expect(outcome.invited).toHaveLength(1);
+		expect(outcome.invited?.[0]).toMatchObject({
+			invite_id: "I1",
+			url: "https://slack.com/invite/x",
+		});
+
+		const row = await db.agentAction.findFirst({
+			where: { runId, type: "slack.channel.invite" },
+			select: { externalId: true, result: true },
+		});
+		expect(row?.externalId).toBe("I1");
+		expect(row?.result).toMatchObject({
+			type: "slack.channel.invite",
+			invite_id: "I1",
+			url: "https://slack.com/invite/x",
+			email: "buyer@customer.test",
+			kind: "connect",
+		});
+
+		const replay = await inviteToRunSlackChannel(runId, "invite-1", {
+			emails: ["buyer@customer.test"],
+		});
+		expect(replay).toMatchObject({
+			channelId,
+			replayed: true,
+			result: {
+				type: "slack.channel.invite",
+				invite_id: "I1",
+				url: "https://slack.com/invite/x",
+				email: "buyer@customer.test",
+				kind: "connect",
+			},
+		});
 		await db.slackChannel.deleteMany({ where: { id: channelId } });
 	});
 

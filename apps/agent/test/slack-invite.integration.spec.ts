@@ -88,6 +88,7 @@ describe("inviting somebody to a channel", () => {
 		expect(outcome).toMatchObject({
 			invited: true,
 			kind: "connect",
+			invite_id: "I1",
 			url: "https://slack.com/invite/abc",
 		});
 		expect(sent("conversations.inviteShared")?.body).toMatchObject({

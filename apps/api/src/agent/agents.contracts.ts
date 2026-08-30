@@ -269,6 +269,7 @@ const agentRunActionOutput = z.object({
 	attemptCount: z.number(),
 	errorCode: z.string().nullable(),
 	errorMessage: z.string().nullable(),
+	result: schemas.agentAction.storedResult,
 	plannedAt: z.string(),
 	startedAt: z.string().nullable(),
 	completedAt: z.string().nullable(),

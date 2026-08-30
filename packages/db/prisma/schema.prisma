@@ -886,6 +886,7 @@ model AgentAction {
   targetLabel String?
   summary     String
   metadata    Json?
+  result      Json?
 
   status         AgentActionStatus @default(PLANNED)
   idempotencyKey String            @unique
