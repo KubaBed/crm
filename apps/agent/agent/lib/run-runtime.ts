@@ -24,6 +24,7 @@ import { toChannelName } from "./slack-channel-name";
 import { slackAccessToken } from "./slack-connection";
 import { inviteToSlackChannel } from "./slack-invite";
 import { createSlackChannel } from "./slack-membership";
+import { addDealOwner } from "./slack-owner";
 
 const ACTION_LEASE_MS = DISPATCH.run.actionLeaseMs;
 const NO_ACTION_TRIGGER_TYPES = new Set<AgentTriggerType>(
@@ -1089,6 +1090,7 @@ export async function openRunSlackChannel(
 		if ("error" in outcome) throw new Error(outcome.error);
 
 		const watching = await claimSlackChannel(runId, outcome.id);
+		const owner = await addDealOwner(runId, outcome.id).catch(() => null);
 		await settleRunAction(claim, outcome.id);
 
 		return {
@@ -1096,6 +1098,7 @@ export async function openRunSlackChannel(
 			channelId: outcome.id,
 			channelName: outcome.name,
 			watching: watching === outcome.id,
+			owner,
 			replayed: false,
 		};
 	} catch (error) {

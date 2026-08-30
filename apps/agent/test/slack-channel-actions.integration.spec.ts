@@ -194,6 +194,70 @@ describe("opening a channel as a deployed run", () => {
 		await db.slackChannel.deleteMany({ where: { id: channelId } });
 	});
 
+	it("adds the deal owner when Slack knows them", async () => {
+		const dealId = `deal-${crypto.randomUUID()}`;
+		const company = await db.company.create({
+			data: { name: `Owner Co ${suffix}`, domain: `${dealId}.test` },
+			select: { id: true },
+		});
+		await db.deal.create({
+			data: {
+				id: dealId,
+				name: "Owner deal",
+				stage: "CLOSED_WON",
+				companyId: company.id,
+				ownerId: userId,
+				amount: 1,
+				currency: "USD",
+			},
+		});
+		await db.slackMemberMatch.create({
+			data: { crmUserId: userId, slackUserId: "U-OWNER" },
+		});
+
+		const runId = await makeRun([openAction, summaryAction]);
+		await db.agentRun.update({
+			where: { id: runId },
+			data: { input: { record: { kind: "deal", id: dealId } } },
+		});
+
+		const channelId = `C-${crypto.randomUUID()}`;
+		const invited: unknown[] = [];
+		globalThis.fetch = (async (
+			input: URL | RequestInfo,
+			init?: RequestInit,
+		) => {
+			const url = String(input instanceof Request ? input.url : input);
+			if (url.includes("conversations.invite")) {
+				invited.push(JSON.parse(String(init?.body)));
+			}
+			return new Response(
+				JSON.stringify(
+					url.includes("conversations.create")
+						? { ok: true, channel: { id: channelId, name: "owner-co" } }
+						: { ok: true },
+				),
+				{ headers: { "content-type": "application/json" } },
+			);
+		}) as typeof fetch;
+
+		const outcome = await openRunSlackChannel(runId, "call-1", {
+			name: "Owner Co",
+			isPrivate: false,
+		});
+
+		expect(outcome.owner).toMatchObject({
+			added: true,
+			slackUserId: "U-OWNER",
+		});
+		expect(invited).toEqual([{ channel: channelId, users: "U-OWNER" }]);
+
+		await db.slackChannel.deleteMany({ where: { id: channelId } });
+		await db.slackMemberMatch.deleteMany({ where: { crmUserId: userId } });
+		await db.deal.deleteMany({ where: { id: dealId } });
+		await db.company.deleteMany({ where: { id: company.id } });
+	});
+
 	it("refuses a name with nothing Slack accepts", async () => {
 		const runId = await makeRun([openAction, summaryAction]);
 
