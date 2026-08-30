@@ -4,8 +4,8 @@ import {
 	isActionable,
 	isFromApp,
 	SLACK_EVENT_TYPES,
-	slackEnvelope,
 	type SlackEvent,
+	slackEnvelope,
 } from "../src/slack-events";
 
 const joined = {
