@@ -7,6 +7,7 @@ export type SlackPostBody = {
 	channel?: string;
 	users?: string;
 	emails?: string[];
+	external_limited?: boolean;
 	name?: string;
 	is_private?: boolean;
 };

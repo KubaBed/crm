@@ -282,13 +282,31 @@ describe("inviting people as a deployed run", () => {
 	it("invites into the channel the run opened", async () => {
 		const runId = await makeRun([openAction, inviteAction, summaryAction]);
 		const channelId = `C-${crypto.randomUUID()}`;
-		slackReplies((url) =>
-			url.includes("conversations.create")
-				? { ok: true, channel: { id: channelId, name: "acme-onboarding" } }
-				: url.includes("users.lookupByEmail")
-					? { ok: false, error: "users_not_found" }
-					: { ok: true, invite_id: "I1", url: "https://slack.com/invite/x" },
-		);
+		const posted: { url: string; body: unknown }[] = [];
+		globalThis.fetch = (async (
+			input: URL | RequestInfo,
+			init?: RequestInit,
+		) => {
+			const url = String(input instanceof Request ? input.url : input);
+			posted.push({
+				url,
+				body: init?.body ? JSON.parse(String(init.body)) : null,
+			});
+			return new Response(
+				JSON.stringify(
+					url.includes("conversations.create")
+						? { ok: true, channel: { id: channelId, name: "acme-onboarding" } }
+						: url.includes("users.lookupByEmail")
+							? { ok: false, error: "users_not_found" }
+							: {
+									ok: true,
+									invite_id: "I1",
+									url: "https://slack.com/invite/x",
+								},
+				),
+				{ headers: { "content-type": "application/json" } },
+			);
+		}) as typeof fetch;
 
 		await openRunSlackChannel(runId, "open-1", {
 			name: "Acme Onboarding",
@@ -313,6 +331,14 @@ describe("inviting people as a deployed run", () => {
 		expect(outcome.invited?.[0]).toMatchObject({
 			invite_id: "I1",
 			url: "https://slack.com/invite/x",
+		});
+		expect(
+			posted.find((call) => call.url.includes("conversations.inviteShared"))
+				?.body,
+		).toMatchObject({
+			channel: channelId,
+			emails: ["buyer@customer.test"],
+			external_limited: false,
 		});
 
 		const row = await db.agentAction.findFirst({

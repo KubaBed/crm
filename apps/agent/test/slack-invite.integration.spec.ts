@@ -65,7 +65,11 @@ describe("inviting somebody to a channel", () => {
 
 		const outcome = await inviteToSlackChannel(CHANNEL_ID, "rep@ours.test");
 
-		expect(outcome).toMatchObject({ invited: true, kind: "member" });
+		expect(outcome).toEqual({
+			invited: true,
+			email: "rep@ours.test",
+			kind: "member",
+		});
 		expect(sent("conversations.invite")?.body).toMatchObject({
 			channel: CHANNEL_ID,
 			users: "U7",
@@ -94,6 +98,33 @@ describe("inviting somebody to a channel", () => {
 		expect(sent("conversations.inviteShared")?.body).toMatchObject({
 			channel: CHANNEL_ID,
 			emails: ["buyer@customer.test"],
+			external_limited: false,
+		});
+	});
+
+	it("keeps invite_id when Slack withholds the url", async () => {
+		replies((url) =>
+			url.includes("users.lookupByEmail")
+				? { ok: false, error: "users_not_found" }
+				: { ok: true, invite_id: "I1" },
+		);
+
+		const outcome = await inviteToSlackChannel(
+			CHANNEL_ID,
+			"buyer@customer.test",
+		);
+
+		expect(outcome).toEqual({
+			invited: true,
+			email: "buyer@customer.test",
+			kind: "connect",
+			invite_id: "I1",
+			url: undefined,
+		});
+		expect(sent("conversations.inviteShared")?.body).toMatchObject({
+			channel: CHANNEL_ID,
+			emails: ["buyer@customer.test"],
+			external_limited: false,
 		});
 	});
 

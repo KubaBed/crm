@@ -410,14 +410,25 @@ export function AgentActivity({ activity }: { activity: Activity }) {
 }
 
 function actionReceipt(action: RunRow["actions"][number]) {
-	if (action.result?.type === "slack.channel.invite" && action.result.url) {
-		return (
-			<Link href={action.result.url} target="_blank" rel="noreferrer">
-				{action.result.url}
-			</Link>
-		);
+	if (action.result?.type !== "slack.channel.invite") {
+		return action.externalId ?? action.id.slice(0, 12);
 	}
-	return action.externalId ?? action.id.slice(0, 12);
+
+	const inviteId = action.result.invite_id ?? action.externalId;
+	const url = action.result.url;
+	if (!inviteId && !url) return action.id.slice(0, 12);
+
+	return (
+		<>
+			{inviteId}
+			{inviteId && url ? " · " : null}
+			{url ? (
+				<Link href={url} target="_blank" rel="noreferrer">
+					{url}
+				</Link>
+			) : null}
+		</>
+	);
 }
 
 function humanStatus(value: string): string {

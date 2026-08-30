@@ -70,7 +70,7 @@ async function inviteGuest(
 	const outcome = await slackPost(
 		token,
 		"conversations.inviteShared",
-		{ channel: channelId, emails: [email] },
+		{ channel: channelId, emails: [email], external_limited: false },
 		schemas.slack.inviteShared,
 	);
 
