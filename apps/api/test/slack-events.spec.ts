@@ -182,3 +182,17 @@ describe("the Slack events endpoint", () => {
 		).rejects.toThrow(UnauthorizedException);
 	});
 });
+
+describe("the Slack events body cap", () => {
+	it("uses Express raw middleware with an explicit size limit, then verifies", async () => {
+		const source = await Bun.file(
+			new URL("../src/create-app.ts", import.meta.url),
+		).text();
+
+		expect(source).toContain(
+			'raw({ type: "*/*", limit: SLACK.events.maxBodyBytes })',
+		);
+		expect(source).not.toContain("collectRawBody");
+		expect(source).toContain("SLACK_EVENTS_PATH");
+	});
+});

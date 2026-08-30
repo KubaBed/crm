@@ -112,7 +112,7 @@ export class AgentRunsService {
 			})),
 			actions: run.actions.map((action) => ({
 				...action,
-				result: readAgentActionResult(action.type, action.result),
+				result: listedActionResult(action.type, action.result),
 				plannedAt: action.plannedAt.toISOString(),
 				startedAt: action.startedAt?.toISOString() ?? null,
 				completedAt: action.completedAt?.toISOString() ?? null,
@@ -444,5 +444,13 @@ export class AgentRunsService {
 		if (existingAgentId !== requestedAgentId) {
 			throw new BadRequestException("That run request has already been used.");
 		}
+	}
+}
+
+function listedActionResult(type: string, value: Prisma.JsonValue | null) {
+	try {
+		return readAgentActionResult(type, value);
+	} catch {
+		return null;
 	}
 }

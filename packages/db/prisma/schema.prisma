@@ -121,6 +121,7 @@ model SlackEventInbox {
   runId String?
 
   receivedAt  DateTime  @default(now())
+  leasedUntil DateTime?
   processedAt DateTime?
   outcome     String?
 

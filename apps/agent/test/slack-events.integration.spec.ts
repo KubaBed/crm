@@ -160,6 +160,23 @@ describe("turning a stored Slack event into a resume", () => {
 		expect(deliveries).toHaveLength(1);
 	});
 
+	it("claims the row so two drains resume the event once", async () => {
+		const channelId = `C-${crypto.randomUUID()}`;
+		await makeRun(channelId);
+		const id = await inbox(
+			{ type: "message", channel: channelId, text: "once" },
+			channelId,
+		);
+
+		const outcomes = await Promise.all([
+			dispatchSlackEvent(id, send),
+			dispatchSlackEvent(id, send),
+		]);
+
+		expect(outcomes.filter((outcome) => outcome?.resumed)).toHaveLength(1);
+		expect(deliveries).toHaveLength(1);
+	});
+
 	it("settles an event whose channel owns no run, rather than retrying forever", async () => {
 		const channelId = `C-${crypto.randomUUID()}`;
 		const id = await inbox(

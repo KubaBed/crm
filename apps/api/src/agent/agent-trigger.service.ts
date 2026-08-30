@@ -581,8 +581,18 @@ export class AgentTriggerService {
 					payload: input.payload,
 				},
 			});
-		} catch {
-			return { stored: false };
+		} catch (error) {
+			if (
+				error instanceof Prisma.PrismaClientKnownRequestError &&
+				error.code === "P2002"
+			) {
+				return { stored: false };
+			}
+			this.logger.error(
+				{ message: "Could not store Slack event", eventId: input.eventId },
+				error instanceof Error ? error.stack : String(error),
+			);
+			throw error;
 		}
 
 		this.poke();

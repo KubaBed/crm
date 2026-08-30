@@ -15,6 +15,7 @@ import {
 } from "trpc-to-openapi";
 import { AppModule } from "./app.module";
 import { ContextLogger } from "./logging/context-logger";
+import { SLACK } from "./slack/slack-config";
 import { SLACK_EVENTS_PATH } from "./slack/slack-events.controller";
 import { REST_BRIDGE_PATH } from "./trpc/openapi";
 import { createBaseTrpcContext } from "./trpc/trpc.context";
@@ -27,7 +28,10 @@ export async function createApp(): Promise<NestExpressApplication> {
 	);
 
 	app.use(helmet());
-	app.use(SLACK_EVENTS_PATH, collectRawBody);
+	app.use(
+		SLACK_EVENTS_PATH,
+		raw({ type: "*/*", limit: SLACK.events.maxBodyBytes }),
+	);
 	app.useGlobalPipes(
 		new ValidationPipe({
 			whitelist: true,
@@ -115,19 +119,4 @@ export async function createApp(): Promise<NestExpressApplication> {
 	});
 
 	return app;
-}
-
-function collectRawBody(
-	request: Request,
-	_response: Response,
-	next: NextFunction,
-): void {
-	const chunks: Buffer[] = [];
-
-	request.on("data", (chunk: Buffer) => chunks.push(chunk));
-	request.on("end", () => {
-		request.body = Buffer.concat(chunks);
-		next();
-	});
-	request.on("error", next);
 }

@@ -244,8 +244,15 @@ describe("deployed Slack actions", () => {
 			approvedSlackDestination({
 				...manifest,
 				dataScope: { ...manifest.dataScope, resources: [] },
+				actions: [
+					{
+						type: "run.summary",
+						provider: "crm",
+						summary: "Summarize the Slack delivery",
+					},
+				],
 			}),
-		).toThrow("needs the slack:workspace resource");
+		).toThrow("Agent version does not allow Slack.");
 	});
 
 	it("posts with a stable Slack replay id", async () => {

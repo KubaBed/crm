@@ -1,4 +1,4 @@
-import { db } from "@crm/db";
+import { db, type Prisma } from "@crm/db";
 import type { SlackEvent } from "@crm/validation";
 import { schemas } from "@crm/validation";
 import { SLACK_EVENT_TYPES } from "@crm/validation/slack-events";
@@ -12,9 +12,20 @@ export type SlackEventOutcome = {
 	outcome: string;
 };
 
+type ClaimedSlackEvent = {
+	id: string;
+	eventId: string;
+	channelId: string | null;
+	payload: Prisma.JsonValue;
+};
+
 export async function pendingSlackEventIds(): Promise<string[]> {
+	const now = new Date();
 	const rows = await db.slackEventInbox.findMany({
-		where: { processedAt: null },
+		where: {
+			processedAt: null,
+			OR: [{ leasedUntil: null }, { leasedUntil: { lt: now } }],
+		},
 		orderBy: { receivedAt: "asc" },
 		take: SLACK_EVENTS.batch,
 		select: { id: true },
@@ -23,27 +34,39 @@ export async function pendingSlackEventIds(): Promise<string[]> {
 	return rows.map((row) => row.id);
 }
 
+async function claimSlackEvent(id: string): Promise<ClaimedSlackEvent | null> {
+	const now = new Date();
+	const until = new Date(now.getTime() + SLACK_EVENTS.leaseMs);
+
+	const claimed = await db.$queryRaw<ClaimedSlackEvent[]>`
+		UPDATE "slackEventInbox" AS t
+		SET "leasedUntil" = ${until}
+		FROM (
+			SELECT t2.id FROM "slackEventInbox" AS t2
+			WHERE t2.id = ${id}
+				AND t2."processedAt" IS NULL
+				AND (t2."leasedUntil" IS NULL OR t2."leasedUntil" < ${now})
+			FOR UPDATE SKIP LOCKED
+		) AS due
+		WHERE t.id = due.id
+		RETURNING t.id, t."eventId", t."channelId", t.payload;
+	`;
+
+	return claimed[0] ?? null;
+}
+
 export async function dispatchSlackEvent(
 	id: string,
 	send: SendFn,
 ): Promise<SlackEventOutcome | null> {
-	const row = await db.slackEventInbox.findUnique({
-		where: { id },
-		select: {
-			id: true,
-			eventId: true,
-			channelId: true,
-			payload: true,
-			processedAt: true,
-		},
-	});
+	const row = await claimSlackEvent(id);
 
-	if (!row || row.processedAt) return null;
+	if (!row) return null;
 
 	const settle = (outcome: string, resumed = false) =>
 		db.slackEventInbox
 			.updateMany({
-				where: { id, processedAt: null },
+				where: { id: row.id, processedAt: null },
 				data: { processedAt: new Date(), outcome: outcome.slice(0, 300) },
 			})
 			.then(() => ({ eventId: row.eventId, resumed, outcome }));
@@ -73,7 +96,7 @@ export async function dispatchSlackEvent(
 
 	if (result.kind === "resumed") {
 		await db.slackEventInbox.updateMany({
-			where: { id },
+			where: { id: row.id },
 			data: { runId },
 		});
 		return settle(`Resumed run ${runId}.`, true);
