@@ -130,7 +130,9 @@ const RUN_ACTION_FIELDS = {
 } as const;
 
 function storedActionResult(result: AgentActionResult): Prisma.InputJsonValue {
-	return json.parse(JSON.parse(JSON.stringify(result)));
+	return parseAgentActionResult(
+		JSON.parse(JSON.stringify(result)),
+	) as Prisma.InputJsonValue;
 }
 
 function slackInviteResult(channelId: string, outcomes: InviteOutcome[]) {
