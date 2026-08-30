@@ -391,7 +391,9 @@ describe("inviting people as a deployed run", () => {
 			inviteToRunSlackChannel(runId, "invite-1", {
 				emails: ["buyer@customer.test"],
 			}),
-		).rejects.toThrow("does not allow");
+		).rejects.toThrow(
+			"This workspace doesn't let Comp AI send that invitation.",
+		);
 
 		const action = await db.agentAction.findFirst({
 			where: { runId, type: "slack.channel.invite" },

@@ -424,7 +424,7 @@ function actionReceipt(action: RunRow["actions"][number]) {
 			{inviteId && url ? " · " : null}
 			{url ? (
 				<Link href={url} target="_blank" rel="noreferrer">
-					{url}
+					Invite link
 				</Link>
 			) : null}
 		</>

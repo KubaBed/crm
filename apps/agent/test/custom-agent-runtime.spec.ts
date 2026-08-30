@@ -316,7 +316,9 @@ describe("deployed Slack actions", () => {
 				"7d3e8854-79f9-48dd-a933-8cfb5994f99e",
 				{ fetcher },
 			),
-		).rejects.toThrow("Invite the app");
+		).rejects.toThrow(
+			"Comp AI isn't in that channel. Invite it there, then try again.",
+		);
 	});
 });
 

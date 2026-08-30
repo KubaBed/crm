@@ -103,7 +103,7 @@ function explain(error: string): string {
 			return "That address is Comp AI itself.";
 		case "missing_scope":
 		case "restricted_action":
-			return "Slack refused: this workspace does not allow Comp AI to send this invitation.";
+			return "This workspace doesn't let Comp AI send that invitation.";
 		case "org_level_email_not_allowed":
 			return "This workspace blocks Slack Connect invitations to that address.";
 		case "invalid_auth":

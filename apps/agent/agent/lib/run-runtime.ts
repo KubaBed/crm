@@ -142,7 +142,7 @@ function slackInviteResult(channelId: string, outcomes: InviteOutcome[]) {
 	}
 	const chosen = invited.find((outcome) => outcome.invite_id) ?? invited[0];
 	if (!chosen) {
-		throw new Error("Slack returned no invitation to store.");
+		throw new Error("Slack didn't send an invite we could save.");
 	}
 	return {
 		externalId: chosen.invite_id ?? channelId,
@@ -788,7 +788,7 @@ async function slackApiRequest(
 		const reason = envelope.error ?? "rejected";
 		if (reason === "not_in_channel") {
 			throw new Error(
-				"The Slack bot is not in the selected channel. Invite the app to that channel and retry the run.",
+				"Comp AI isn't in that channel. Invite it there, then try again.",
 			);
 		}
 		if (reason === "missing_scope") {
@@ -1219,7 +1219,10 @@ export async function inviteToRunSlackChannel(
 		targetType: "channel",
 		targetId: channelId,
 		targetLabel: channelId,
-		summary: `Invite ${emails.length} to ${channelId}`,
+		summary:
+			emails.length === 1
+				? "Invited 1 person"
+				: `Invited ${emails.length} people`,
 	});
 	if (!claim.claimed) {
 		return {

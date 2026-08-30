@@ -154,7 +154,9 @@ describe("inviting somebody to a channel", () => {
 
 		expect(outcome.invited).toBe(false);
 		expect(outcome).toMatchObject({
-			reason: expect.stringContaining("does not allow"),
+			reason: expect.stringContaining(
+				"This workspace doesn't let Comp AI send that invitation.",
+			),
 		});
 	});
 
