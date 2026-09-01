@@ -32,6 +32,15 @@ function serviceFor(input: {
 	};
 	grant?: boolean;
 	role?: WorkspaceRole;
+	channels?: Array<{
+		id: string;
+		name: string;
+		memberCount: number;
+		isPrivate: boolean;
+		isMember: boolean;
+		classifiedAt: Date | null;
+		inviteRequestedAt: Date | null;
+	}>;
 }) {
 	const requested: Array<{ reason: string; required: boolean | undefined }> =
 		[];
@@ -79,6 +88,9 @@ function serviceFor(input: {
 		},
 		agentTask: {
 			findFirst: async () => input.syncingTask ?? null,
+		},
+		slackChannel: {
+			findMany: async () => input.channels ?? [],
 		},
 	} as unknown as Db;
 	const agent = {
@@ -241,5 +253,69 @@ describe("Slack connection", () => {
 
 		expect(await service.disconnect(userId)).toEqual({ disconnected: true });
 		expect(deleted).toEqual(["account", "slackChannel", "slackWorkspaceGrant"]);
+	});
+});
+
+const channel = {
+	id: "C1",
+	name: "deals",
+	memberCount: 2,
+	isPrivate: false,
+	isMember: true,
+	classifiedAt: new Date("2026-08-10T10:00:00.000Z"),
+	inviteRequestedAt: null,
+};
+
+describe("Slack channel inventory", () => {
+	it("asks for the inventory when a connected workspace has no channels", async () => {
+		const { service, requested } = serviceFor({
+			accountUpdatedAt: new Date("2026-08-10T10:00:00.000Z"),
+			channels: [],
+		});
+
+		const result = await service.channels({}, userId);
+
+		expect(result.rows).toEqual([]);
+		expect(result.sync).toBe("syncing");
+		expect(requested).toEqual([
+			{
+				reason: "Fill the Slack channel inventory for the connections page",
+				required: undefined,
+			},
+		]);
+	});
+
+	it("leaves a filled inventory alone", async () => {
+		const { service, requested } = serviceFor({
+			accountUpdatedAt: new Date("2026-08-10T10:00:00.000Z"),
+			channels: [channel],
+		});
+
+		const result = await service.channels({}, userId);
+
+		expect(result.rows).toHaveLength(1);
+		expect(result.sync).toBe("idle");
+		expect(requested).toEqual([]);
+	});
+
+	it("reads a search that matches nothing as a search, not a missing inventory", async () => {
+		const { service, requested } = serviceFor({
+			accountUpdatedAt: new Date("2026-08-10T10:00:00.000Z"),
+			channels: [],
+		});
+
+		const result = await service.channels({ query: "nothing" }, userId);
+
+		expect(result.sync).toBe("idle");
+		expect(requested).toEqual([]);
+	});
+
+	it("asks for nothing when Slack is not connected", async () => {
+		const { service, requested } = serviceFor({ channels: [] });
+
+		const result = await service.channels({}, userId);
+
+		expect(result.sync).toBe("idle");
+		expect(requested).toEqual([]);
 	});
 });

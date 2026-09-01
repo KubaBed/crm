@@ -212,10 +212,25 @@ export class SlackConnectionService {
 		]);
 
 		const page = rows.slice(0, take);
+		const missing =
+			sync === "idle" &&
+			!needle &&
+			page.length === 0 &&
+			Boolean(
+				await this.db.account.findFirst({
+					where: { providerId: "slack", accessToken: { not: null } },
+					select: { id: true },
+				}),
+			);
+		if (missing) {
+			await this.agent.slackPeopleRequested(
+				"Fill the Slack channel inventory for the connections page",
+			);
+		}
 
 		return {
 			canInviteItself: Boolean(grant),
-			sync,
+			sync: missing ? "syncing" : sync,
 			nextCursor: rows.length > take ? (page.at(-1)?.id ?? null) : null,
 			rows: page.map(({ classifiedAt, ...row }) => ({
 				...row,
