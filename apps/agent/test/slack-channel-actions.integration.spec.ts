@@ -294,7 +294,7 @@ describe("inviting people as a deployed run", () => {
 
 		await expect(
 			inviteToRunSlackChannel(runId, "call-1", { emails: ["buyer@x.test"] }),
-		).rejects.toThrow("no Slack channel yet");
+		).rejects.toThrow("hasn't opened a Slack channel yet");
 	});
 
 	it("invites into the channel the run opened", async () => {
@@ -463,7 +463,7 @@ describe("posting as a deployed run", () => {
 		});
 
 		expect(outcome).toMatchObject({
-			destination: "the channel this run opened",
+			destination: "this run's channel",
 			replayed: false,
 			result: {
 				type: "slack.message.post",
@@ -486,7 +486,7 @@ describe("posting as a deployed run", () => {
 
 		await expect(
 			postRunSlackMessage(runId, "post-1", { text: "Hello Acme" }),
-		).rejects.toThrow("no Slack channel yet");
+		).rejects.toThrow("hasn't opened a Slack channel yet");
 	});
 
 	it("still posts to a chosen standing channel", async () => {

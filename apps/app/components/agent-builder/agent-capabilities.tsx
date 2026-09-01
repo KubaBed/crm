@@ -162,7 +162,7 @@ export function AgentCapabilities({
 		<div className="flex flex-col gap-9">
 			{runChannel ? (
 				<Section
-					summary="The channel this run opens. Nothing to choose."
+					summary="The Slack channel this run opens. You don't pick one."
 					title="Lives in"
 				/>
 			) : current ? (

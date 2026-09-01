@@ -1196,7 +1196,7 @@ export async function inviteToRunSlackChannel(
 	const channelId = await channelOfRun(runId);
 	if (!channelId) {
 		throw new Error(
-			"This run has no Slack channel yet. Open one with open_slack_channel first.",
+			"This run hasn't opened a Slack channel yet. Open one first.",
 		);
 	}
 
@@ -1345,13 +1345,13 @@ async function slackPostTarget(
 		const channelId = await channelOfRun(runId);
 		if (!channelId) {
 			throw new Error(
-				"This run has no Slack channel yet. Open one with open_slack_channel first.",
+				"This run hasn't opened a Slack channel yet. Open one first.",
 			);
 		}
 		return {
 			kind: "channel",
 			id: channelId,
-			label: "the channel this run opened",
+			label: "this run's channel",
 		};
 	}
 
