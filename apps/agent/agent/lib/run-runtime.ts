@@ -11,8 +11,8 @@ import {
 	AGENT_ACTION_TYPES,
 	type AgentManifestResource,
 	parseAgentManifest,
-	type SlackDestination,
 	SLACK_WORKSPACE_RESOURCE_ID,
+	type SlackDestination,
 } from "@crm/validation/agent-manifest";
 import { z } from "zod";
 import { readCompanyHistory, readDealHistory } from "./accounts";
