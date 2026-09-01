@@ -32,12 +32,10 @@ export async function persistBuilderInputRequest(
 		data,
 		BUILDER_INPUT.eventType,
 	);
-	const question = event.requests.find(
-		(request) => request.kind === "question",
-	);
-	if (!question) return false;
+	const [request] = event.requests;
+	if (!request) return false;
 
-	const eventId = `${eventPrefix(conversationId)}${question.requestId}`;
+	const eventId = `${eventPrefix(conversationId)}${request.requestId}`;
 
 	return db.$transaction(async (tx) => {
 		await lockIdempotencyKey(tx, eventId);
@@ -86,7 +84,7 @@ export async function persistBuilderInputRequest(
 			where: { id: conversation.id },
 			data: {
 				continuationToken: builderToken(conversation.id),
-				pendingInputRequest: question as Prisma.InputJsonValue,
+				pendingInputRequest: request as Prisma.InputJsonValue,
 			},
 		});
 
