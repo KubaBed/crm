@@ -418,18 +418,17 @@ export class AgentDefinitionsService {
 					);
 				}
 
-				actions = actions.map((action) =>
-					action.destination
-						? {
-								...action,
-								destination: {
-									...action.destination,
-									id: channel.id,
-									label: `#${channel.name}`,
-								},
-							}
-						: action,
-				);
+				actions = actions.map((action) => {
+					if (action.destination?.resolution !== "chosen") return action;
+					return {
+						...action,
+						destination: {
+							...action.destination,
+							id: channel.id,
+							label: `#${channel.name}`,
+						},
+					};
+				});
 			}
 
 			const dataScope = input.resources
@@ -482,8 +481,7 @@ export class AgentDefinitionsService {
 			if (
 				channel &&
 				!(
-					before?.destination &&
-					"id" in before.destination &&
+					before?.destination?.resolution === "chosen" &&
 					before.destination.id === channel.id
 				)
 			) {
@@ -501,7 +499,7 @@ export class AgentDefinitionsService {
 					summary: reviseSummary(input),
 					before: {
 						channel:
-							before?.destination && "label" in before.destination
+							before?.destination?.resolution === "chosen"
 								? before.destination.label
 								: null,
 						actions: manifest.actions.map((action) => action.type),

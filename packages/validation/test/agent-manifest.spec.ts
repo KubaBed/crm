@@ -149,6 +149,27 @@ describe("agent manifest Slack destinations", () => {
 		).toThrow("Duplicate slack.message.post action");
 	});
 
+	it("rejects a chosen destination without resolution", () => {
+		expect(() =>
+			parseAgentManifest({
+				...base,
+				actions: [
+					{
+						type: "slack.message.post",
+						provider: "slack",
+						summary: "Tell sales",
+						destination: {
+							kind: "channel",
+							id: "C123",
+							label: "#sales",
+						},
+					},
+					summaryAction,
+				],
+			}),
+		).toThrow();
+	});
+
 	it("rejects a run-channel destination that is not a channel", () => {
 		expect(() =>
 			parseAgentManifest({

@@ -195,7 +195,7 @@ const agentCapabilitiesResultOutput = z.discriminatedUnion("readable", [
 		problem: z.null(),
 		actions: z.array(schemas.agents.capabilityAction),
 		dataScope: schemas.agents.capabilities.shape.dataScope,
-		channel: schemas.agents.capabilityDestination.nullable(),
+		channel: schemas.agentManifest.slackDestination.nullable(),
 	}),
 ]);
 

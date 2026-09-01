@@ -56,14 +56,12 @@ export function AgentCapabilities({
 
 	const standingChannel =
 		capabilities.readable &&
-		capabilities.channel &&
-		"id" in capabilities.channel
+		capabilities.channel !== null &&
+		capabilities.channel.resolution === "chosen"
 			? capabilities.channel
 			: null;
 	const runChannel =
-		capabilities.readable &&
-		capabilities.channel !== null &&
-		standingChannel === null;
+		capabilities.readable && capabilities.channel?.resolution === "run-channel";
 
 	const channels = useSlackChannels({
 		enabled: standingChannel !== null,
