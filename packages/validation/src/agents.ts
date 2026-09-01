@@ -66,11 +66,18 @@ export type InputOption = z.infer<typeof inputOption>;
 export type InputRequest = z.infer<typeof inputRequest>;
 export type InputRequested = z.infer<typeof inputRequested>;
 
-export const capabilityDestination = z.object({
-	kind: z.enum(["channel", "user"]),
-	id: z.string().trim().min(1).max(120),
-	label: z.string().trim().min(1).max(120),
-});
+export const capabilityDestination = z.union([
+	z.object({
+		kind: z.literal("channel"),
+		resolution: z.literal("run-channel"),
+	}),
+	z.object({
+		kind: z.enum(["channel", "user"]),
+		resolution: z.literal("chosen").optional(),
+		id: z.string().trim().min(1).max(120),
+		label: z.string().trim().min(1).max(120),
+	}),
+]);
 
 export const capabilityAction = z.object({
 	type: z.string().trim().min(1).max(120),

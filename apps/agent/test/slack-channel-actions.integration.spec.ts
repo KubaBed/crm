@@ -11,6 +11,7 @@ import { channelOfRun } from "../agent/lib/run-resume";
 import {
 	inviteToRunSlackChannel,
 	openRunSlackChannel,
+	postRunSlackMessage,
 } from "../agent/lib/run-runtime";
 
 const suffix = crypto.randomUUID();
@@ -50,6 +51,23 @@ const inviteAction = {
 	type: "slack.channel.invite",
 	provider: "slack",
 	summary: "Invite the buyer",
+};
+const postRunChannelAction = {
+	type: "slack.message.post",
+	provider: "slack",
+	summary: "Greet them in the channel this run opened",
+	destination: { kind: "channel", resolution: "run-channel" },
+};
+const postChosenAction = {
+	type: "slack.message.post",
+	provider: "slack",
+	summary: "Tell sales",
+	destination: {
+		kind: "channel",
+		resolution: "chosen",
+		id: "C-SALES",
+		label: "#sales",
+	},
 };
 const summaryAction = {
 	type: "run.summary",
@@ -403,3 +421,115 @@ describe("inviting people as a deployed run", () => {
 		await db.slackChannel.deleteMany({ where: { id: channelId } });
 	});
 });
+
+describe("posting as a deployed run", () => {
+	it("posts into the channel the run opened", async () => {
+		const runId = await makeRun([
+			openAction,
+			postRunChannelAction,
+			summaryAction,
+		]);
+		const channelId = `C-${crypto.randomUUID()}`;
+		const posted: { url: string; body: unknown }[] = [];
+		globalThis.fetch = (async (
+			input: URL | RequestInfo,
+			init?: RequestInit,
+		) => {
+			const url = String(input instanceof Request ? input.url : input);
+			posted.push({
+				url,
+				body: init?.body ? JSON.parse(String(init.body)) : null,
+			});
+			return new Response(
+				JSON.stringify(
+					url.includes("conversations.create")
+						? { ok: true, channel: { id: channelId, name: "acme-onboarding" } }
+						: {
+								ok: true,
+								channel: channelId,
+								ts: "123.456",
+							},
+				),
+				{ headers: { "content-type": "application/json" } },
+			);
+		}) as typeof fetch;
+
+		await openRunSlackChannel(runId, "open-1", {
+			name: "Acme Onboarding",
+			isPrivate: false,
+		});
+		const outcome = await postRunSlackMessage(runId, "post-1", {
+			text: "Hello Acme",
+		});
+
+		expect(outcome).toMatchObject({
+			destination: "the channel this run opened",
+			replayed: false,
+			result: {
+				type: "slack.message.post",
+				channel: channelId,
+				ts: "123.456",
+			},
+		});
+		expect(
+			posted.find((call) => call.url.includes("chat.postMessage"))?.body,
+		).toMatchObject({
+			channel: channelId,
+			text: "Hello Acme",
+		});
+
+		await db.slackChannel.deleteMany({ where: { id: channelId } });
+	});
+
+	it("refuses to post before the run opens a channel", async () => {
+		const runId = await makeRun([postRunChannelAction, summaryAction]);
+
+		await expect(
+			postRunSlackMessage(runId, "post-1", { text: "Hello Acme" }),
+		).rejects.toThrow("no Slack channel yet");
+	});
+
+	it("still posts to a chosen standing channel", async () => {
+		const runId = await makeRun([postChosenAction, summaryAction]);
+		const posted: { url: string; body: unknown }[] = [];
+		globalThis.fetch = (async (
+			input: URL | RequestInfo,
+			init?: RequestInit,
+		) => {
+			const url = String(input instanceof Request ? input.url : input);
+			posted.push({
+				url,
+				body: init?.body ? JSON.parse(String(init.body)) : null,
+			});
+			return new Response(
+				JSON.stringify({
+					ok: true,
+					channel: "C-SALES",
+					ts: "123.456",
+				}),
+				{ headers: { "content-type": "application/json" } },
+			);
+		}) as typeof fetch;
+
+		const outcome = await postRunSlackMessage(runId, "post-1", {
+			text: "A demo is booked",
+		});
+
+		expect(outcome).toMatchObject({
+			destination: "#sales",
+			replayed: false,
+			result: {
+				type: "slack.message.post",
+				channel: "C-SALES",
+				ts: "123.456",
+			},
+		});
+		expect(
+			posted.find((call) => call.url.includes("chat.postMessage"))?.body,
+		).toMatchObject({
+			channel: "C-SALES",
+			text: "A demo is booked",
+		});
+	});
+});
+

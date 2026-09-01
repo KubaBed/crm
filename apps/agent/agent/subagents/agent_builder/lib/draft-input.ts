@@ -1,5 +1,8 @@
 import { CRM_EVENT_TYPES } from "@crm/db/crm-events";
-import { AGENT_ACTION_TYPES } from "@crm/validation/agent-manifest";
+import {
+	AGENT_ACTION_TYPES,
+	slackDestination,
+} from "@crm/validation/agent-manifest";
 import { z } from "zod";
 import type { DraftAgentInput } from "../../../lib/builder-runtime";
 
@@ -48,12 +51,7 @@ const action = z.discriminatedUnion("type", [
 		type: z.literal(AGENT_ACTION_TYPES.SLACK_MESSAGE_POST),
 		provider: z.literal("slack"),
 		summary: z.string().trim().min(1).max(240),
-		destination: z.object({
-			kind: z.enum(["channel", "user"]),
-			resolution: z.literal("chosen"),
-			id: z.string().trim().min(1).max(120),
-			label: z.string().trim().min(1).max(120),
-		}),
+		destination: slackDestination,
 	}),
 	z.object({
 		type: z.literal(AGENT_ACTION_TYPES.SLACK_CHANNEL_OPEN),

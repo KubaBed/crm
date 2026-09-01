@@ -11,6 +11,7 @@ import {
 	AGENT_ACTION_TYPES,
 	type AgentManifestResource,
 	parseAgentManifest,
+	type SlackDestination,
 	SLACK_WORKSPACE_RESOURCE_ID,
 } from "@crm/validation/agent-manifest";
 import { z } from "zod";
@@ -452,16 +453,17 @@ export async function postRunSlackMessage(
 	if (!run) throw new Error("This agent run is unavailable.");
 
 	const destination = approvedSlackDestination(run.version.manifest);
+	const target = await slackPostTarget(runId, destination);
 	const text = input.text.trim();
 	if (!text) throw new Error("A Slack message needs text.");
 	const idempotencyKey = `${runId}:${callId}`;
-	const requestHash = hashRequest({ destinationId: destination.id, text });
+	const requestHash = hashRequest({ destinationId: target.id, text });
 	const existing = await findRunAction(idempotencyKey, requestHash);
 	if (existing?.status === "SUCCEEDED") {
 		return {
 			actionId: existing.id,
 			messageId: existing.externalId,
-			destination: destination.label,
+			destination: target.label,
 			result: readAgentActionResult(existing.type, existing.result),
 			replayed: true,
 		};
@@ -475,17 +477,17 @@ export async function postRunSlackMessage(
 		runId,
 		type: "slack.message.post",
 		provider: "slack",
-		targetType: destination.kind,
-		targetId: destination.id,
-		targetLabel: destination.label,
-		summary: `Post a message to ${destination.label}`,
+		targetType: target.kind,
+		targetId: target.id,
+		targetLabel: target.label,
+		summary: `Post a message to ${target.label}`,
 		metadata: { clientMessageId: randomUUID() },
 	});
 	if (!claim.claimed) {
 		return {
 			actionId: claim.actionId,
 			messageId: claim.externalId,
-			destination: destination.label,
+			destination: target.label,
 			result: claim.result,
 			replayed: true,
 		};
@@ -503,7 +505,7 @@ export async function postRunSlackMessage(
 
 		const posted = await sendSlackMessage(
 			accessToken,
-			destination,
+			target,
 			text,
 			clientMessageId,
 			{
@@ -536,7 +538,7 @@ export async function postRunSlackMessage(
 		return {
 			actionId,
 			messageId,
-			destination: destination.label,
+			destination: target.label,
 			result,
 			replayed: false,
 		};
@@ -1317,18 +1319,12 @@ async function settleRunAction(
 
 export function approvedSlackDestination(
 	manifest: Prisma.JsonValue,
-): SlackRunDestination {
+): SlackDestination {
 	assertSlackWorkspaceApproved(manifest);
 
 	const destinations = manifestActions(manifest).flatMap((action) =>
 		action.type === AGENT_ACTION_TYPES.SLACK_MESSAGE_POST
-			? [
-					{
-						kind: action.destination.kind,
-						id: action.destination.id,
-						label: action.destination.label,
-					},
-				]
+			? [action.destination]
 			: [],
 	);
 	const [destination] = destinations;
@@ -1339,6 +1335,31 @@ export function approvedSlackDestination(
 	}
 
 	return destination;
+}
+
+async function slackPostTarget(
+	runId: string,
+	destination: SlackDestination,
+): Promise<SlackRunDestination> {
+	if (destination.resolution === "run-channel") {
+		const channelId = await channelOfRun(runId);
+		if (!channelId) {
+			throw new Error(
+				"This run has no Slack channel yet. Open one with open_slack_channel first.",
+			);
+		}
+		return {
+			kind: "channel",
+			id: channelId,
+			label: "the channel this run opened",
+		};
+	}
+
+	return {
+		kind: destination.kind,
+		id: destination.id,
+		label: destination.label,
+	};
 }
 
 function assertSlackWorkspaceApproved(manifest: Prisma.JsonValue): void {

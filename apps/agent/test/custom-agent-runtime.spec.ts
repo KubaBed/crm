@@ -237,6 +237,7 @@ describe("deployed Slack actions", () => {
 	it("derives the destination from the deployed manifest", () => {
 		expect(approvedSlackDestination(manifest)).toEqual({
 			kind: "user",
+			resolution: "chosen",
 			id: "U123",
 			label: "@grim",
 		});
@@ -734,6 +735,102 @@ describe("agent builder draft input", () => {
 				connections,
 			),
 		).toEqual(["The Slack person must use its exact inspected label."]);
+	});
+
+	it("keeps a run-channel Slack destination with no id", () => {
+		const parsed = builderDraftToolInput.parse({
+			name: "Customer onboarding",
+			description: "Open a channel and greet the buyer there.",
+			instructions:
+				"When a deal closes won, open a Slack channel for the customer, invite them, greet them in that channel, and stop.",
+			triggers: [
+				{
+					type: "MANUAL",
+					name: "Start onboarding",
+					summary: "Run when a deal closes won",
+				},
+			],
+			recordScope: "WORKSPACE",
+			resources: [],
+			integrations: ["slack"],
+			actions: [
+				{
+					type: "slack.channel.open",
+					provider: "slack",
+					summary: "Open the customer channel",
+				},
+				{
+					type: "slack.message.post",
+					provider: "slack",
+					summary: "Greet them in the channel this run opened",
+					destination: {
+						kind: "channel",
+						resolution: "run-channel",
+					},
+				},
+				{
+					type: "run.summary",
+					provider: "crm",
+					summary: "Say what happened",
+				},
+			],
+		});
+
+		expect(draftInputFromTool(parsed).actions).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					type: "slack.message.post",
+					destination: { kind: "channel", resolution: "run-channel" },
+				}),
+			]),
+		);
+	});
+
+	it("accepts a run-channel destination from the deployed manifest", () => {
+		expect(
+			approvedSlackDestination({
+				triggers: [
+					{
+						type: "MANUAL",
+						name: "Run now",
+						summary: "Run on demand",
+						config: {},
+					},
+				],
+				dataScope: {
+					mode: "WORKSPACE",
+					summary: "Workspace CRM records",
+					resources: [
+						{ kind: "integration", id: "slack:workspace", label: "Slack" },
+					],
+				},
+				actions: [
+					{
+						type: "slack.message.post",
+						provider: "slack",
+						summary: "Greet them in the channel this run opened",
+						destination: { kind: "channel", resolution: "run-channel" },
+					},
+					{
+						type: "run.summary",
+						provider: "crm",
+						summary: "Summarize the Slack delivery",
+					},
+				],
+			}),
+		).toEqual({ kind: "channel", resolution: "run-channel" });
+	});
+
+	it("does not ask for an inspected channel on a run-channel destination", () => {
+		expect(
+			slackDestinationIssues(
+				{ kind: "channel", resolution: "run-channel" },
+				{
+					slackChannels: [{ id: "C123", label: "#sales", memberCount: 8 }],
+					slackPeople: [],
+				},
+			),
+		).toEqual([]);
 	});
 
 	it("requires the Slack integration for a Slack post action", () => {

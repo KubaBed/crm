@@ -700,6 +700,7 @@ export function slackDestinationIssues(
 	>["destination"],
 	connections: Pick<SlackConnections, "slackChannels" | "slackPeople">,
 ): string[] {
+	if (destination.resolution === "run-channel") return [];
 	const noun = destination.kind === "user" ? "person" : "channel";
 	const options =
 		destination.kind === "user"

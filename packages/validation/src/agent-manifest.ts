@@ -20,12 +20,22 @@ export const AGENT_TRIGGER_INTERVAL_MINUTES = {
 	fallback: 1_440,
 } as const;
 
-const slackDestination = z.object({
+const chosenSlackDestination = z.object({
 	kind: z.enum(["channel", "user"]),
 	resolution: z.literal("chosen"),
 	id: z.string().trim().min(1).max(120),
 	label: z.string().trim().min(1).max(120),
 });
+
+const runChannelSlackDestination = z.object({
+	kind: z.literal("channel"),
+	resolution: z.literal("run-channel"),
+});
+
+export const slackDestination = z.discriminatedUnion("resolution", [
+	chosenSlackDestination,
+	runChannelSlackDestination,
+]);
 
 export const agentManifestAction = z.discriminatedUnion("type", [
 	z.object({

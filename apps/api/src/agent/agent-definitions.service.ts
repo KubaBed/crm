@@ -408,6 +408,15 @@ export class AgentDefinitionsService {
 						"None of this agent's actions post to a channel, so its channel cannot be changed.",
 					);
 				}
+				if (
+					actions.some(
+						(action) => action.destination?.resolution === "run-channel",
+					)
+				) {
+					throw new BadRequestException(
+						"This agent posts to the channel the run opens. There is no standing channel to change.",
+					);
+				}
 
 				actions = actions.map((action) =>
 					action.destination
@@ -470,7 +479,14 @@ export class AgentDefinitionsService {
 				data: { versionId: version.id },
 			});
 
-			if (channel && channel.id !== before?.destination?.id) {
+			if (
+				channel &&
+				!(
+					before?.destination &&
+					"id" in before.destination &&
+					before.destination.id === channel.id
+				)
+			) {
 				await queue.slackChannelJoinRequested(channel.id, channel.name);
 			}
 
@@ -484,7 +500,10 @@ export class AgentDefinitionsService {
 					type: "agent.revised",
 					summary: reviseSummary(input),
 					before: {
-						channel: before?.destination?.label ?? null,
+						channel:
+							before?.destination && "label" in before.destination
+								? before.destination.label
+								: null,
 						actions: manifest.actions.map((action) => action.type),
 						resources: manifest.dataScope.resources.length,
 					},
