@@ -64,12 +64,21 @@ function labelsIn(content: string): string[] {
 	return found;
 }
 
+function withoutCredential(url: string): string {
+	try {
+		const parsed = new URL(url);
+		return `${parsed.origin}${parsed.pathname}`;
+	} catch {
+		return "the export url";
+	}
+}
+
 async function download(url: string): Promise<Buffer> {
 	const response = await fetch(url);
 
 	if (!response.ok) {
 		console.error(
-			`${url} answered ${response.status} ${response.statusText}. Nothing was scanned, so this is not a clean export.`,
+			`${withoutCredential(url)} answered ${response.status} ${response.statusText}. Nothing was scanned, so this is not a clean export.`,
 		);
 		process.exit(1);
 	}
