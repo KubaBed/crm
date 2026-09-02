@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { gunzipSync } from "node:zlib";
 import { z } from "zod";
+import { TRACING } from "../agent/lib/tracing-config";
 
 const SKIP_KEYS = [
 	"workflow.",
@@ -22,7 +23,7 @@ const PATTERNS = [
 	{ label: "US phone", re: /\b\(?\d{3}\)?[\s.-]\d{3}[\s.-]\d{4}\b/g },
 	{ label: "national insurance", re: /\b[A-Z]{2}\d{6}[A-D]\b/g },
 	{ label: "US social security", re: /\b\d{3}-\d{2}-\d{4}\b/g },
-	{ label: "date of birth", re: /\b(19|20)\d{2}-\d{2}-\d{2}\b/g },
+	{ label: "date", re: /\b(19|20)\d{2}-\d{2}-\d{2}\b/g },
 	{
 		label: "sensitive category",
 		re: /\b(divorce|cancer|diagnos\w+|pregnan\w+|redundan\w+|bereave\w+|compassionate leave|visa status|immigration)\b/gi,
@@ -51,6 +52,31 @@ function parseSpan(line: string): TraceSpan | null {
 	}
 }
 
+function labelsIn(content: string): string[] {
+	const found: string[] = [];
+
+	for (const { label, re } of PATTERNS) {
+		re.lastIndex = 0;
+		if (re.test(content)) found.push(label);
+		re.lastIndex = 0;
+	}
+
+	return found;
+}
+
+async function download(url: string): Promise<Buffer> {
+	const response = await fetch(url);
+
+	if (!response.ok) {
+		console.error(
+			`${url} answered ${response.status} ${response.statusText}. Nothing was scanned, so this is not a clean export.`,
+		);
+		process.exit(1);
+	}
+
+	return Buffer.from(await response.arrayBuffer());
+}
+
 type Finding = {
 	spanId: string;
 	traceId: string;
@@ -77,7 +103,7 @@ if (!source) {
 }
 
 const bytes = source.startsWith("http")
-	? Buffer.from(await (await fetch(source)).arrayBuffer())
+	? await download(source)
 	: readFileSync(source);
 
 const text = (
@@ -99,18 +125,16 @@ for (const line of lines) {
 
 	for (const [key, content] of Object.entries(attributes)) {
 		if (SKIP_KEYS.some((skip) => key.startsWith(skip))) continue;
-		if (content.length < MIN_LENGTH) continue;
+
+		const labels = labelsIn(content);
+		if (labels.length === 0 && content.length < MIN_LENGTH) continue;
 
 		if (!counted) {
 			withContent += 1;
 			counted = true;
 		}
 
-		for (const { label, re } of PATTERNS) {
-			re.lastIndex = 0;
-			if (!re.test(content)) continue;
-			re.lastIndex = 0;
-
+		for (const label of labels) {
 			byLabel.set(label, (byLabel.get(label) ?? 0) + 1);
 
 			const found = carriers.get(spanId) ?? {
@@ -164,7 +188,8 @@ if (carriers.size > 15) {
 }
 
 console.log(
-	"\nThis is what the tracing vendor holds. recordInputs and recordOutputs in\n" +
-		"apps/agent/agent/lib/tracing-config.ts control it; both must be false, because\n" +
-		"the same text rides on the TOOL result and again on the AGENT prompt.",
+	`\nThis is what the tracing vendor holds. Set ${TRACING.content.recordVar}=0 to\n` +
+		"withhold it; apps/agent/agent/lib/tracing-config.ts holds the default, which is\n" +
+		"to record. The same text rides on the TOOL result and again on the AGENT\n" +
+		"prompt, so one value here is counted twice.",
 );
