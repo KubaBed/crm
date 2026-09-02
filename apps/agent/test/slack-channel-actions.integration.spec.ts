@@ -1,5 +1,6 @@
 import {
 	afterAll,
+	afterEach,
 	beforeAll,
 	beforeEach,
 	describe,
@@ -21,12 +22,45 @@ const accountId = `slack-actions-account-${suffix}`;
 const realFetch = globalThis.fetch;
 let created = 0;
 
-function slackReplies(reply: (url: string) => object) {
+const channelIds: string[] = [];
+const dealIds: string[] = [];
+const companyIds: string[] = [];
+const unexpected: string[] = [];
+
+function newChannelId() {
+	const id = `C-${crypto.randomUUID()}`;
+	channelIds.push(id);
+	return id;
+}
+
+type SlackReply = {
+	ok: boolean;
+	error?: string;
+	channel?: { id: string; name: string } | string;
+	ts?: string;
+	invite_id?: string;
+	url?: string;
+};
+
+function jsonReply(reply: SlackReply) {
+	return new Response(JSON.stringify(reply), {
+		headers: { "content-type": "application/json" },
+	});
+}
+
+async function refusal(work: Promise<unknown>): Promise<string> {
+	try {
+		await work;
+	} catch (error) {
+		return error instanceof Error ? error.message : String(error);
+	}
+	return "";
+}
+
+function slackReplies(reply: (url: string) => SlackReply) {
 	globalThis.fetch = (async (input: URL | RequestInfo) => {
 		const url = String(input instanceof Request ? input.url : input);
-		return new Response(JSON.stringify(reply(url)), {
-			headers: { "content-type": "application/json" },
-		});
+		return jsonReply(reply(url));
 	}) as typeof fetch;
 }
 
@@ -139,6 +173,10 @@ afterAll(async () => {
 	globalThis.fetch = realFetch;
 	await db.agentAction.deleteMany({ where: { agentId } });
 	await db.agentRun.deleteMany({ where: { agentId } });
+	await db.slackChannel.deleteMany({ where: { id: { in: channelIds } } });
+	await db.slackMemberMatch.deleteMany({ where: { crmUserId: userId } });
+	await db.deal.deleteMany({ where: { id: { in: dealIds } } });
+	await db.company.deleteMany({ where: { id: { in: companyIds } } });
 	await db.agentDefinition.updateMany({
 		where: { id: agentId },
 		data: { currentVersionId: null },
@@ -151,24 +189,34 @@ afterAll(async () => {
 
 beforeEach(() => {
 	created = 0;
-	globalThis.fetch = realFetch;
+	unexpected.length = 0;
+	slackReplies((url) => {
+		unexpected.push(url);
+		return { ok: false, error: "unexpected_slack_call" };
+	});
+});
+
+afterEach(() => {
+	expect(unexpected).toEqual([]);
 });
 
 describe("opening a channel as a deployed run", () => {
 	it("refuses when the version does not approve opening a channel", async () => {
 		const runId = await makeRun([summaryAction]);
 
-		await expect(
-			openRunSlackChannel(runId, "call-1", {
-				name: "Acme onboarding",
-				isPrivate: false,
-			}),
-		).rejects.toThrow("does not allow slack.channel.open");
+		expect(
+			await refusal(
+				openRunSlackChannel(runId, "call-1", {
+					name: "Acme onboarding",
+					isPrivate: false,
+				}),
+			),
+		).toContain("does not allow slack.channel.open");
 	});
 
 	it("opens the channel and makes the run watch it", async () => {
 		const runId = await makeRun([openAction, summaryAction]);
-		const channelId = `C-${crypto.randomUUID()}`;
+		const channelId = newChannelId();
 		slackReplies(() => {
 			created += 1;
 			return { ok: true, channel: { id: channelId, name: "acme-onboarding" } };
@@ -186,12 +234,11 @@ describe("opening a channel as a deployed run", () => {
 			replayed: false,
 		});
 		expect(await channelOfRun(runId)).toBe(channelId);
-		await db.slackChannel.deleteMany({ where: { id: channelId } });
 	});
 
 	it("replays the same call instead of opening a second channel", async () => {
 		const runId = await makeRun([openAction, summaryAction]);
-		const channelId = `C-${crypto.randomUUID()}`;
+		const channelId = newChannelId();
 		slackReplies(() => {
 			created += 1;
 			return { ok: true, channel: { id: channelId, name: "acme-onboarding" } };
@@ -209,15 +256,16 @@ describe("opening a channel as a deployed run", () => {
 		expect(again.replayed).toBe(true);
 		expect(again.channelId).toBe(channelId);
 		expect(created).toBe(1);
-		await db.slackChannel.deleteMany({ where: { id: channelId } });
 	});
 
 	it("adds the deal owner when Slack knows them", async () => {
 		const dealId = `deal-${crypto.randomUUID()}`;
+		dealIds.push(dealId);
 		const company = await db.company.create({
 			data: { name: `Owner Co ${suffix}`, domain: `${dealId}.test` },
 			select: { id: true },
 		});
+		companyIds.push(company.id);
 		await db.deal.create({
 			data: {
 				id: dealId,
@@ -239,7 +287,7 @@ describe("opening a channel as a deployed run", () => {
 			data: { input: { record: { kind: "deal", id: dealId } } },
 		});
 
-		const channelId = `C-${crypto.randomUUID()}`;
+		const channelId = newChannelId();
 		const invited: unknown[] = [];
 		globalThis.fetch = (async (
 			input: URL | RequestInfo,
@@ -269,22 +317,19 @@ describe("opening a channel as a deployed run", () => {
 			slackUserId: "U-OWNER",
 		});
 		expect(invited).toEqual([{ channel: channelId, users: "U-OWNER" }]);
-
-		await db.slackChannel.deleteMany({ where: { id: channelId } });
-		await db.slackMemberMatch.deleteMany({ where: { crmUserId: userId } });
-		await db.deal.deleteMany({ where: { id: dealId } });
-		await db.company.deleteMany({ where: { id: company.id } });
 	});
 
 	it("refuses a name with nothing Slack accepts", async () => {
 		const runId = await makeRun([openAction, summaryAction]);
 
-		await expect(
-			openRunSlackChannel(runId, "call-1", {
-				name: "!!! ---",
-				isPrivate: false,
-			}),
-		).rejects.toThrow("no letters or numbers");
+		expect(
+			await refusal(
+				openRunSlackChannel(runId, "call-1", {
+					name: "!!! ---",
+					isPrivate: false,
+				}),
+			),
+		).toContain("no letters or numbers");
 	});
 });
 
@@ -292,14 +337,16 @@ describe("inviting people as a deployed run", () => {
 	it("refuses before a channel exists, rather than inviting nobody", async () => {
 		const runId = await makeRun([inviteAction, summaryAction]);
 
-		await expect(
-			inviteToRunSlackChannel(runId, "call-1", { emails: ["buyer@x.test"] }),
-		).rejects.toThrow("hasn't opened a Slack channel yet");
+		expect(
+			await refusal(
+				inviteToRunSlackChannel(runId, "call-1", { emails: ["buyer@x.test"] }),
+			),
+		).toContain("hasn't opened a Slack channel yet");
 	});
 
 	it("invites into the channel the run opened", async () => {
 		const runId = await makeRun([openAction, inviteAction, summaryAction]);
-		const channelId = `C-${crypto.randomUUID()}`;
+		const channelId = newChannelId();
 		const posted: { url: string; body: unknown }[] = [];
 		globalThis.fetch = (async (
 			input: URL | RequestInfo,
@@ -386,12 +433,11 @@ describe("inviting people as a deployed run", () => {
 				kind: "connect",
 			},
 		});
-		await db.slackChannel.deleteMany({ where: { id: channelId } });
 	});
 
 	it("fails the action when Slack refuses every address", async () => {
 		const runId = await makeRun([openAction, inviteAction, summaryAction]);
-		const channelId = `C-${crypto.randomUUID()}`;
+		const channelId = newChannelId();
 		slackReplies((url) =>
 			url.includes("conversations.create")
 				? { ok: true, channel: { id: channelId, name: "acme-onboarding" } }
@@ -405,20 +451,19 @@ describe("inviting people as a deployed run", () => {
 			isPrivate: false,
 		});
 
-		await expect(
-			inviteToRunSlackChannel(runId, "invite-1", {
-				emails: ["buyer@customer.test"],
-			}),
-		).rejects.toThrow(
-			"This workspace doesn't let Comp AI send that invitation.",
-		);
+		expect(
+			await refusal(
+				inviteToRunSlackChannel(runId, "invite-1", {
+					emails: ["buyer@customer.test"],
+				}),
+			),
+		).toContain("This workspace doesn't let Comp AI send that invitation.");
 
 		const action = await db.agentAction.findFirst({
 			where: { runId, type: "slack.channel.invite" },
 			select: { status: true },
 		});
 		expect(action?.status).toBe("FAILED");
-		await db.slackChannel.deleteMany({ where: { id: channelId } });
 	});
 });
 
@@ -429,7 +474,7 @@ describe("posting as a deployed run", () => {
 			postRunChannelAction,
 			summaryAction,
 		]);
-		const channelId = `C-${crypto.randomUUID()}`;
+		const channelId = newChannelId();
 		const posted: { url: string; body: unknown }[] = [];
 		globalThis.fetch = (async (
 			input: URL | RequestInfo,
@@ -477,16 +522,16 @@ describe("posting as a deployed run", () => {
 			channel: channelId,
 			text: "Hello Acme",
 		});
-
-		await db.slackChannel.deleteMany({ where: { id: channelId } });
 	});
 
 	it("refuses to post before the run opens a channel", async () => {
 		const runId = await makeRun([postRunChannelAction, summaryAction]);
 
-		await expect(
-			postRunSlackMessage(runId, "post-1", { text: "Hello Acme" }),
-		).rejects.toThrow("hasn't opened a Slack channel yet");
+		expect(
+			await refusal(
+				postRunSlackMessage(runId, "post-1", { text: "Hello Acme" }),
+			),
+		).toContain("hasn't opened a Slack channel yet");
 	});
 
 	it("still posts to a chosen standing channel", async () => {
