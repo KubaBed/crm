@@ -17,7 +17,7 @@ export const TRACING = {
 	},
 
 	content: {
-		recordInputs: true,
-		recordOutputs: true,
+		recordVar: "INFERENCE_RECORD_CONTENT",
+		recordByDefault: true,
 	},
 } as const;

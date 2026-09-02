@@ -39,6 +39,14 @@ export function environmentOf(env: TraceEnv): string {
 	return trimmed(env.NODE_ENV) ?? "development";
 }
 
+const OFF = new Set(["0", "false", "no", "off"]);
+
+export function recordsTraceContent(env: TraceEnv): boolean {
+	const value = trimmed(env[TRACING.content.recordVar])?.toLowerCase();
+	if (value === undefined) return TRACING.content.recordByDefault;
+	return !OFF.has(value);
+}
+
 function trimmed(value: string | undefined): string | null {
 	const text = value?.trim();
 	return text && text.length > 0 ? text : null;

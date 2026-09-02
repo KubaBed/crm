@@ -2,6 +2,7 @@ import { describe, expect, it } from "bun:test";
 import {
 	environmentOf,
 	principalOf,
+	recordsTraceContent,
 	resolveTraceDestination,
 } from "../agent/lib/tracing";
 import { TRACING } from "../agent/lib/tracing-config";
@@ -134,15 +135,24 @@ describe("environmentOf", () => {
 });
 
 describe("what a span carries", () => {
-	it("sends model inputs and outputs to the tracing vendor, deliberately", () => {
-		expect(TRACING.content.recordInputs).toBe(true);
-		expect(TRACING.content.recordOutputs).toBe(true);
+	it("sends model inputs and outputs to the tracing vendor by default", () => {
+		expect(recordsTraceContent({})).toBe(true);
+		expect(TRACING.content.recordByDefault).toBe(true);
 	});
 
-	it("names both flags explicitly, so an SDK upgrade cannot flip them", () => {
-		expect(Object.keys(TRACING.content)).toEqual([
-			"recordInputs",
-			"recordOutputs",
-		]);
+	it("withholds them when the install asks it to", () => {
+		for (const value of ["0", "false", "no", "off", "OFF", " false "]) {
+			expect(recordsTraceContent({ INFERENCE_RECORD_CONTENT: value })).toBe(
+				false,
+			);
+		}
+	});
+
+	it("keeps recording for any other value, so a typo cannot silence a trace", () => {
+		for (const value of ["1", "true", "yes", "on", ""]) {
+			expect(recordsTraceContent({ INFERENCE_RECORD_CONTENT: value })).toBe(
+				true,
+			);
+		}
 	});
 });
