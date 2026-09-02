@@ -273,16 +273,21 @@ describe("turning a stored Slack event into a resume", () => {
 			data: { status: "PAUSED" },
 		});
 
-		const held = await dispatchSlackEvent(id, send);
-		const heldRow = await db.slackEventInbox.findUnique({
-			where: { id },
-			select: { processedAt: true },
-		});
+		let held: Awaited<ReturnType<typeof dispatchSlackEvent>>;
+		let heldRow: { processedAt: Date | null } | null;
+		try {
+			held = await dispatchSlackEvent(id, send);
+			heldRow = await db.slackEventInbox.findUnique({
+				where: { id },
+				select: { processedAt: true },
+			});
+		} finally {
+			await db.agentDefinition.update({
+				where: { id: agentId },
+				data: { status: "LIVE" },
+			});
+		}
 
-		await db.agentDefinition.update({
-			where: { id: agentId },
-			data: { status: "LIVE" },
-		});
 		await db.slackEventInbox.updateMany({
 			where: { id },
 			data: { leasedUntil: null },
