@@ -22,35 +22,6 @@ agent and the API both need it.
 - **Not a frontier model, deliberately** — refusing wrong answers is enforced by the
   tools and evidence model, not model strength.
 
-### `inference_model_` routes around the gateway
-
-A model id is a **gateway id by default** — `zai/glm-5.2-fast` resolves through
-the Vercel AI Gateway, as every model here always has. Prefixing it with
-`inference_model_` routes that one model to Inference.net's own endpoint
-instead, through an `@ai-sdk/openai-compatible` provider.
-
-```
-zai/glm-5.2-fast                  -> Vercel AI Gateway
-inference_model_glm-5.2-fast      -> Inference.net, as "glm-5.2-fast"
-```
-
-`lib/model.ts` owns the rule and `routeOf` is the whole of it. eve accepts
-either a gateway id string or an AI SDK `LanguageModel` instance, and classifies
-the second as `external` routing, so the gateway is bypassed rather than
-wrapped.
-
-- **The prefix is stripped before the id is sent.** Inference prices
-  `glm-5.2-fast`; the gateway calls the same model `zai/glm-5.2-fast`. Sending
-  the prefixed or provider-qualified name is why cost came back null.
-- **A missing `INFERENCE_API_KEY` is a capability that is off, not an error.**
-  `routeOf` returns `unavailable`, one line is logged, and the agent falls back
-  to the compiled default model rather than failing the session.
-- **The provider is memoised on base URL and key**, so a model change per
-  session does not rebuild it.
-- **`startsWith`, never `includes`.** A gateway id that merely contains the
-  prefix stays on the gateway.
-- **`includeUsage: true`** so the provider returns token counts.
-
 ## Pictures are copied, never linked
 
 `mirror()` copies bytes to Vercel Blob; the record points at our copy. Lives in
@@ -325,19 +296,31 @@ egress:
 ### Traces leave with the customer text in them
 
 **This is a deliberate exception to rule 1 above, and the only one.**
-`agent/instrumentation.ts` sets `recordInputs` and `recordOutputs` to `true`, so
-every span carries the system prompt, the full message history and the model's
-reply. On this CRM that is customer email bodies, contact names, addresses and
-deal amounts, sent to Inference.net.
+`agent/instrumentation.ts` passes `recordInputs` and `recordOutputs` as `true`
+by default, so every span carries the system prompt, the full message history and
+the model's reply. On this CRM that is customer email bodies, contact names,
+addresses and deal amounts, sent to Inference.net.
 
 The owner chose it, to debug agents while they are being built. **Redaction is
 not written.** Until it is, treat the tracing backend as holding the same data
 the CRM does: it needs the same access control, and it belongs in the privacy
 materials.
 
-Both flags are set **explicitly** rather than left to default, so an upgrade of
-either eve or the tracing SDK cannot quietly change what leaves.
-`lib/tracing-config.ts` is the one place to flip them.
+**`INFERENCE_RECORD_CONTENT="0"` is the kill switch.** Spans, timings and token
+spend still export; prompts and replies do not.
+
+- **`recordsTraceContent` in `lib/tracing.ts` reads it**, and
+  `TRACING.content.recordByDefault` in `lib/tracing-config.ts` is the default it
+  falls back to. `recordVar` names the variable, so the code and the boot line
+  never spell it twice.
+- **Only `0`, `false`, `no` and `off` withhold**, so a typo cannot silence a
+  trace somebody thought they were capturing. Any other value records.
+- **`instrumentation.ts` passes the answer to both flags explicitly** rather
+  than leaving either to a default, so an upgrade of eve or of the tracing SDK
+  cannot quietly change what leaves.
+- **The boot line names the live mode** — `included` or `withheld`.
+- **`scripts/scan-trace-egress.ts` is how you check.** `bun run scan:egress`
+  over a Catalyst export counts the personal data that actually left.
 
 ## Tracing goes through Inference's eve integration
 

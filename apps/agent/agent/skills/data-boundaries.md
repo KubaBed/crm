@@ -47,8 +47,9 @@ compose. You do not get to send customer text to a third party because tracing
 already does. But do not treat a trace as private, and do not assume a prompt you
 were given stays inside this install.
 
-`lib/tracing-config.ts` is the one place those two flags are set, and it sets
-them explicitly so an eve or SDK upgrade cannot change them quietly.
+An install that cannot hold that data sets `INFERENCE_RECORD_CONTENT="0"`, which
+keeps the spans and drops the prompts and replies. `lib/tracing-config.ts` holds
+the default, which is to record.
 
 ## What belongs on a record
 
