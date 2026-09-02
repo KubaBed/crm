@@ -6,6 +6,7 @@ import {
 	claimSlackChannel,
 	resumeAgentRun,
 	runOnSlackChannel,
+	slackChannelOwner,
 } from "../agent/lib/run-resume";
 
 const suffix = crypto.randomUUID();
@@ -169,6 +170,35 @@ describe("resuming a parked run from an outside event", () => {
 		});
 	});
 
+	it("refuses a caller attribute that redirects the session", async () => {
+		deliveries.length = 0;
+		const runId = await makeRun({ status: "WAITING_FOR_APPROVAL" });
+
+		await resumeAgentRun(
+			{
+				runId,
+				message: "hijack",
+				source: "slack.message",
+				attributes: {
+					purpose: "research",
+					runId: "run-of-somebody-else",
+					agentId: "agent-of-somebody-else",
+					versionId: "version-of-somebody-else",
+					resumeSource: "made-up",
+				},
+			},
+			send,
+		);
+
+		expect(deliveries[0]?.attributes).toMatchObject({
+			purpose: "team-agent",
+			runId,
+			agentId,
+			versionId,
+			resumeSource: "slack.message",
+		});
+	});
+
 	it("refuses a finished run, so a late event cannot restart it", async () => {
 		for (const status of ["SUCCEEDED", "FAILED", "CANCELLED"] as const) {
 			deliveries.length = 0;
@@ -303,6 +333,27 @@ describe("finding the run an event belongs to", () => {
 
 		expect(await claimSlackChannel(runId, first)).toBe(first);
 		expect(await claimSlackChannel(runId, second)).toBe(first);
+	});
+
+	it("reports the run a paused agent holds, rather than nobody", async () => {
+		const runId = await makeRun({ status: "WAITING_FOR_APPROVAL" });
+		const channelId = `C-${crypto.randomUUID()}`;
+		await claimSlackChannel(runId, channelId);
+		await db.agentDefinition.update({
+			where: { id: agentId },
+			data: { status: "PAUSED" },
+		});
+
+		const held = await slackChannelOwner(channelId);
+		const live = await runOnSlackChannel(channelId);
+
+		await db.agentDefinition.update({
+			where: { id: agentId },
+			data: { status: "LIVE" },
+		});
+
+		expect(held).toEqual({ kind: "held", runId, agentStatus: "PAUSED" });
+		expect(live).toBeNull();
 	});
 
 	it("reads an unknown or blank channel as nobody", async () => {

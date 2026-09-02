@@ -1,15 +1,34 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-hostname="${SLACK_TUNNEL_HOSTNAME:-}"
-name="${SLACK_TUNNEL_NAME:-crm-dev}"
-port="${SLACK_TUNNEL_PORT:-3001}"
-
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
-if [ -z "$hostname" ] && [ -f "$root/.env" ]; then
-	hostname="$(grep -E '^SLACK_TUNNEL_HOSTNAME=' "$root/.env" | tail -1 | cut -d= -f2- | tr -d '"' | tr -d "'" | awk '{print $1}' || true)"
+env_value() {
+	[ -f "$root/.env" ] || return 0
+	grep -E "^$1=" "$root/.env" | tail -1 | cut -d= -f2- | tr -d '"' | tr -d "'" | awk '{print $1}' || true
+}
+
+hostname="${SLACK_TUNNEL_HOSTNAME:-}"
+name="${SLACK_TUNNEL_NAME:-crm-dev}"
+port="${SLACK_TUNNEL_PORT:-}"
+
+if [ -z "$hostname" ]; then
+	hostname="$(env_value SLACK_TUNNEL_HOSTNAME)"
 fi
+
+if [ -z "$port" ]; then
+	port="$(env_value SLACK_TUNNEL_PORT)"
+fi
+
+if [ -z "$port" ]; then
+	port="${PORT:-}"
+fi
+
+if [ -z "$port" ]; then
+	port="$(env_value PORT)"
+fi
+
+port="${port:-3001}"
 
 if [ -z "$hostname" ]; then
 	cat >&2 <<'MESSAGE'
@@ -50,6 +69,8 @@ cat <<MESSAGE
 Slack's Event Subscriptions request URL is, and stays:
 
   https://$hostname/webhooks/slack/events
+
+Requests arrive at 127.0.0.1:$port, where the API listens.
 
 MESSAGE
 

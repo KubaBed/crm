@@ -33,7 +33,7 @@ import {
 import { toChannelName } from "./slack-channel-name";
 import { slackAccessToken } from "./slack-connection";
 import { type InviteOutcome, inviteToSlackChannel } from "./slack-invite";
-import { createSlackChannel } from "./slack-membership";
+import { createSlackChannel, joinSlackChannel } from "./slack-membership";
 import { addDealOwner } from "./slack-owner";
 
 const ACTION_LEASE_MS = DISPATCH.run.actionLeaseMs;
@@ -1171,25 +1171,26 @@ export async function openRunSlackChannel(
 
 	try {
 		await assertRunActive(runId);
-		const outcome = await createSlackChannel(channelName, input.isPrivate);
-		if ("error" in outcome) throw new Error(outcome.error);
-
-		await claimSlackChannel(runId, outcome.id);
-		const watching = await runWatchesSlackChannel(runId, outcome.id);
-		const owner = await addDealOwner(runId, outcome.id).catch((error) => ({
-			added: false as const,
-			reason: error instanceof Error ? error.message : String(error),
-		}));
+		const owned = await ownedRunChannel(runId);
+		const channel =
+			owned ?? (await openedRunChannel(runId, channelName, input.isPrivate));
+		const watching = await runWatchesSlackChannel(runId, channel.id);
+		const owner = owned
+			? null
+			: await addDealOwner(runId, channel.id).catch((error) => ({
+					added: false as const,
+					reason: error instanceof Error ? error.message : String(error),
+				}));
 		const result = parseAgentActionResult({
 			type: AGENT_ACTION_TYPES.SLACK_CHANNEL_OPEN,
-			channelId: outcome.id,
+			channelId: channel.id,
 		});
-		await settleRunAction(claim, outcome.id, result);
+		await settleRunAction(claim, channel.id, result);
 
 		return {
 			actionId: claim.actionId,
-			channelId: outcome.id,
-			channelName: outcome.name,
+			channelId: channel.id,
+			channelName: channel.name,
 			watching,
 			owner,
 			result,
@@ -1200,6 +1201,50 @@ export async function openRunSlackChannel(
 		await failRunAction(claim, slackActionErrorCode(message), message);
 		throw error;
 	}
+}
+
+type RunSlackChannel = { id: string; name: string };
+
+async function ownedRunChannel(runId: string): Promise<RunSlackChannel | null> {
+	const channelId = await channelOfRun(runId);
+	if (!channelId) return null;
+
+	const channel = await db.slackChannel.findUnique({
+		where: { id: channelId },
+		select: { name: true, available: true },
+	});
+	if (!channel) {
+		throw new Error(
+			`This run already works in Slack channel ${channelId}, and Comp AI cannot read it.`,
+		);
+	}
+	if (!channel.available) {
+		throw new Error(
+			`This run already works in Slack channel #${channel.name}, and that channel is archived.`,
+		);
+	}
+
+	const join = await joinSlackChannel(channelId);
+	if (!join.joined) {
+		throw new Error(
+			`This run already works in Slack channel #${channel.name}, and Comp AI cannot post there. ${join.reason}`,
+		);
+	}
+
+	return { id: channelId, name: channel.name };
+}
+
+async function openedRunChannel(
+	runId: string,
+	channelName: string,
+	isPrivate: boolean,
+): Promise<RunSlackChannel> {
+	const outcome = await createSlackChannel(channelName, isPrivate);
+	if ("error" in outcome) throw new Error(outcome.error);
+
+	await claimSlackChannel(runId, outcome.id);
+
+	return outcome;
 }
 
 export async function inviteToRunSlackChannel(
@@ -1254,10 +1299,12 @@ export async function inviteToRunSlackChannel(
 		};
 	}
 
+	const { actionId, claimedAt } = claim;
 	try {
 		await assertRunActive(runId);
 		const outcomes = [];
 		for (const email of emails) {
+			await holdRunActionClaim(runId, actionId, claimedAt);
 			outcomes.push(await inviteToSlackChannel(channelId, email));
 		}
 
