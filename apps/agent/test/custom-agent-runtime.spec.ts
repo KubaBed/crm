@@ -25,6 +25,7 @@ import {
 	attribute,
 	purposeOf,
 	requireBuilderAttribute,
+	requireBuilderReadAttribute,
 	requireTeamAgentAttribute,
 } from "../agent/lib/session-purpose";
 import {
@@ -179,6 +180,24 @@ describe("session purpose boundaries", () => {
 		).toThrow();
 		expect(() =>
 			requireTeamAgentAttribute(context("builder"), "runId"),
+		).toThrow();
+	});
+
+	it("lets the builder read its context on a chat turn, but not save a draft", () => {
+		expect(
+			requireBuilderReadAttribute(context("builder", "CHAT"), "conversationId"),
+		).toBe("chat-1");
+		expect(() =>
+			requireBuilderAttribute(context("builder", "CHAT"), "conversationId"),
+		).toThrow("Agent creation requires an explicit request");
+	});
+
+	it("keeps every builder tool out of a session that is not the builder", () => {
+		expect(() =>
+			requireBuilderReadAttribute(context("research"), "conversationId"),
+		).toThrow("unavailable for this session");
+		expect(() =>
+			requireBuilderAttribute(context("research"), "conversationId"),
 		).toThrow();
 	});
 });
