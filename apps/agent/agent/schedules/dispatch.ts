@@ -7,6 +7,7 @@ import {
 	queueDueAgentRuns,
 } from "../lib/custom-agent-dispatch";
 import { brief, drainAll, taskAuth } from "../lib/dispatch";
+import { pendingSlackEventIds } from "../lib/slack-events";
 import { reconcileStaleTasks } from "../lib/stale-tasks";
 
 export default defineSchedule({
@@ -26,9 +27,10 @@ export default defineSchedule({
 						}),
 					);
 					await queueDueAgentRuns();
-					const [builderIds, runIds] = await Promise.all([
+					const [builderIds, runIds, slackEventIds] = await Promise.all([
 						pendingBuilderSubmissionIds(),
 						pendingAgentRunIds(),
+						pendingSlackEventIds(),
 					]);
 
 					await Promise.all([
@@ -43,6 +45,13 @@ export default defineSchedule({
 							receive(crm, {
 								message: "Execute a queued deployed agent run.",
 								target: { runId },
+								auth: appAuth,
+							}),
+						),
+						...slackEventIds.map((slackEventId) =>
+							receive(crm, {
+								message: "Resume the agent run a Slack event belongs to.",
+								target: { slackEventId },
 								auth: appAuth,
 							}),
 						),

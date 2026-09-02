@@ -37,6 +37,10 @@ const send = (async (message: string, options?: EveSendOptions) => {
 	return { id: `ses_${deliveries.length}` };
 }) as unknown as SendFn;
 
+const refusing = (async () => {
+	throw new Error("eve refused: the session is not active");
+}) as unknown as SendFn;
+
 async function makeRun(
 	channelId: string | null,
 	status = "WAITING_FOR_APPROVAL",
@@ -234,7 +238,26 @@ describe("turning a stored Slack event into a resume", () => {
 
 		const resumed = await drainSlackEvents(send);
 
-		expect(resumed).toBeGreaterThanOrEqual(2);
+		expect(resumed).toBe(2);
+	});
+
+	it("keeps a fresh event for another try when the resume does not land", async () => {
+		const channelId = `C-${crypto.randomUUID()}`;
+		await makeRun(channelId);
+		const id = await inbox(
+			{ type: "message", channel: channelId, text: "retry" },
+			channelId,
+		);
+
+		const outcome = await dispatchSlackEvent(id, refusing);
+
+		expect(outcome?.resumed).toBe(false);
+
+		const row = await db.slackEventInbox.findUnique({
+			where: { id },
+			select: { processedAt: true },
+		});
+		expect(row?.processedAt).toBeNull();
 	});
 });
 
