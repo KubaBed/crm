@@ -134,9 +134,9 @@ describe("environmentOf", () => {
 });
 
 describe("what a span carries", () => {
-	it("does not send model inputs or outputs to the tracing vendor", () => {
-		expect(TRACING.content.recordInputs).toBe(false);
-		expect(TRACING.content.recordOutputs).toBe(false);
+	it("sends model inputs and outputs to the tracing vendor, deliberately", () => {
+		expect(TRACING.content.recordInputs).toBe(true);
+		expect(TRACING.content.recordOutputs).toBe(true);
 	});
 
 	it("names both flags explicitly, so an SDK upgrade cannot flip them", () => {

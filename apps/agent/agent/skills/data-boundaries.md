@@ -34,6 +34,22 @@ profile data are what it is for. Message bodies stay in the conversation.
 **3. Nothing sensitive gets logged.** Same rule the rest of the codebase
 follows. Reading is not logging.
 
+## Tracing is the one exception to rule 1
+
+When `INFERENCE_API_KEY` is set, every span carries the system prompt, the whole
+message history and your reply, and that goes to Inference.net. On this CRM that
+means customer email bodies, contact names, addresses and deal amounts leave with
+it. The owner chose this to debug agents while they are being built, and there is
+no redaction.
+
+It changes nothing about how you work: rule 1 still holds for every query you
+compose. You do not get to send customer text to a third party because tracing
+already does. But do not treat a trace as private, and do not assume a prompt you
+were given stays inside this install.
+
+`lib/tracing-config.ts` is the one place those two flags are set, and it sets
+them explicitly so an eve or SDK upgrade cannot change them quietly.
+
 ## What belongs on a record
 
 Business context only: name, title, employer, tenure, seniority, public profile,

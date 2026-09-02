@@ -315,7 +315,8 @@ It may read **everything**, including full email bodies — internal single-tena
 and a signature block is the best source of a job title there is. The boundary is
 egress:
 
-1. No customer text in a third-party query. Derived questions only.
+1. No customer text in a third-party query. Derived questions only. **Tracing is
+   the one exception, and it is stated below.**
 2. Nothing from a mailbox into `/workspace` — different lifetime.
 3. Nothing sensitive logged. Reading is not logging.
 

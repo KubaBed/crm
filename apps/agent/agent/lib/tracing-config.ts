@@ -17,7 +17,7 @@ export const TRACING = {
 	},
 
 	content: {
-		recordInputs: false,
-		recordOutputs: false,
+		recordInputs: true,
+		recordOutputs: true,
 	},
 } as const;
