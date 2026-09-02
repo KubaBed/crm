@@ -107,7 +107,7 @@ Node module that cannot exist in a browser.
 "use client";
 import { describeSlackScopes, SLACK_SCOPE_GROUPS } from "@crm/auth";
 
-export function SlackScopeGroups({ scopes }: { scopes: string[] }) {
+export function ScopeGroups({ scopes }: { scopes: string[] }) {
   const groups = SLACK_SCOPE_GROUPS.map(...)
 }
 ```
@@ -115,21 +115,25 @@ export function SlackScopeGroups({ scopes }: { scopes: string[] }) {
 **Do** — the page does the work and hands over plain data:
 
 ```tsx
-// page.tsx — server
+// slack/page.tsx — server
 import { describeSlackScopes, SLACK_SCOPE_GROUPS } from "@crm/auth";
 
 const groups = groupScopes(status.scopes);
-return <SlackScopeGroups groups={groups} />;
+return <ScopeGroups caption={SCOPE_CAPTION} groups={groups} />;
 ```
 
 ```tsx
-// slack-scope-groups.tsx — client
+// scope-groups.tsx — client
 "use client";
 
 export type ScopeGroup = { id: string; label: string; scopes: ScopeLine[] };
 
-export function SlackScopeGroups({ groups }: { groups: ScopeGroup[] }) { … }
+export function ScopeGroups({ groups }: { groups: ScopeGroup[] }) { … }
 ```
+
+`scope-groups.tsx` is the real example, and it is deliberately provider-agnostic:
+the caption and the withheld-scope note arrive as props, so no Slack wording is
+stranded in a component another provider will reuse.
 
 Rules that follow:
 
@@ -260,9 +264,10 @@ into it are release pull requests. A branch cut from `release` carries release
 merge commits that do not belong in a feature pull request.
 
 **You do not write the pull request title.** `.github/scripts/pr-title.sh` reads
-the diff and writes one. Retitle it yourself and the automation stops.
-`CONTRIBUTING.md` is the whole account of how a change reaches `release`; read it
-before shipping.
+the diff and writes one. Retitle it by hand and `pr-title.yml` writes over you:
+a title that is not a conventional commit, or that releases less than the branch
+does, is replaced on the next push. `CONTRIBUTING.md` is the whole account of how
+a change reaches `release`; read it before shipping.
 
 ## Agent skills
 
@@ -278,5 +283,5 @@ in Linear yet. See `docs/agents/triage-labels.md`.
 
 ### Domain docs
 
-Single-context: one root `CONTEXT.md` for shared vocabulary, `docs/adr/` for
+Single-context: one root `CONTEXT.md` for shared vocabulary, `adrs/` for
 decisions, with the table above still the router. See `docs/agents/domain.md`.

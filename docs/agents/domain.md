@@ -1,25 +1,30 @@
 # Domain Docs
 
 How the engineering skills consume this repo's domain documentation. This repo is
-**single-context**: one `CONTEXT.md` at the root, and `docs/adr/` for decisions.
+**single-context**: one `CONTEXT.md` at the root, and `adrs/` for decisions.
 
 ## Before exploring, read these
 
 - **`CONTEXT.md`** at the repo root — the glossary of domain terms.
-- **`docs/adr/`** — the ADRs touching the area you are about to work in.
+- **`adrs/`** — the ADRs touching the area you are about to work in.
 
-If either is absent, **proceed silently**. Do not flag it and do not offer to
-create it upfront. `domain-modeling` writes them lazily, when a term or a
-decision actually gets resolved.
+`adrs/` already exists and holds the decided record, one file per topic and
+unnumbered: `adrs/README.md` states the form. Write a new ADR there under a name
+that says what it changes. Never write to `docs/adr/`, and never renumber
+anything — a skill that names `docs/adr/` means this directory.
+
+`CONTEXT.md` does not exist yet. That is fine: **proceed silently**. Do not flag
+it and do not offer to create it upfront. `domain-modeling` writes it lazily,
+when a term actually gets resolved.
 
 ```
 /
-├── CONTEXT.md
-├── docs/adr/
-│   ├── 0001-….md
-│   └── 0002-….md
+├── CONTEXT.md   (not written yet)
+├── adrs/
+│   ├── comp-palette.md
+│   └── i18n.md
 ├── apps/       api · app · agent
-└── packages/   auth · db · email · env · telemetry · ui · validation
+└── packages/   auth · db · email · env · telemetry · typescript-config · ui · validation
 ```
 
 ## This is vocabulary, not routing
@@ -45,4 +50,4 @@ real gap worth recording.
 
 If your output contradicts an ADR, say so rather than silently overriding it:
 
-> _Contradicts ADR-0007 (event-sourced orders), but worth reopening because…_
+> _Contradicts `adrs/i18n.md`, but worth reopening because…_

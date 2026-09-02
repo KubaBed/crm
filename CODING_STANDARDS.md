@@ -62,8 +62,7 @@ The strongest trip-wire has no number: if a straightforward implementation would
 - No retries, logging, metrics, caching, or feature flags beyond what the current task and its *real* failure modes require.
 - Do not *handle* states that cannot occur — *assert* them. An assert fails loudly and documents the invariant; a recovery path for an impossible state hides bugs.
 - No new dependencies for problems the standard library or existing code already solves. A dependency is code you now ship without reading it — prefer vendoring 50 lines you understand over importing 5,000 you don't.
-- No comments that narrate what the code visibly does. Comments explain *why*, and only when the why is non-obvious.
-- **Keep comments short. Delete any claim from a comment that is derivable from the code.** A comment that restates the signature, the types, or the next line is not documentation — it is a second copy that goes stale on its own schedule.
+- **No code comments.** `AGENTS.md` forbids them outright, in new code and in code you edit. A comment restating the signature, the types, or the next line is not documentation — it is a second copy that goes stale on its own schedule. Put the *why* in the names and the shape, and the rest in the pull request.
 
 ## 6. Deletion bias
 

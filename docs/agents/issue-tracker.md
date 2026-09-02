@@ -87,8 +87,10 @@ feat(agent): let a run post into the channel it opened
 reads the diff and generates it, then validates the shape:
 `^(feat|fix|perf|refactor|docs|revert|deps|chore|test|ci|build|style)(scope)?!?: `
 with a lowercase subject and no trailing period. A `CRM-1 feat(…): …` title
-fails that check and stops the automation, which is why the id goes nowhere near
-it. See `AGENTS.md` → Commit Messages & Pull Requests, and `CONTRIBUTING.md`.
+fails that check, so `pr-title.yml` writes a replacement from the diff and
+retitles the pull request over the top of it. The id is thrown away, which is
+why it goes nowhere near the subject. See `AGENTS.md` → Commit Messages & Pull
+Requests, and `CONTRIBUTING.md`.
 
 **Link the branch instead.** `gitBranchName` on the issue is the branch name
 Linear expects; use it and Linear attaches the work without any id in the
