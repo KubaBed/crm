@@ -43,8 +43,13 @@ const microsoftCredentials = ():
 };
 
 const slackCredentials = ():
-	| { clientId: string; clientSecret: string }
-	| undefined => pair("SLACK_CLIENT_ID", "SLACK_CLIENT_SECRET");
+	| { clientId: string; clientSecret: string; teamId: string | undefined }
+	| undefined => {
+	const credentials = pair("SLACK_CLIENT_ID", "SLACK_CLIENT_SECRET");
+	if (!credentials) return undefined;
+
+	return { ...credentials, teamId: optional("SLACK_TEAM_ID") };
+};
 
 const apiUrl =
 	optional("API_URL") ?? optional("BETTER_AUTH_URL") ?? DEFAULT_API_URL;

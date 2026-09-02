@@ -84,6 +84,7 @@ const slackConnection = (
 	scopes: [...SLACK_REQUESTED_SCOPES],
 	authorizationUrlParams: {
 		user_scope: SLACK_USER_SCOPES.join(","),
+		...(oauth.teamId && { team: oauth.teamId }),
 	},
 	getToken: async ({ code }) => {
 		const response = await fetch("https://slack.com/api/oauth.v2.access", {
