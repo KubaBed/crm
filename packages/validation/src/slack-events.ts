@@ -33,6 +33,19 @@ export const eventCallback = z.object({
 
 export const slackEnvelope = z.union([urlVerification, eventCallback]);
 
+export const slackEventBody = z.record(z.string(), z.json());
+
+export type SlackEventBody = z.infer<typeof slackEventBody>;
+
+export function readSlackEventBody(body: string): SlackEventBody | null {
+	try {
+		const parsed = slackEventBody.safeParse(JSON.parse(body));
+		return parsed.success ? parsed.data : null;
+	} catch {
+		return null;
+	}
+}
+
 export type SlackEvent = z.infer<typeof slackEvent>;
 export type EventCallback = z.infer<typeof eventCallback>;
 export type SlackEnvelope = z.infer<typeof slackEnvelope>;

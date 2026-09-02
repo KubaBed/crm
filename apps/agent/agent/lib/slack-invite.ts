@@ -1,5 +1,5 @@
 import { schemas } from "@crm/validation";
-import { slackGet, slackPost } from "./slack-api";
+import { SLACK_UNREACHABLE, slackGet, slackPost } from "./slack-api";
 import { slackAccessToken } from "./slack-connection";
 
 export type InviteOutcome =
@@ -109,6 +109,8 @@ function explain(error: string): string {
 		case "invalid_auth":
 		case "token_revoked":
 			return "Slack needs to be reconnected.";
+		case SLACK_UNREACHABLE:
+			return "Slack did not answer. This invitation did not go out.";
 		default:
 			return `Slack refused the invitation (${error}).`;
 	}

@@ -1,7 +1,7 @@
 import { db } from "@crm/db";
 import { schemas } from "@crm/validation";
 import { z } from "zod";
-import { slackGet, slackPost } from "./slack-api";
+import { SLACK_UNREACHABLE, slackGet, slackPost } from "./slack-api";
 import { slackAccessToken, slackUserToken } from "./slack-connection";
 import { requestSlackInventorySync } from "./slack-people";
 
@@ -191,6 +191,8 @@ function explain(error: string): string {
 			return "Slack needs to be reconnected.";
 		case "unknown_bot_user":
 			return "Slack did not report which user Comp AI is.";
+		case SLACK_UNREACHABLE:
+			return "Slack did not answer. This run can try again.";
 		default:
 			return `Slack refused the request (${error}).`;
 	}
@@ -200,17 +202,22 @@ async function channelNamed(
 	name: string,
 ): Promise<{ id: string; name: string } | { error: string }> {
 	const channel = await db.slackChannel.findFirst({
-		where: { name },
+		where: { name, available: true },
 		select: { id: true, name: true },
 	});
 
-	if (channel) return channel;
+	if (!channel) {
+		await requestSlackInventorySync();
 
-	await requestSlackInventorySync();
+		return {
+			error: `#${name} already exists in Slack, and Comp AI cannot see it yet.`,
+		};
+	}
 
-	return {
-		error: `#${name} already exists in Slack, and Comp AI cannot see it yet.`,
-	};
+	const join = await joinSlackChannel(channel.id);
+	if (!join.joined) return { error: join.reason };
+
+	return channel;
 }
 
 export async function createSlackChannel(

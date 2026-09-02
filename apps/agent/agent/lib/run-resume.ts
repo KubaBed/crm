@@ -5,9 +5,12 @@ import { runToken } from "./custom-agent-dispatch";
 
 const LIVE_STATUSES = ["QUEUED", "RUNNING", "WAITING_FOR_APPROVAL"] as const;
 
+export type ResumedSession = Awaited<ReturnType<SendFn>>;
+
 export type ResumeOutcome =
-	| { kind: "resumed"; runId: string; sessionId: string }
-	| { kind: "ignored"; runId: string; reason: string };
+	| { kind: "resumed"; runId: string; session: ResumedSession }
+	| { kind: "ignored"; runId: string; reason: string }
+	| { kind: "undelivered"; runId: string; reason: string };
 
 export type ResumeInput = {
 	runId: string;
@@ -80,10 +83,10 @@ export async function resumeAgentRun(
 			mode: "task",
 		});
 
-		return { kind: "resumed", runId, sessionId: session.id };
+		return { kind: "resumed", runId, session };
 	} catch (error) {
 		return {
-			kind: "ignored",
+			kind: "undelivered",
 			runId,
 			reason: error instanceof Error ? error.message : String(error),
 		};
@@ -121,10 +124,22 @@ export async function claimSlackChannel(
 	runId: string,
 	channelId: string,
 ): Promise<string | null> {
+	const trimmed = channelId.trim();
+	if (!trimmed) return null;
+
 	await db.agentRun.updateMany({
 		where: { id: runId, slackChannelId: null },
-		data: { slackChannelId: channelId.trim() },
+		data: { slackChannelId: trimmed },
 	});
 
 	return channelOfRun(runId);
+}
+
+export async function runWatchesSlackChannel(
+	runId: string,
+	channelId: string | null,
+): Promise<boolean> {
+	if (!channelId) return false;
+
+	return (await runOnSlackChannel(channelId)) === runId;
 }

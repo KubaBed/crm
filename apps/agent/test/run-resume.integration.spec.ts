@@ -226,7 +226,7 @@ describe("resuming a parked run from an outside event", () => {
 		expect(outcome).toMatchObject({ kind: "ignored", reason: "no such run" });
 	});
 
-	it("never throws when eve refuses the send", async () => {
+	it("reports an undelivered send rather than throwing", async () => {
 		const runId = await makeRun({ status: "WAITING_FOR_APPROVAL" });
 
 		const outcome = await resumeAgentRun(
@@ -234,8 +234,8 @@ describe("resuming a parked run from an outside event", () => {
 			refusing,
 		);
 
-		expect(outcome.kind).toBe("ignored");
-		if (outcome.kind !== "ignored") throw new Error("expected ignored");
+		expect(outcome.kind).toBe("undelivered");
+		if (outcome.kind !== "undelivered") throw new Error("expected undelivered");
 		expect(outcome.reason).toContain("not active");
 	});
 

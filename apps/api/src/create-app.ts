@@ -6,7 +6,7 @@ import {
 	type NestExpressApplication,
 } from "@nestjs/platform-express";
 import { DocumentBuilder, SwaggerModule } from "@nestjs/swagger";
-import { type NextFunction, type Request, type Response, raw } from "express";
+import type { NextFunction, Request, Response } from "express";
 import helmet from "helmet";
 import { AppRouterHost } from "nestjs-trpc";
 import {
@@ -15,8 +15,8 @@ import {
 } from "trpc-to-openapi";
 import { AppModule } from "./app.module";
 import { ContextLogger } from "./logging/context-logger";
-import { SLACK } from "./slack/slack-config";
 import { SLACK_EVENTS_PATH } from "./slack/slack-events.controller";
+import { slackEventsBody } from "./slack/slack-events-body";
 import { REST_BRIDGE_PATH } from "./trpc/openapi";
 import { createBaseTrpcContext } from "./trpc/trpc.context";
 
@@ -28,10 +28,7 @@ export async function createApp(): Promise<NestExpressApplication> {
 	);
 
 	app.use(helmet());
-	app.use(
-		SLACK_EVENTS_PATH,
-		raw({ type: "*/*", limit: SLACK.events.maxBodyBytes }),
-	);
+	app.use(SLACK_EVENTS_PATH, slackEventsBody);
 	app.useGlobalPipes(
 		new ValidationPipe({
 			whitelist: true,

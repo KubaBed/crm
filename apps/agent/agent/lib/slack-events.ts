@@ -3,13 +3,25 @@ import type { SlackEvent } from "@crm/validation";
 import { schemas } from "@crm/validation";
 import { SLACK_EVENT_TYPES } from "@crm/validation/slack-events";
 import type { SendFn } from "eve/channels";
-import { resumeAgentRun, runOnSlackChannel } from "./run-resume";
+import {
+	type ResumedSession,
+	resumeAgentRun,
+	runOnSlackChannel,
+} from "./run-resume";
 import { SLACK_EVENTS } from "./slack-events-config";
+
+export class SlackEventNotResumed extends Error {
+	constructor(outcome: string) {
+		super(outcome);
+		this.name = "SlackEventNotResumed";
+	}
+}
 
 export type SlackEventOutcome = {
 	eventId: string;
 	resumed: boolean;
 	outcome: string;
+	session?: ResumedSession;
 };
 
 type ClaimedSlackEvent = {
@@ -17,6 +29,8 @@ type ClaimedSlackEvent = {
 	eventId: string;
 	channelId: string | null;
 	payload: Prisma.JsonValue;
+	receivedAt: Date;
+	leasedUntil: Date;
 };
 
 export async function pendingSlackEventIds(): Promise<string[]> {
@@ -49,7 +63,7 @@ async function claimSlackEvent(id: string): Promise<ClaimedSlackEvent | null> {
 			FOR UPDATE SKIP LOCKED
 		) AS due
 		WHERE t.id = due.id
-		RETURNING t.id, t."eventId", t."channelId", t.payload;
+		RETURNING t.id, t."eventId", t."channelId", t.payload, t."receivedAt", t."leasedUntil";
 	`;
 
 	return claimed[0] ?? null;
@@ -66,7 +80,11 @@ export async function dispatchSlackEvent(
 	const settle = (outcome: string, resumed = false) =>
 		db.slackEventInbox
 			.updateMany({
-				where: { id: row.id, processedAt: null },
+				where: {
+					id: row.id,
+					processedAt: null,
+					leasedUntil: row.leasedUntil,
+				},
 				data: { processedAt: new Date(), outcome: outcome.slice(0, 300) },
 			})
 			.then(() => ({ eventId: row.eventId, resumed, outcome }));
@@ -99,7 +117,17 @@ export async function dispatchSlackEvent(
 			where: { id: row.id },
 			data: { runId },
 		});
-		return settle(`Resumed run ${runId}.`, true);
+		const settled = await settle(`Resumed run ${runId}.`, true);
+		return { ...settled, session: result.session };
+	}
+
+	if (result.kind === "undelivered") {
+		const outcome = `Run ${runId} did not take the event: ${result.reason}`;
+		const age = Date.now() - row.receivedAt.getTime();
+		if (age < SLACK_EVENTS.retryUndeliveredForMs) {
+			return { eventId: row.eventId, resumed: false, outcome };
+		}
+		return settle(outcome);
 	}
 
 	return settle(`Run ${runId} was not resumed: ${result.reason}`);
@@ -107,21 +135,22 @@ export async function dispatchSlackEvent(
 
 export async function drainSlackEvents(send: SendFn): Promise<number> {
 	const ids = await pendingSlackEventIds();
+	let resumed = 0;
 
-	const outcomes = await Promise.all(
-		ids.map((id) =>
-			dispatchSlackEvent(id, send).catch((error) => {
-				console.error(
-					`[agent] Slack event ${id} could not be dispatched: ${
-						error instanceof Error ? error.message : String(error)
-					}`,
-				);
-				return null;
-			}),
-		),
-	);
+	for (const id of ids) {
+		const outcome = await dispatchSlackEvent(id, send).catch((error) => {
+			console.error(
+				`[agent] Slack event ${id} could not be dispatched: ${
+					error instanceof Error ? error.message : String(error)
+				}`,
+			);
+			return null;
+		});
 
-	return outcomes.filter((outcome) => outcome?.resumed).length;
+		if (outcome?.resumed) resumed += 1;
+	}
+
+	return resumed;
 }
 
 export function describe(event: SlackEvent): string {
