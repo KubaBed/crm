@@ -42,7 +42,7 @@ const microsoftCredentials = ():
 	};
 };
 
-const SLACK_TEAM_ID = /^[TE][A-Z0-9]{6,}$/;
+const SLACK_TEAM_ID = /^T[A-Z0-9]{6,}$/;
 
 const slackTeamId = (): string | undefined => {
 	const teamId = optional("SLACK_TEAM_ID");
