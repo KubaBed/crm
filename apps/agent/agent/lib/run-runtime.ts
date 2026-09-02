@@ -741,13 +741,23 @@ async function holdRunActionClaim(
 	});
 }
 
+function deliveredOutsideClaim(type: AgentActionResult["type"]): string {
+	switch (type) {
+		case AGENT_ACTION_TYPES.SLACK_CHANNEL_OPEN:
+			return "Slack opened this channel before the run stopped, and it cannot be withdrawn.";
+		case AGENT_ACTION_TYPES.SLACK_CHANNEL_INVITE:
+			return "Slack sent this invitation before the run stopped, and it cannot be withdrawn.";
+		default:
+			return "Slack accepted this message before the run stopped, and it cannot be withdrawn.";
+	}
+}
+
 async function recordDeliveryOutsideClaim(
 	actionId: string,
 	externalId: string,
 	result: AgentActionResult,
 ): Promise<void> {
-	const delivered =
-		"Slack accepted this message before the run stopped, and it cannot be withdrawn.";
+	const delivered = deliveredOutsideClaim(result.type);
 	const current = await db.agentAction.findUnique({
 		where: { id: actionId },
 		select: { status: true, externalId: true, errorMessage: true },
@@ -984,8 +994,7 @@ async function requiredActionFailure(
 					agentId: run.agentId,
 					runId: run.id,
 					type,
-					provider:
-						type === AGENT_ACTION_TYPES.SLACK_MESSAGE_POST ? "slack" : "crm",
+					provider: action.provider,
 					summary: action.summary,
 					status: "FAILED",
 					idempotencyKey: `run:${run.id}:required:${type}`,
@@ -1128,6 +1137,7 @@ export async function openRunSlackChannel(
 			channelId: existing.externalId,
 			channelName,
 			watching: (await channelOfRun(runId)) === existing.externalId,
+			owner: null,
 			result: readAgentActionResult(existing.type, existing.result),
 			replayed: true,
 		};
@@ -1149,6 +1159,7 @@ export async function openRunSlackChannel(
 			channelId: claim.externalId,
 			channelName,
 			watching: (await channelOfRun(runId)) === claim.externalId,
+			owner: null,
 			result: claim.result,
 			replayed: true,
 		};
@@ -1160,7 +1171,10 @@ export async function openRunSlackChannel(
 		if ("error" in outcome) throw new Error(outcome.error);
 
 		const watching = await claimSlackChannel(runId, outcome.id);
-		const owner = await addDealOwner(runId, outcome.id).catch(() => null);
+		const owner = await addDealOwner(runId, outcome.id).catch((error) => ({
+			added: false as const,
+			reason: error instanceof Error ? error.message : String(error),
+		}));
 		const result = parseAgentActionResult({
 			type: AGENT_ACTION_TYPES.SLACK_CHANNEL_OPEN,
 			channelId: outcome.id,

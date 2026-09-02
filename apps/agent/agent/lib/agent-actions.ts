@@ -23,6 +23,7 @@ export type AgentActionDependency = {
 	readonly label: string;
 	readonly resourceId: string;
 	readonly fix: string;
+	readonly needs: string;
 };
 
 const SLACK_DEPENDENCY = {
@@ -30,14 +31,23 @@ const SLACK_DEPENDENCY = {
 	label: "Slack",
 	resourceId: SLACK_WORKSPACE_RESOURCE_ID,
 	fix: "Connect Slack in Settings → Connections.",
-} as const satisfies AgentActionDependency;
+} as const;
 
 export const AGENT_ACTION_DEPENDENCIES = {
 	[AGENT_ACTION_TYPES.CRM_ACTIVITY_CREATE]: null,
 	[AGENT_ACTION_TYPES.RUN_SUMMARY]: null,
-	[AGENT_ACTION_TYPES.SLACK_MESSAGE_POST]: SLACK_DEPENDENCY,
-	[AGENT_ACTION_TYPES.SLACK_CHANNEL_OPEN]: SLACK_DEPENDENCY,
-	[AGENT_ACTION_TYPES.SLACK_CHANNEL_INVITE]: SLACK_DEPENDENCY,
+	[AGENT_ACTION_TYPES.SLACK_MESSAGE_POST]: {
+		...SLACK_DEPENDENCY,
+		needs: "Posting to Slack",
+	},
+	[AGENT_ACTION_TYPES.SLACK_CHANNEL_OPEN]: {
+		...SLACK_DEPENDENCY,
+		needs: "Opening a Slack channel",
+	},
+	[AGENT_ACTION_TYPES.SLACK_CHANNEL_INVITE]: {
+		...SLACK_DEPENDENCY,
+		needs: "Inviting people to a Slack channel",
+	},
 } as const satisfies Record<AgentActionType, AgentActionDependency | null>;
 
 export function actionDependency(

@@ -688,7 +688,7 @@ export function actionIntegrationIssues(
 		const dependency = actionDependency(action.type);
 		if (!dependency || integrations.has(dependency.resourceId)) return [];
 		return [
-			`Posting to ${dependency.label} needs ${dependency.label} in this agent's integrations.`,
+			`${dependency.needs} needs ${dependency.label} in this agent's integrations.`,
 		];
 	});
 }
