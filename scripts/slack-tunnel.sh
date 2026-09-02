@@ -8,7 +8,7 @@ port="${SLACK_TUNNEL_PORT:-3001}"
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 if [ -z "$hostname" ] && [ -f "$root/.env" ]; then
-	hostname="$(grep -E '^SLACK_TUNNEL_HOSTNAME=' "$root/.env" | tail -1 | cut -d= -f2- | tr -d '"' | tr -d "'" || true)"
+	hostname="$(grep -E '^SLACK_TUNNEL_HOSTNAME=' "$root/.env" | tail -1 | cut -d= -f2- | tr -d '"' | tr -d "'" | awk '{print $1}' || true)"
 fi
 
 if [ -z "$hostname" ]; then

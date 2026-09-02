@@ -124,10 +124,22 @@ export async function claimSlackChannel(
 	runId: string,
 	channelId: string,
 ): Promise<string | null> {
+	const trimmed = channelId.trim();
+	if (!trimmed) return null;
+
 	await db.agentRun.updateMany({
 		where: { id: runId, slackChannelId: null },
-		data: { slackChannelId: channelId.trim() },
+		data: { slackChannelId: trimmed },
 	});
 
 	return channelOfRun(runId);
+}
+
+export async function runWatchesSlackChannel(
+	runId: string,
+	channelId: string | null,
+): Promise<boolean> {
+	if (!channelId) return false;
+
+	return (await runOnSlackChannel(channelId)) === runId;
 }

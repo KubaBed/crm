@@ -57,12 +57,8 @@ export class SlackEventsController {
 			throw new UnauthorizedException("The Slack signature did not verify.");
 		}
 
-		let payload: unknown;
-		try {
-			payload = JSON.parse(body);
-		} catch {
-			return { ok: true };
-		}
+		const payload = schemas.slackEvents.readSlackEventBody(body);
+		if (!payload) return { ok: true };
 
 		const envelope = schemas.slackEvents.slackEnvelope.safeParse(payload);
 
@@ -82,7 +78,7 @@ export class SlackEventsController {
 			teamId: team_id,
 			channelId: event.channel,
 			messageTs: event.ts,
-			payload: envelope.data,
+			payload,
 		});
 
 		this.logger.log({

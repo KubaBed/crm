@@ -20,7 +20,11 @@ import { AGENT_ACTION_EXECUTORS, isAgentActionType } from "./agent-actions";
 import { readCrmHistory } from "./crm";
 import { DISPATCH } from "./dispatch-config";
 import { searchCrm } from "./lookup";
-import { channelOfRun, claimSlackChannel } from "./run-resume";
+import {
+	channelOfRun,
+	claimSlackChannel,
+	runWatchesSlackChannel,
+} from "./run-resume";
 import {
 	type LockedAgentRun,
 	lockAgentRun,
@@ -1136,7 +1140,7 @@ export async function openRunSlackChannel(
 			actionId: existing.id,
 			channelId: existing.externalId,
 			channelName,
-			watching: (await channelOfRun(runId)) === existing.externalId,
+			watching: await runWatchesSlackChannel(runId, existing.externalId),
 			owner: null,
 			result: readAgentActionResult(existing.type, existing.result),
 			replayed: true,
@@ -1158,7 +1162,7 @@ export async function openRunSlackChannel(
 			actionId: claim.actionId,
 			channelId: claim.externalId,
 			channelName,
-			watching: (await channelOfRun(runId)) === claim.externalId,
+			watching: await runWatchesSlackChannel(runId, claim.externalId),
 			owner: null,
 			result: claim.result,
 			replayed: true,
@@ -1170,7 +1174,8 @@ export async function openRunSlackChannel(
 		const outcome = await createSlackChannel(channelName, input.isPrivate);
 		if ("error" in outcome) throw new Error(outcome.error);
 
-		const watching = await claimSlackChannel(runId, outcome.id);
+		await claimSlackChannel(runId, outcome.id);
+		const watching = await runWatchesSlackChannel(runId, outcome.id);
 		const owner = await addDealOwner(runId, outcome.id).catch((error) => ({
 			added: false as const,
 			reason: error instanceof Error ? error.message : String(error),
@@ -1185,7 +1190,7 @@ export async function openRunSlackChannel(
 			actionId: claim.actionId,
 			channelId: outcome.id,
 			channelName: outcome.name,
-			watching: watching === outcome.id,
+			watching,
 			owner,
 			result,
 			replayed: false,

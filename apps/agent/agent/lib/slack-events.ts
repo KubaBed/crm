@@ -135,21 +135,22 @@ export async function dispatchSlackEvent(
 
 export async function drainSlackEvents(send: SendFn): Promise<number> {
 	const ids = await pendingSlackEventIds();
+	let resumed = 0;
 
-	const outcomes = await Promise.all(
-		ids.map((id) =>
-			dispatchSlackEvent(id, send).catch((error) => {
-				console.error(
-					`[agent] Slack event ${id} could not be dispatched: ${
-						error instanceof Error ? error.message : String(error)
-					}`,
-				);
-				return null;
-			}),
-		),
-	);
+	for (const id of ids) {
+		const outcome = await dispatchSlackEvent(id, send).catch((error) => {
+			console.error(
+				`[agent] Slack event ${id} could not be dispatched: ${
+					error instanceof Error ? error.message : String(error)
+				}`,
+			);
+			return null;
+		});
 
-	return outcomes.filter((outcome) => outcome?.resumed).length;
+		if (outcome?.resumed) resumed += 1;
+	}
+
+	return resumed;
 }
 
 export function describe(event: SlackEvent): string {

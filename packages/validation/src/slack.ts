@@ -20,7 +20,12 @@ export const createPayload = z.object({
 export const createReply = z.object({
 	ok: z.boolean(),
 	error: z.string().optional(),
-	channel: z.object({ id: z.string(), name: z.string() }).optional(),
+	channel: z
+		.object({
+			id: z.string().trim().min(1),
+			name: z.string().trim().min(1),
+		})
+		.optional(),
 });
 
 export const reply = z.object({

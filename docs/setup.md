@@ -70,6 +70,11 @@ the variable can be dropped from the command.
 Paste the printed URL into the Slack app's Event Subscriptions page and
 subscribe to `message.channels`, `app_mention` and `member_joined_channel`.
 
+**Set `SLACK_SIGNING_SECRET` before you paste the URL.** It is the Signing Secret
+on the Slack app's Basic Information page. The API refuses every unsigned request,
+including Slack's first URL verification, so without it the page never verifies
+and delivery never starts.
+
 **Socket Mode swallows events.** With Socket Mode on, the Request URL still shows
 "Verified" and no HTTP delivery ever happens. Turn it off.
 

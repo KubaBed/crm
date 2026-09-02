@@ -1,8 +1,23 @@
-import { beforeEach, describe, expect, it } from "bun:test";
+import {
+	afterAll,
+	beforeAll,
+	beforeEach,
+	describe,
+	expect,
+	it,
+} from "bun:test";
+import type { Server } from "node:http";
+import type { AddressInfo } from "node:net";
 import { signBody } from "@crm/auth";
 import type { SlackEnvelope, SlackEvent } from "@crm/validation";
 import { UnauthorizedException } from "@nestjs/common";
-import { SlackEventsController } from "../src/slack/slack-events.controller";
+import express from "express";
+import { SLACK } from "../src/slack/slack-config";
+import {
+	SLACK_EVENTS_PATH,
+	SlackEventsController,
+} from "../src/slack/slack-events.controller";
+import { slackEventsBody } from "../src/slack/slack-events-body";
 
 const secret = "test-signing-secret";
 
@@ -165,6 +180,20 @@ describe("the Slack events endpoint", () => {
 		expect(stored).toHaveLength(0);
 	});
 
+	it("answers 200 to a signed body that is not JSON at all", async () => {
+		const body = "not json";
+		const timestamp = String(Math.floor(Date.now() / 1000));
+
+		const result = await controller.events(
+			Buffer.from(body),
+			timestamp,
+			signBody(body, timestamp, secret),
+		);
+
+		expect(result).toEqual({ ok: true });
+		expect(stored).toHaveLength(0);
+	});
+
 	it("refuses everything when no signing secret is configured", async () => {
 		const unconfigured = new SlackEventsController(agent, {
 			get: () => undefined,
@@ -184,15 +213,46 @@ describe("the Slack events endpoint", () => {
 });
 
 describe("the Slack events body cap", () => {
-	it("uses Express raw middleware with an explicit size limit, then verifies", async () => {
-		const source = await Bun.file(
-			new URL("../src/create-app.ts", import.meta.url),
-		).text();
+	let server: Server;
+	let origin = "";
 
-		expect(source).toContain(
-			'raw({ type: "*/*", limit: SLACK.events.maxBodyBytes })',
-		);
-		expect(source).not.toContain("collectRawBody");
-		expect(source).toContain("SLACK_EVENTS_PATH");
+	beforeAll(async () => {
+		const app = express();
+		app.use(SLACK_EVENTS_PATH, slackEventsBody);
+		app.post(SLACK_EVENTS_PATH, (request, response) => {
+			response.json({
+				bytes: Buffer.isBuffer(request.body) ? request.body.length : -1,
+			});
+		});
+
+		server = app.listen(0);
+		await new Promise((resolve) => server.once("listening", resolve));
+
+		const { port } = server.address() as AddressInfo;
+		origin = `http://127.0.0.1:${port}`;
+	});
+
+	afterAll(() => {
+		server.close();
+	});
+
+	const send = (bytes: number) =>
+		fetch(`${origin}${SLACK_EVENTS_PATH}`, {
+			method: "POST",
+			headers: { "content-type": "application/json" },
+			body: "x".repeat(bytes),
+		});
+
+	it("hands a body under the cap to the controller as a buffer", async () => {
+		const response = await send(64);
+
+		expect(response.status).toBe(200);
+		expect(await response.json()).toEqual({ bytes: 64 });
+	});
+
+	it("refuses a body over the cap, so an unsigned stream cannot exhaust memory", async () => {
+		const response = await send(SLACK.events.maxBodyBytes + 1);
+
+		expect(response.status).toBe(413);
 	});
 });

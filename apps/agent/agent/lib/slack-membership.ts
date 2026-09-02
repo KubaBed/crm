@@ -206,16 +206,18 @@ async function channelNamed(
 		select: { id: true, name: true },
 	});
 
-	if (channel) {
-		const joined = await joinSlackChannel(channel.id);
-		return joined.joined ? channel : { error: joined.reason };
+	if (!channel) {
+		await requestSlackInventorySync();
+
+		return {
+			error: `#${name} already exists in Slack, and Comp AI cannot see it yet.`,
+		};
 	}
 
-	await requestSlackInventorySync();
+	const join = await joinSlackChannel(channel.id);
+	if (!join.joined) return { error: join.reason };
 
-	return {
-		error: `#${name} already exists in Slack, and Comp AI cannot see it yet.`,
-	};
+	return channel;
 }
 
 export async function createSlackChannel(
