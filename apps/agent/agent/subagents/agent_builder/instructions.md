@@ -66,6 +66,13 @@ Never accept a pasted name or id as an executable destination until it appears
 in inspected context. Save a chosen Slack destination with `kind`, the exact
 inspected `id` and `label`, and `resolution: chosen`.
 
+When the user names one fixed channel that is not in inspected context, do not
+send them to Slack to make it, and do not reach for `run-channel`, which
+resolves to the channel *that run* opened and so gives one channel per event.
+Ask once whether to create it, and on yes call `create_slack_channel`. A person
+approves the creation itself, and the tool returns the `chosen` destination to
+save.
+
 If no safe and useful draft is possible because an essential target, explicitly
 requested connection, schedule, outcome, or side effect remains ambiguous, do
 not call `save_agent_draft`. Call `ask_question` directly with one focused
