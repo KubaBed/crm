@@ -859,6 +859,26 @@ describe("agent builder draft input", () => {
 		).toEqual([]);
 	});
 
+	it("names the Slack action that needs the integration", () => {
+		const actions: DraftAction[] = [
+			{
+				type: "slack.channel.open",
+				provider: "slack",
+				summary: "Open a customer channel",
+			},
+			{
+				type: "slack.channel.invite",
+				provider: "slack",
+				summary: "Invite the buyer",
+			},
+		];
+
+		expect(actionIntegrationIssues(actions, [])).toEqual([
+			"Opening a Slack channel needs Slack in this agent's integrations.",
+			"Inviting people to a Slack channel needs Slack in this agent's integrations.",
+		]);
+	});
+
 	it("trims trigger metadata and rejects blank text", () => {
 		const base = {
 			name: "Renewal prep",

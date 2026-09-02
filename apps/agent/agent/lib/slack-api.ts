@@ -19,6 +19,21 @@ export type SlackOutcome<T> =
 const UNREADABLE = "unreadable_reply";
 const RATELIMITED = "ratelimited";
 const REJECTED = "rejected";
+export const SLACK_UNREACHABLE = "unreachable";
+
+async function reach<T extends Reply>(
+	call: () => Promise<Response>,
+	handle: (response: Response) => Promise<SlackOutcome<T>>,
+): Promise<SlackOutcome<T>> {
+	let response: Response;
+	try {
+		response = await call();
+	} catch {
+		return { ok: false, error: SLACK_UNREACHABLE };
+	}
+
+	return handle(response);
+}
 
 async function read<T extends Reply>(
 	response: Response,
@@ -51,21 +66,24 @@ export async function slackPost<T extends Reply>(
 	schema: z.ZodType<T>,
 	attempt = 1,
 ): Promise<SlackOutcome<T>> {
-	const response = await fetch(`https://slack.com/api/${method}`, {
-		method: "POST",
-		headers: {
-			authorization: `Bearer ${token}`,
-			"content-type": "application/json; charset=utf-8",
-		},
-		body: JSON.stringify(body),
-		signal: AbortSignal.timeout(SLACK.request.timeoutMs),
-	});
-
-	return read(
-		response,
-		schema,
-		() => slackPost(token, method, body, schema, attempt + 1),
-		attempt,
+	return reach(
+		() =>
+			fetch(`https://slack.com/api/${method}`, {
+				method: "POST",
+				headers: {
+					authorization: `Bearer ${token}`,
+					"content-type": "application/json; charset=utf-8",
+				},
+				body: JSON.stringify(body),
+				signal: AbortSignal.timeout(SLACK.request.timeoutMs),
+			}),
+		(response) =>
+			read(
+				response,
+				schema,
+				() => slackPost(token, method, body, schema, attempt + 1),
+				attempt,
+			),
 	);
 }
 
@@ -81,15 +99,18 @@ export async function slackGet<T extends Reply>(
 		url.searchParams.set(key, value);
 	}
 
-	const response = await fetch(url, {
-		headers: { authorization: `Bearer ${token}` },
-		signal: AbortSignal.timeout(SLACK.request.timeoutMs),
-	});
-
-	return read(
-		response,
-		schema,
-		() => slackGet(token, method, query, schema, attempt + 1),
-		attempt,
+	return reach(
+		() =>
+			fetch(url, {
+				headers: { authorization: `Bearer ${token}` },
+				signal: AbortSignal.timeout(SLACK.request.timeoutMs),
+			}),
+		(response) =>
+			read(
+				response,
+				schema,
+				() => slackGet(token, method, query, schema, attempt + 1),
+				attempt,
+			),
 	);
 }

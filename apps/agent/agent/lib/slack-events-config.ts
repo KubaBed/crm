@@ -5,4 +5,5 @@ export const SLACK_EVENTS = {
 	batch: 20,
 	maxTextChars: 2_000,
 	leaseMs: MINUTE_MS,
+	retryUndeliveredForMs: 5 * MINUTE_MS,
 } as const;

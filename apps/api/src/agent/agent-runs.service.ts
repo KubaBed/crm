@@ -8,6 +8,7 @@ import {
 	ConflictException,
 	ForbiddenException,
 	Injectable,
+	Logger,
 	NotFoundException,
 } from "@nestjs/common";
 import { InjectDatabase } from "../database/database.constants";
@@ -30,6 +31,8 @@ const RUN_EVENT_LIMIT = 200;
 
 @Injectable()
 export class AgentRunsService {
+	private readonly logger = new Logger(AgentRunsService.name);
+
 	constructor(
 		@InjectDatabase() private readonly db: Db,
 		private readonly access: AgentAccessService,
@@ -112,7 +115,7 @@ export class AgentRunsService {
 			})),
 			actions: run.actions.map((action) => ({
 				...action,
-				result: listedActionResult(action.type, action.result),
+				result: this.listedActionResult(action.type, action.result),
 				plannedAt: action.plannedAt.toISOString(),
 				startedAt: action.startedAt?.toISOString() ?? null,
 				completedAt: action.completedAt?.toISOString() ?? null,
@@ -445,12 +448,16 @@ export class AgentRunsService {
 			throw new BadRequestException("That run request has already been used.");
 		}
 	}
-}
 
-function listedActionResult(type: string, value: Prisma.JsonValue | null) {
-	try {
-		return readAgentActionResult(type, value);
-	} catch {
-		return null;
+	private listedActionResult(type: string, value: Prisma.JsonValue | null) {
+		try {
+			return readAgentActionResult(type, value);
+		} catch (error) {
+			this.logger.warn(
+				{ message: "An agent action result could not be read", type },
+				error instanceof Error ? error.stack : String(error),
+			);
+			return null;
+		}
 	}
 }
