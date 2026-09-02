@@ -1,3 +1,4 @@
+import type { EveInstrumentationStepStartedEventInput } from "@inference/tracing/eve";
 import { z } from "zod";
 import { TRACING } from "./tracing-config";
 
@@ -53,8 +54,10 @@ const sessionAuth = z.object({
 	current: principal.nullish(),
 });
 
-export function principalOf(auth: unknown): string | null {
-	const parsed = sessionAuth.safeParse(auth);
+type TraceSession = EveInstrumentationStepStartedEventInput["session"];
+
+export function principalOf(session: TraceSession): string | null {
+	const parsed = sessionAuth.safeParse(session.auth);
 	if (!parsed.success) return null;
 
 	for (const held of [parsed.data.initiator, parsed.data.current]) {

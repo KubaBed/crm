@@ -10,6 +10,7 @@ import {
 import { TRACING } from "./lib/tracing-config";
 
 const destination = resolveTraceDestination(process.env);
+const exporter = destination.kind === "inference" ? destination : null;
 
 if (destination.kind === "off") {
 	console.log(
@@ -22,14 +23,10 @@ if (destination.kind === "off") {
 }
 
 export default defineCatalystEveInstrumentation({
-	...(destination.kind === "inference"
-		? {
-				token: destination.token,
-				endpoint: destination.endpoint,
-				serviceName: destination.serviceName,
-				functionId: destination.serviceName,
-			}
-		: {}),
+	token: exporter?.token,
+	endpoint: exporter?.endpoint,
+	serviceName: exporter?.serviceName,
+	functionId: exporter?.serviceName,
 
 	recordInputs: TRACING.content.recordInputs,
 	recordOutputs: TRACING.content.recordOutputs,
@@ -38,17 +35,18 @@ export default defineCatalystEveInstrumentation({
 
 	events: {
 		"step.started"(input) {
-			const userId = principalOf(input.session.auth);
+			const userId = principalOf(input.session);
 			const span = trace.getActiveSpan();
 
 			span?.setAttribute(TRACING.attributes.convoId, input.session.id);
 			if (userId) span?.setAttribute(TRACING.attributes.userId, userId);
 
+			const convo = { [TRACING.attributes.convoId]: input.session.id };
+
 			return {
-				runtimeContext: {
-					[TRACING.attributes.convoId]: input.session.id,
-					...(userId ? { [TRACING.attributes.userId]: userId } : {}),
-				},
+				runtimeContext: userId
+					? { ...convo, [TRACING.attributes.userId]: userId }
+					: convo,
 			};
 		},
 	},

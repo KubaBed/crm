@@ -68,35 +68,58 @@ describe("principalOf", () => {
 	it("prefers the session initiator, so a subagent is attributed to the rep", () => {
 		expect(
 			principalOf({
-				initiator: human("user_root"),
-				current: human("user_kid"),
+				id: "session_1",
+				auth: {
+					initiator: human("user_root"),
+					current: human("user_kid"),
+				},
 			}),
 		).toBe("user_root");
 	});
 
 	it("falls back to the current principal", () => {
-		expect(principalOf({ current: human("user_kid") })).toBe("user_kid");
+		expect(
+			principalOf({ id: "session_1", auth: { current: human("user_kid") } }),
+		).toBe("user_kid");
 	});
 
 	it("refuses the background runtime principal, which is not a person", () => {
-		expect(principalOf({ initiator: service, current: service })).toBeNull();
+		expect(
+			principalOf({
+				id: "session_1",
+				auth: { initiator: service, current: service },
+			}),
+		).toBeNull();
 	});
 
 	it("finds the human when a background principal is also present", () => {
 		expect(
-			principalOf({ initiator: service, current: human("user_rep") }),
+			principalOf({
+				id: "session_1",
+				auth: { initiator: service, current: human("user_rep") },
+			}),
 		).toBe("user_rep");
 	});
 
 	it("reads an unauthenticated session as nobody rather than throwing", () => {
-		expect(principalOf({ initiator: null, current: null })).toBeNull();
-		expect(principalOf({})).toBeNull();
+		expect(
+			principalOf({
+				id: "session_1",
+				auth: { initiator: null, current: null },
+			}),
+		).toBeNull();
+		expect(principalOf({ id: "session_1", auth: {} })).toBeNull();
+		expect(principalOf({ id: "session_1" })).toBeNull();
 	});
 
 	it("refuses a shape it does not recognise", () => {
-		expect(principalOf(undefined)).toBeNull();
-		expect(principalOf("nonsense")).toBeNull();
-		expect(principalOf({ initiator: { principalId: "x" } })).toBeNull();
+		expect(principalOf({ id: "session_1", auth: "nonsense" })).toBeNull();
+		expect(
+			principalOf({
+				id: "session_1",
+				auth: { initiator: { principalId: "x" } },
+			}),
+		).toBeNull();
 	});
 });
 

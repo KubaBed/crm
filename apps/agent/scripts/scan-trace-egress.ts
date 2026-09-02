@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { gunzipSync } from "node:zlib";
+import { z } from "zod";
 
 const SKIP_KEYS = [
 	"workflow.",
@@ -27,6 +28,28 @@ const PATTERNS = [
 		re: /\b(divorce|cancer|diagnos\w+|pregnan\w+|redundan\w+|bereave\w+|compassionate leave|visa status|immigration)\b/gi,
 	},
 ] as const;
+
+const spanAttributeText = z.union([
+	z.string(),
+	z.json().transform((value) => JSON.stringify(value)),
+]);
+
+const traceSpan = z.object({
+	attributes: z.record(z.string(), spanAttributeText).default({}),
+	name: z.string().default(""),
+	span_id: z.string().default(""),
+	trace_id: z.string().default(""),
+});
+
+type TraceSpan = z.infer<typeof traceSpan>;
+
+function parseSpan(line: string): TraceSpan | null {
+	try {
+		return traceSpan.parse(JSON.parse(line));
+	} catch {
+		return null;
+	}
+}
 
 type Finding = {
 	spanId: string;
@@ -67,27 +90,15 @@ const byLabel = new Map<string, number>();
 let withContent = 0;
 
 for (const line of lines) {
-	let span: {
-		attributes?: Record<string, unknown>;
-		name?: string;
-		span_id?: string;
-		trace_id?: string;
-	};
-	try {
-		span = JSON.parse(line);
-	} catch {
-		continue;
-	}
+	const span = parseSpan(line);
+	if (span === null) continue;
 
-	const attributes = span.attributes ?? {};
-	const spanId = String(span.span_id ?? "");
+	const attributes = span.attributes;
+	const spanId = span.span_id;
 	let counted = false;
 
-	for (const [key, value] of Object.entries(attributes)) {
-		if (value === null || value === undefined) continue;
+	for (const [key, content] of Object.entries(attributes)) {
 		if (SKIP_KEYS.some((skip) => key.startsWith(skip))) continue;
-
-		const content = typeof value === "string" ? value : JSON.stringify(value);
 		if (content.length < MIN_LENGTH) continue;
 
 		if (!counted) {
@@ -104,9 +115,9 @@ for (const line of lines) {
 
 			const found = carriers.get(spanId) ?? {
 				spanId,
-				traceId: String(span.trace_id ?? ""),
-				kind: String(attributes["openinference.span.kind"] ?? ""),
-				name: String(span.name ?? ""),
+				traceId: span.trace_id,
+				kind: attributes["openinference.span.kind"] ?? "",
+				name: span.name,
 				labels: new Set<string>(),
 			};
 			found.labels.add(label);
