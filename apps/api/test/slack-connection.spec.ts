@@ -338,6 +338,19 @@ describe("Slack channel inventory", () => {
 		expect(requested).toEqual([]);
 	});
 
+	it("asks for a fill when the last one finished before this connection", async () => {
+		const { service, requested } = serviceFor({
+			accountUpdatedAt: new Date(),
+			channels: [],
+			lastFill: { finishedAt: new Date(Date.now() - 60_000) },
+		});
+
+		const result = await service.channels({}, userId);
+
+		expect(result.sync).toBe("syncing");
+		expect(requested).toHaveLength(1);
+	});
+
 	it("asks again when the last fill is older than the refill window", async () => {
 		const { service, requested } = serviceFor({
 			accountUpdatedAt: new Date("2026-08-10T10:00:00.000Z"),

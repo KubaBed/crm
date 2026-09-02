@@ -125,7 +125,8 @@ inventory holds no channel at all, so an inventory that was never filled fills
 itself instead of reading as an empty workspace forever. One fill answers the
 question: a workspace with no visible channel gets the same empty list back, so
 the page waits `SLACK.inventory.refillAfterMs` after the last fill finished
-before it asks again.
+before it asks again. A fill that finished before the current connection counts
+for nothing, because a reconnect can be a different workspace.
 
 ## Permissions are shown in groups, not one line each
 

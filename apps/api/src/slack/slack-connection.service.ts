@@ -32,6 +32,11 @@ import { SLACK, type SlackSyncState } from "./slack-config";
 const SLACK_WORKSPACE_RESOURCE_ID =
 	schemas.agents.CAPABILITY_RESOURCE_IDS.slack;
 
+function refillDue(filledAt: Date | null, connectedAt: Date): boolean {
+	if (!filledAt || filledAt < connectedAt) return true;
+	return Date.now() - filledAt.getTime() >= SLACK.inventory.refillAfterMs;
+}
+
 @Injectable()
 export class SlackConnectionService {
 	constructor(
@@ -210,28 +215,24 @@ export class SlackConnectionService {
 			this.db.slackWorkspaceGrant.findFirst({ select: { id: true } }),
 			this.peopleSyncState(),
 			this.db.agentTask.findFirst({
-				where: { kind: "slack-people-match" },
-				orderBy: { createdAt: "desc" },
+				where: { kind: "slack-people-match", finishedAt: { not: null } },
+				orderBy: { finishedAt: "desc" },
 				select: { finishedAt: true },
 			}),
 		]);
 
 		const page = rows.slice(0, take);
-		const lastFilledAt = lastFill?.finishedAt;
-		const refillDue =
-			!lastFilledAt ||
-			Date.now() - lastFilledAt.getTime() >= SLACK.inventory.refillAfterMs;
-		const missing =
-			sync === "idle" &&
-			!needle &&
-			page.length === 0 &&
-			refillDue &&
-			Boolean(
-				await this.db.account.findFirst({
+		const empty = sync === "idle" && !needle && page.length === 0;
+		const account = empty
+			? await this.db.account.findFirst({
 					where: { providerId: "slack", accessToken: { not: null } },
-					select: { id: true },
-				}),
-			);
+					orderBy: { updatedAt: "desc" },
+					select: { updatedAt: true },
+				})
+			: null;
+		const missing =
+			account !== null &&
+			refillDue(lastFill?.finishedAt ?? null, account.updatedAt);
 		if (missing) {
 			await this.agent.slackPeopleRequested(
 				"Fill the Slack channel inventory for the connections page",
