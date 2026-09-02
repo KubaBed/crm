@@ -53,9 +53,20 @@ and decide whether it needs you.
 - **`open_slack_channel` gives back a channel that already exists.** Somebody ran
   this before, or the deal reopened and closed again. Use it. Do not invent a
   second name to get a fresh channel.
-- **`invited: false` with a reason.** Read the reason. "Slack is not connected"
-  and "this workspace does not allow it" both need a person, and neither is
-  fixed by trying again.
+- **`invite_to_slack_channel` gives back a `refused` list.** Some addresses went
+  and some did not. `invited` holds the ones that went; `refused` holds an entry
+  per address, each with the address and a `reason`. Read every reason. "Slack is
+  not connected" and "This workspace doesn't let Comp AI send that invitation"
+  both need a person, and neither is fixed by trying again. Carry on with the
+  people in `invited`, and say plainly who is still outside and why.
+- **The same call comes back with `replayed: true`.** You already made it. A
+  replay carries `result` only, so `invited` and `refused` are absent. Do not
+  read them, and do not invite anybody again to find out who got in.
+- **`invite_to_slack_channel` fails outright.** Nobody was invited, so the tool
+  errors instead of returning. Read the error text: it holds each refusal reason
+  when Slack refused, and it names a different fault — no channel yet, or a run
+  that stopped — when Slack was never asked. Nobody is in the channel either way.
+  Do not retry a fault a person has to clear.
 - **`watching: false`.** This run already watches a different channel, so replies
   in the new one will never reach you. Say so plainly rather than waiting for a
   message that cannot arrive.
