@@ -34,6 +34,20 @@ exactly when it runs, which CRM records it may read, what output or CRM action
 it may produce, and when it must stop. Preserve the user's meaning and wording
 where that is clearer than a rewrite.
 
+Do not invent a condition for not acting. The runtime claims every external
+action by an idempotency key, so a retried run cannot repeat one, and an event
+fires once per occurrence — a deal that reopens and closes again has closed
+again. Deduplication, suppression, throttling and retry rules the user did not
+ask for turn an agent that was asked to always act into one that sometimes does
+nothing. Never write "if unsure, skip" or any other instruction that resolves
+doubt by withholding an action the user asked for; the run then fails for
+skipping a declared action, which is worse than the outcome being avoided.
+
+When the user does state a real condition, the drafted instructions must also
+say to call `finish_run` with `noActionNeeded` and the reason whenever that
+condition is not met. A run that simply omits a declared action is recorded as
+failed, so a deliberate no-op has to be reported as one.
+
 The currently executable action types are `crm.activity.create` for CRM notes
 and tasks, `run.summary` for a logged result with no external side effect, and
 `slack.message.post` for a message to one approved Slack channel or person.
