@@ -258,6 +258,54 @@ describe("opening a channel as a deployed run", () => {
 		expect(created).toBe(1);
 	});
 
+	it("keeps the channel the run owns instead of opening a second one", async () => {
+		const runId = await makeRun([openAction, summaryAction]);
+		const first = newChannelId();
+		const second = newChannelId();
+		let next = first;
+		slackReplies((url) => {
+			if (!url.includes("conversations.create")) return { ok: true };
+			created += 1;
+			return {
+				ok: true,
+				channel: {
+					id: next,
+					name: next === first ? "acme-onboarding" : "acme-billing",
+				},
+			};
+		});
+
+		await openRunSlackChannel(runId, "open-1", {
+			name: "Acme Onboarding",
+			isPrivate: false,
+		});
+		next = second;
+		const again = await openRunSlackChannel(runId, "open-2", {
+			name: "Acme Billing",
+			isPrivate: false,
+		});
+
+		expect(created).toBe(1);
+		expect(again).toMatchObject({
+			channelId: first,
+			channelName: "acme-onboarding",
+			watching: true,
+		});
+		expect(await channelOfRun(runId)).toBe(first);
+
+		const stored = await db.slackChannel.findMany({
+			where: { id: { in: [first, second] } },
+			select: { id: true },
+		});
+		expect(stored.map((row) => row.id)).toEqual([first]);
+
+		const action = await db.agentAction.findUnique({
+			where: { idempotencyKey: `${runId}:open-2` },
+			select: { status: true, externalId: true },
+		});
+		expect(action).toMatchObject({ status: "SUCCEEDED", externalId: first });
+	});
+
 	it("adds the deal owner when Slack knows them", async () => {
 		const dealId = `deal-${crypto.randomUUID()}`;
 		dealIds.push(dealId);
