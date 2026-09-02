@@ -24,7 +24,7 @@ when a term actually gets resolved.
 │   ├── comp-palette.md
 │   └── i18n.md
 ├── apps/       api · app · agent
-└── packages/   auth · db · email · env · telemetry · typescript-config · ui · validation
+└── packages/   auth · db · env · telemetry · typescript-config · ui · validation
 ```
 
 ## This is vocabulary, not routing

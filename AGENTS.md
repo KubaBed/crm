@@ -107,7 +107,7 @@ Node module that cannot exist in a browser.
 "use client";
 import { describeSlackScopes, SLACK_SCOPE_GROUPS } from "@crm/auth";
 
-export function ScopeGroups({ scopes }: { scopes: string[] }) {
+export function SlackScopeGroups({ scopes }: { scopes: string[] }) {
   const groups = SLACK_SCOPE_GROUPS.map(...)
 }
 ```
@@ -116,24 +116,34 @@ export function ScopeGroups({ scopes }: { scopes: string[] }) {
 
 ```tsx
 // slack/page.tsx — server
-import { describeSlackScopes, SLACK_SCOPE_GROUPS } from "@crm/auth";
+import { SLACK_REQUESTED_SCOPES } from "@crm/auth";
 
-const groups = groupScopes(status.scopes);
-return <ScopeGroups caption={SCOPE_CAPTION} groups={groups} />;
+return (
+  <SlackScopeGroups
+    groups={groupScopes([...SLACK_REQUESTED_SCOPES])}
+    title="What you are handing over"
+    withheld={[]}
+  />
+);
 ```
 
 ```tsx
-// scope-groups.tsx — client
+// slack/slack-scope-groups.tsx — client
 "use client";
 
-export type ScopeGroup = { id: string; label: string; scopes: ScopeLine[] };
+export type ScopeGroup = { id: string; label: string; summary: string; scopes: ScopeLine[] };
 
-export function ScopeGroups({ groups }: { groups: ScopeGroup[] }) { … }
+export function SlackScopeGroups({
+  title,
+  groups,
+  withheld,
+}: { title: string; groups: ScopeGroup[]; withheld: ScopeLine[] }) { … }
 ```
 
-`scope-groups.tsx` is the real example, and it is deliberately provider-agnostic:
-the caption and the withheld-scope note arrive as props, so no Slack wording is
-stranded in a component another provider will reuse.
+`apps/app/app/(app)/[slug]/settings/connections/slack/slack-scope-groups.tsx` is
+the real one. Every string it shows — the heading, the withheld-scope note —
+arrives as a prop, so the component holds no wording of its own and the page
+stays the only place that knows about Slack.
 
 Rules that follow:
 
