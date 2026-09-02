@@ -728,7 +728,9 @@ export function withheldActionIssues(
 	instructions: string,
 	actions: DraftAction[],
 ): string[] {
-	if (!actions.some((action) => actionDependency(action.type) !== null)) {
+	if (
+		!actions.some((action) => action.type !== AGENT_ACTION_TYPES.RUN_SUMMARY)
+	) {
 		return [];
 	}
 

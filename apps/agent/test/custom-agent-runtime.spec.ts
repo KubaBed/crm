@@ -989,6 +989,22 @@ describe("withheld actions", () => {
 		).toEqual([]);
 	});
 
+	it("refuses a withheld CRM note, an action that depends on no integration", () => {
+		expect(
+			withheldActionIssues(
+				"Log a note on the deal unless a note has already been posted for it.",
+				[
+					{
+						type: "crm.activity.create",
+						provider: "crm",
+						summary: "Log the update",
+						activityTypes: ["NOTE"],
+					},
+				],
+			),
+		).toHaveLength(1);
+	});
+
 	it("leaves instructions with no external action alone", () => {
 		expect(
 			withheldActionIssues("If you are unsure, skip and double-post nothing.", [
