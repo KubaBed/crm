@@ -3,8 +3,11 @@ import { always } from "eve/tools/approval";
 import { z } from "zod";
 import { requireBuilderAttribute } from "../../../lib/session-purpose";
 import { toChannelName } from "../../../lib/slack-channel-name";
-import { createSlackChannel } from "../../../lib/slack-membership";
-import { refreshSlackChannels } from "../../../lib/slack-people";
+import {
+	createSlackChannel,
+	joinSlackChannel,
+} from "../../../lib/slack-membership";
+import { requestSlackInventorySync } from "../../../lib/slack-people";
 
 export default defineTool({
 	description:
@@ -25,7 +28,14 @@ export default defineTool({
 		const outcome = await createSlackChannel(name, input.isPrivate);
 		if ("error" in outcome) throw new Error(outcome.error);
 
-		await refreshSlackChannels();
+		const join = await joinSlackChannel(outcome.id);
+		if (!join.joined) {
+			throw new Error(
+				`Slack has #${outcome.name}, and Comp AI cannot post in it: ${join.reason}`,
+			);
+		}
+
+		await requestSlackInventorySync();
 
 		return {
 			created: true,

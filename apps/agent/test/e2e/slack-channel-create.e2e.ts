@@ -104,6 +104,7 @@ async function main() {
 		parsed.success ? "parses as a chosen destination" : "manifest rejected it",
 	);
 
+	await db.slackChannel.delete({ where: { id: outcome.id } });
 	await refreshSlackChannels();
 	const cached = await db.slackChannel.findUnique({
 		where: { id: outcome.id },

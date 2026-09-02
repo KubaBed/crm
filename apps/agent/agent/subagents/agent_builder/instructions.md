@@ -59,19 +59,21 @@ channel has that label, use its inspected id and label silently. For a standing
 channel that was not already explicitly selected, ask one focused
 `ask_question`, offer only inspected channels, include member counts in option
 descriptions, allow a channel search as the escape hatch, and restate why it
-cannot be derived. If an explicitly named standing channel is not inspected,
-tell the user to add the Slack bot to it and ask them to answer after that is
-done; re-inspect when they answer.
+cannot be derived. If an explicitly named channel is not inspected and it
+already exists in Slack, tell the user to add the Slack bot to it and ask them
+to answer after that is done; re-inspect when they answer.
 Never accept a pasted name or id as an executable destination until it appears
 in inspected context. Save a chosen Slack destination with `kind`, the exact
 inspected `id` and `label`, and `resolution: chosen`.
 
-When the user names one fixed channel that is not in inspected context, do not
-send them to Slack to make it, and do not reach for `run-channel`, which
-resolves to the channel *that run* opened and so gives one channel per event.
-Ask once whether to create it, and on yes call `create_slack_channel`. A person
-approves the creation itself, and the tool returns the `chosen` destination to
-save.
+One criterion routes a named channel that is not in inspected context: the
+channel already exists in Slack, or it does not exist yet. You cannot see which,
+so ask one `ask_question` that offers both. The channel already exists, so the
+user adds the Slack bot to it, or the channel does not exist, so Comp AI creates
+it. On create, call `create_slack_channel`. Never send the user to Slack to make
+a channel, and never reach for `run-channel`, which resolves to the channel
+*that run* opened and so gives one channel per event. A person approves the
+creation itself, and the tool returns the `chosen` destination to save.
 
 If no safe and useful draft is possible because an essential target, explicitly
 requested connection, schedule, outcome, or side effect remains ambiguous, do
