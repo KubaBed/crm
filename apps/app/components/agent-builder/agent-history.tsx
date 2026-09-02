@@ -18,6 +18,7 @@ import {
 import { Button } from "@crm/ui/components/button";
 import { Icon } from "@crm/ui/components/icon";
 import { Link } from "@crm/ui/components/link";
+import { Markdown } from "@crm/ui/components/markdown";
 import { cn } from "@crm/ui/lib/utils";
 import { useState } from "react";
 import { z } from "zod";
@@ -259,6 +260,17 @@ function ExpandedRun({ run }: { run: RunRow }) {
 				<RunMeta label="Model" value={run.modelId ?? "Gateway default"} />
 				<RunMeta label="Version" value={String(run.version.number)} last />
 			</div>
+
+			{run.summary ? (
+				<div className="border-b px-4 py-3 sm:px-5">
+					<p className="mb-1.5 font-medium text-muted-foreground text-xs">
+						What the agent reported
+					</p>
+					<Markdown className="min-w-0 wrap-break-word text-sm leading-5">
+						{run.summary}
+					</Markdown>
+				</div>
+			) : null}
 
 			<div>
 				{timeline.map((entry) =>
