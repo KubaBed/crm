@@ -1287,10 +1287,12 @@ export async function inviteToRunSlackChannel(
 		};
 	}
 
+	const { actionId, claimedAt } = claim;
 	try {
 		await assertRunActive(runId);
 		const outcomes = [];
 		for (const email of emails) {
+			await holdRunActionClaim(runId, actionId, claimedAt);
 			outcomes.push(await inviteToSlackChannel(channelId, email));
 		}
 

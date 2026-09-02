@@ -483,6 +483,55 @@ describe("inviting people as a deployed run", () => {
 		});
 	});
 
+	it("stops the rest of the invitations when the run is cancelled", async () => {
+		const runId = await makeRun([openAction, inviteAction, summaryAction]);
+		const channelId = newChannelId();
+		const asked: string[] = [];
+		globalThis.fetch = (async (
+			input: URL | RequestInfo,
+			init?: RequestInit,
+		) => {
+			const url = String(input instanceof Request ? input.url : input);
+			if (url.includes("conversations.inviteShared")) {
+				const body = JSON.parse(String(init?.body));
+				asked.push(String(body.emails[0]));
+				await db.agentRun.update({
+					where: { id: runId },
+					data: { status: "CANCELLED" },
+				});
+				return jsonReply({
+					ok: true,
+					invite_id: "I1",
+					url: "https://slack.com/invite/x",
+				});
+			}
+			if (url.includes("conversations.create")) {
+				return jsonReply({
+					ok: true,
+					channel: { id: channelId, name: "acme-onboarding" },
+				});
+			}
+			if (url.includes("users.lookupByEmail")) {
+				return jsonReply({ ok: false, error: "users_not_found" });
+			}
+			return jsonReply({ ok: true });
+		}) as typeof fetch;
+
+		await openRunSlackChannel(runId, "open-1", {
+			name: "Acme Onboarding",
+			isPrivate: false,
+		});
+
+		expect(
+			await refusal(
+				inviteToRunSlackChannel(runId, "invite-1", {
+					emails: ["first@customer.test", "second@customer.test"],
+				}),
+			),
+		).toBe("This agent run is not active.");
+		expect(asked).toEqual(["first@customer.test"]);
+	});
+
 	it("fails the action when Slack refuses every address", async () => {
 		const runId = await makeRun([openAction, inviteAction, summaryAction]);
 		const channelId = newChannelId();
