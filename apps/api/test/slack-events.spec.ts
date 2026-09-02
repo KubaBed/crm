@@ -148,7 +148,7 @@ describe("the Slack events endpoint", () => {
 		expect(stored).toHaveLength(0);
 	});
 
-	it("answers 200 for a redelivery rather than storing it twice", async () => {
+	it("answers 200 when the agent reports the event was already stored", async () => {
 		nextResult = { stored: false };
 
 		const result = await post(
