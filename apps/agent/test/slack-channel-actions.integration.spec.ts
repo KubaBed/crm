@@ -306,6 +306,74 @@ describe("opening a channel as a deployed run", () => {
 		expect(action).toMatchObject({ status: "SUCCEEDED", externalId: first });
 	});
 
+	it("refuses to reuse the channel it owns once that channel is archived", async () => {
+		const runId = await makeRun([openAction, summaryAction]);
+		const channelId = newChannelId();
+		slackReplies((url) => {
+			if (!url.includes("conversations.create")) return { ok: true };
+			created += 1;
+			return { ok: true, channel: { id: channelId, name: "acme-onboarding" } };
+		});
+
+		await openRunSlackChannel(runId, "open-1", {
+			name: "Acme Onboarding",
+			isPrivate: false,
+		});
+		await db.slackChannel.update({
+			where: { id: channelId },
+			data: { available: false },
+		});
+
+		const message = await refusal(
+			openRunSlackChannel(runId, "open-2", {
+				name: "Acme Billing",
+				isPrivate: false,
+			}),
+		);
+
+		expect(message).toContain("archived");
+		expect(created).toBe(1);
+		expect(await channelOfRun(runId)).toBe(channelId);
+	});
+
+	it("refuses to reuse the channel it owns once it cannot post there", async () => {
+		const runId = await makeRun([openAction, summaryAction]);
+		const channelId = newChannelId();
+		slackReplies((url) => {
+			if (url.includes("conversations.create")) {
+				created += 1;
+				return {
+					ok: true,
+					channel: { id: channelId, name: "acme-onboarding" },
+				};
+			}
+			if (url.includes("conversations.join")) {
+				return { ok: false, error: "channel_not_found" };
+			}
+			if (url.includes("conversations.info")) return { ok: false };
+			return { ok: true };
+		});
+
+		await openRunSlackChannel(runId, "open-1", {
+			name: "Acme Onboarding",
+			isPrivate: false,
+		});
+		await db.slackChannel.update({
+			where: { id: channelId },
+			data: { isMember: false },
+		});
+
+		const message = await refusal(
+			openRunSlackChannel(runId, "open-2", {
+				name: "Acme Billing",
+				isPrivate: false,
+			}),
+		);
+
+		expect(message).toContain("cannot post there");
+		expect(created).toBe(1);
+	});
+
 	it("adds the deal owner when Slack knows them", async () => {
 		const dealId = `deal-${crypto.randomUUID()}`;
 		dealIds.push(dealId);

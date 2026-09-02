@@ -33,7 +33,7 @@ import {
 import { toChannelName } from "./slack-channel-name";
 import { slackAccessToken } from "./slack-connection";
 import { type InviteOutcome, inviteToSlackChannel } from "./slack-invite";
-import { createSlackChannel } from "./slack-membership";
+import { createSlackChannel, joinSlackChannel } from "./slack-membership";
 import { addDealOwner } from "./slack-owner";
 
 const ACTION_LEASE_MS = DISPATCH.run.actionLeaseMs;
@@ -1211,11 +1211,23 @@ async function ownedRunChannel(runId: string): Promise<RunSlackChannel | null> {
 
 	const channel = await db.slackChannel.findUnique({
 		where: { id: channelId },
-		select: { name: true },
+		select: { name: true, available: true },
 	});
 	if (!channel) {
 		throw new Error(
 			`This run already works in Slack channel ${channelId}, and Comp AI cannot read it.`,
+		);
+	}
+	if (!channel.available) {
+		throw new Error(
+			`This run already works in Slack channel #${channel.name}, and that channel is archived.`,
+		);
+	}
+
+	const join = await joinSlackChannel(channelId);
+	if (!join.joined) {
+		throw new Error(
+			`This run already works in Slack channel #${channel.name}, and Comp AI cannot post there. ${join.reason}`,
 		);
 	}
 
