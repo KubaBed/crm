@@ -70,12 +70,12 @@ export async function resumeAgentRun(
 				principalType: APP_AUTH.principalType,
 				principalId: APP_AUTH.principalId,
 				attributes: {
+					...input.attributes,
 					purpose: "team-agent",
 					runId: run.id,
 					agentId: run.agentId,
 					versionId: run.versionId,
 					resumeSource: source,
-					...input.attributes,
 				},
 			},
 			continuationToken: runToken(run.id),

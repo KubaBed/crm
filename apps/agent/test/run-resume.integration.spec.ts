@@ -169,6 +169,35 @@ describe("resuming a parked run from an outside event", () => {
 		});
 	});
 
+	it("refuses a caller attribute that redirects the session", async () => {
+		deliveries.length = 0;
+		const runId = await makeRun({ status: "WAITING_FOR_APPROVAL" });
+
+		await resumeAgentRun(
+			{
+				runId,
+				message: "hijack",
+				source: "slack.message",
+				attributes: {
+					purpose: "research",
+					runId: "run-of-somebody-else",
+					agentId: "agent-of-somebody-else",
+					versionId: "version-of-somebody-else",
+					resumeSource: "made-up",
+				},
+			},
+			send,
+		);
+
+		expect(deliveries[0]?.attributes).toMatchObject({
+			purpose: "team-agent",
+			runId,
+			agentId,
+			versionId,
+			resumeSource: "slack.message",
+		});
+	});
+
 	it("refuses a finished run, so a late event cannot restart it", async () => {
 		for (const status of ["SUCCEEDED", "FAILED", "CANCELLED"] as const) {
 			deliveries.length = 0;
