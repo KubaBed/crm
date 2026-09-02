@@ -224,10 +224,16 @@ describe("turning a stored Slack event into a resume", () => {
 
 	it("drains every pending event and counts the resumes", async () => {
 		const channelId = `C-${crypto.randomUUID()}`;
-		await makeRun(channelId);
-		await inbox({ type: "message", channel: channelId, text: "a" }, channelId);
-		await inbox({ type: "message", channel: channelId, text: "b" }, channelId);
-		await inbox(
+		const runId = await makeRun(channelId);
+		const first = await inbox(
+			{ type: "message", channel: channelId, text: "a" },
+			channelId,
+		);
+		const second = await inbox(
+			{ type: "message", channel: channelId, text: "b" },
+			channelId,
+		);
+		const orphan = await inbox(
 			{ type: "message", channel: "C-nobody", text: "c" },
 			"C-nobody",
 		);
@@ -235,6 +241,20 @@ describe("turning a stored Slack event into a resume", () => {
 		const resumed = await drainSlackEvents(send);
 
 		expect(resumed).toBeGreaterThanOrEqual(2);
+
+		const rows = await db.slackEventInbox.findMany({
+			where: { id: { in: [first, second, orphan] } },
+			select: { id: true, processedAt: true, runId: true, outcome: true },
+		});
+
+		expect(rows).toHaveLength(3);
+		for (const row of rows) {
+			expect(row.processedAt).not.toBeNull();
+		}
+		expect(rows.filter((row) => row.runId === runId)).toHaveLength(2);
+		expect(rows.find((row) => row.id === orphan)?.outcome).toContain(
+			"No live agent run",
+		);
 	});
 });
 

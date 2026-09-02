@@ -200,17 +200,22 @@ async function channelNamed(
 	name: string,
 ): Promise<{ id: string; name: string } | { error: string }> {
 	const channel = await db.slackChannel.findFirst({
-		where: { name },
+		where: { name, available: true },
 		select: { id: true, name: true },
 	});
 
-	if (channel) return channel;
+	if (!channel) {
+		await requestSlackInventorySync();
 
-	await requestSlackInventorySync();
+		return {
+			error: `#${name} already exists in Slack, and Comp AI cannot see it yet.`,
+		};
+	}
 
-	return {
-		error: `#${name} already exists in Slack, and Comp AI cannot see it yet.`,
-	};
+	const join = await joinSlackChannel(channel.id);
+	if (!join.joined) return { error: join.reason };
+
+	return channel;
 }
 
 export async function createSlackChannel(
