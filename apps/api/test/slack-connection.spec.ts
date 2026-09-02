@@ -4,6 +4,7 @@ import type { Db } from "@crm/db";
 import type { AgentAccessService } from "../src/agent/agent-access.service";
 import type { AgentTriggerService } from "../src/agent/agent-trigger.service";
 import type { SlackChannelsService } from "../src/slack/slack-channels.service";
+import { SLACK } from "../src/slack/slack-config";
 import { SlackConnectionService } from "../src/slack/slack-connection.service";
 
 const userId = "crm-1";
@@ -30,6 +31,7 @@ function serviceFor(input: {
 		startedAt: Date | null;
 		leasedUntil: Date | null;
 	};
+	lastFill?: { finishedAt: Date | null };
 	grant?: boolean;
 	role?: WorkspaceRole;
 	channels?: Array<{
@@ -87,7 +89,10 @@ function serviceFor(input: {
 			findMany: async () => input.members ?? [],
 		},
 		agentTask: {
-			findFirst: async () => input.syncingTask ?? null,
+			findFirst: async (args: { where: { finishedAt?: null } }) =>
+				args.where.finishedAt === null
+					? (input.syncingTask ?? null)
+					: (input.lastFill ?? null),
 		},
 		slackChannel: {
 			findMany: async () => input.channels ?? [],
@@ -317,5 +322,34 @@ describe("Slack channel inventory", () => {
 
 		expect(result.sync).toBe("idle");
 		expect(requested).toEqual([]);
+	});
+
+	it("reports an empty workspace as empty once a fill has just finished", async () => {
+		const { service, requested } = serviceFor({
+			accountUpdatedAt: new Date("2026-08-10T10:00:00.000Z"),
+			channels: [],
+			lastFill: { finishedAt: new Date() },
+		});
+
+		const result = await service.channels({}, userId);
+
+		expect(result.rows).toEqual([]);
+		expect(result.sync).toBe("idle");
+		expect(requested).toEqual([]);
+	});
+
+	it("asks again when the last fill is older than the refill window", async () => {
+		const { service, requested } = serviceFor({
+			accountUpdatedAt: new Date("2026-08-10T10:00:00.000Z"),
+			channels: [],
+			lastFill: {
+				finishedAt: new Date(Date.now() - SLACK.inventory.refillAfterMs),
+			},
+		});
+
+		const result = await service.channels({}, userId);
+
+		expect(result.sync).toBe("syncing");
+		expect(requested).toHaveLength(1);
 	});
 });

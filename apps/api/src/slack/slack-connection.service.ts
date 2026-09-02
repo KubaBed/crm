@@ -190,7 +190,7 @@ export class SlackConnectionService {
 		const where: Prisma.SlackChannelWhereInput = { available: true };
 		if (needle) where.name = { contains: needle, mode: "insensitive" };
 
-		const [rows, grant, sync] = await Promise.all([
+		const [rows, grant, sync, lastFill] = await Promise.all([
 			this.db.slackChannel.findMany({
 				where,
 				orderBy: [{ isMember: "desc" }, { name: "asc" }, { id: "asc" }],
@@ -209,13 +209,23 @@ export class SlackConnectionService {
 			}),
 			this.db.slackWorkspaceGrant.findFirst({ select: { id: true } }),
 			this.peopleSyncState(),
+			this.db.agentTask.findFirst({
+				where: { kind: "slack-people-match" },
+				orderBy: { createdAt: "desc" },
+				select: { finishedAt: true },
+			}),
 		]);
 
 		const page = rows.slice(0, take);
+		const lastFilledAt = lastFill?.finishedAt;
+		const refillDue =
+			!lastFilledAt ||
+			Date.now() - lastFilledAt.getTime() >= SLACK.inventory.refillAfterMs;
 		const missing =
 			sync === "idle" &&
 			!needle &&
 			page.length === 0 &&
+			refillDue &&
 			Boolean(
 				await this.db.account.findFirst({
 					where: { providerId: "slack", accessToken: { not: null } },
