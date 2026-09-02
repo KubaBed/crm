@@ -1,11 +1,21 @@
 import { readFileSync } from "node:fs";
 import { gunzipSync } from "node:zlib";
 
-const SKIP_KEYS = ["workflow.", "messaging.", "rpc.", "http.", "$eve.", "step."];
+const SKIP_KEYS = [
+	"workflow.",
+	"messaging.",
+	"rpc.",
+	"http.",
+	"$eve.",
+	"step.",
+];
 const MIN_LENGTH = 12;
 
 const PATTERNS = [
-	{ label: "email address", re: /[\w.+-]+@[\w-]+(?:\.[\w-]+)*\.[A-Za-z]{2,}\b/g },
+	{
+		label: "email address",
+		re: /[\w.+-]+@[\w-]+(?:\.[\w-]+)*\.[A-Za-z]{2,}\b/g,
+	},
 	{ label: "UK mobile", re: /\b07\d{3}\s?\d{6}\b/g },
 	{ label: "UK postcode", re: /\b[A-Z]{1,2}\d[A-Z\d]?\s?\d[A-Z]{2}\b/g },
 	{ label: "US phone", re: /\b\(?\d{3}\)?[\s.-]\d{3}[\s.-]\d{4}\b/g },
