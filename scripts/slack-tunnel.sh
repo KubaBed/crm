@@ -10,7 +10,7 @@ env_value() {
 
 hostname="${SLACK_TUNNEL_HOSTNAME:-}"
 name="${SLACK_TUNNEL_NAME:-crm-dev}"
-port="${SLACK_TUNNEL_PORT:-${PORT:-}}"
+port="${SLACK_TUNNEL_PORT:-}"
 
 if [ -z "$hostname" ]; then
 	hostname="$(env_value SLACK_TUNNEL_HOSTNAME)"
@@ -18,6 +18,10 @@ fi
 
 if [ -z "$port" ]; then
 	port="$(env_value SLACK_TUNNEL_PORT)"
+fi
+
+if [ -z "$port" ]; then
+	port="${PORT:-}"
 fi
 
 if [ -z "$port" ]; then
