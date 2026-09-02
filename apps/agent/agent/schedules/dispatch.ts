@@ -53,6 +53,13 @@ export default defineSchedule({
 								message: "Resume the agent run a Slack event belongs to.",
 								target: { slackEventId },
 								auth: appAuth,
+							}).catch((error) => {
+								console.error(
+									`[agent] Slack event ${slackEventId} resumed no run: ${
+										error instanceof Error ? error.message : String(error)
+									}`,
+								);
+								return null;
 							}),
 						),
 					]);
