@@ -331,7 +331,7 @@ describe("opening a channel as a deployed run", () => {
 			}),
 		);
 
-		expect(message).toContain("archived");
+		expect(message).toContain("cannot reach that channel");
 		expect(created).toBe(1);
 		expect(await channelOfRun(runId)).toBe(channelId);
 	});

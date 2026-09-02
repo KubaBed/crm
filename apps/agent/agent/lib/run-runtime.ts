@@ -1220,7 +1220,7 @@ async function ownedRunChannel(runId: string): Promise<RunSlackChannel | null> {
 	}
 	if (!channel.available) {
 		throw new Error(
-			`This run already works in Slack channel #${channel.name}, and that channel is archived.`,
+			`This run already works in Slack channel #${channel.name}, and Comp AI cannot reach that channel any more.`,
 		);
 	}
 
