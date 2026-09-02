@@ -261,6 +261,49 @@ describe("turning a stored Slack event into a resume", () => {
 		);
 	});
 
+	it("keeps a channel message while the agent is paused, then replays it", async () => {
+		const channelId = `C-${crypto.randomUUID()}`;
+		const runId = await makeRun(channelId);
+		const id = await inbox(
+			{ type: "message", channel: channelId, text: "still here" },
+			channelId,
+		);
+		await db.agentDefinition.update({
+			where: { id: agentId },
+			data: { status: "PAUSED" },
+		});
+
+		const held = await dispatchSlackEvent(id, send);
+		const heldRow = await db.slackEventInbox.findUnique({
+			where: { id },
+			select: { processedAt: true },
+		});
+
+		await db.agentDefinition.update({
+			where: { id: agentId },
+			data: { status: "LIVE" },
+		});
+		await db.slackEventInbox.updateMany({
+			where: { id },
+			data: { leasedUntil: null },
+		});
+
+		const resumed = await dispatchSlackEvent(id, send);
+		const resumedRow = await db.slackEventInbox.findUnique({
+			where: { id },
+			select: { processedAt: true, runId: true },
+		});
+
+		expect(held?.resumed).toBe(false);
+		expect(held?.outcome).toContain("paused");
+		expect(heldRow?.processedAt).toBeNull();
+		expect(resumed?.resumed).toBe(true);
+		expect(deliveries).toHaveLength(1);
+		expect(deliveries[0]?.continuationToken).toBe(runToken(runId));
+		expect(resumedRow?.processedAt).not.toBeNull();
+		expect(resumedRow?.runId).toBe(runId);
+	});
+
 	it("keeps a fresh event for another try when the resume does not land", async () => {
 		const channelId = `C-${crypto.randomUUID()}`;
 		await makeRun(channelId);

@@ -6,6 +6,7 @@ import {
 	claimSlackChannel,
 	resumeAgentRun,
 	runOnSlackChannel,
+	slackChannelOwner,
 } from "../agent/lib/run-resume";
 
 const suffix = crypto.randomUUID();
@@ -332,6 +333,27 @@ describe("finding the run an event belongs to", () => {
 
 		expect(await claimSlackChannel(runId, first)).toBe(first);
 		expect(await claimSlackChannel(runId, second)).toBe(first);
+	});
+
+	it("reports the run a paused agent holds, rather than nobody", async () => {
+		const runId = await makeRun({ status: "WAITING_FOR_APPROVAL" });
+		const channelId = `C-${crypto.randomUUID()}`;
+		await claimSlackChannel(runId, channelId);
+		await db.agentDefinition.update({
+			where: { id: agentId },
+			data: { status: "PAUSED" },
+		});
+
+		const held = await slackChannelOwner(channelId);
+		const live = await runOnSlackChannel(channelId);
+
+		await db.agentDefinition.update({
+			where: { id: agentId },
+			data: { status: "LIVE" },
+		});
+
+		expect(held).toEqual({ kind: "held", runId, agentStatus: "PAUSED" });
+		expect(live).toBeNull();
 	});
 
 	it("reads an unknown or blank channel as nobody", async () => {

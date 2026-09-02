@@ -1,4 +1,5 @@
 import { db } from "@crm/db";
+import type { AgentDefinitionStatus } from "@crm/db/enums";
 import type { SendFn } from "eve/channels";
 import { APP_AUTH } from "./app-auth";
 import { runToken } from "./custom-agent-dispatch";
@@ -6,6 +7,11 @@ import { runToken } from "./custom-agent-dispatch";
 const LIVE_STATUSES = ["QUEUED", "RUNNING", "WAITING_FOR_APPROVAL"] as const;
 
 export type ResumedSession = Awaited<ReturnType<SendFn>>;
+
+export type SlackChannelOwner =
+	| { kind: "live"; runId: string }
+	| { kind: "held"; runId: string; agentStatus: AgentDefinitionStatus }
+	| { kind: "none" };
 
 export type ResumeOutcome =
 	| { kind: "resumed"; runId: string; session: ResumedSession }
@@ -93,11 +99,11 @@ export async function resumeAgentRun(
 	}
 }
 
-export async function runOnSlackChannel(
+export async function slackChannelOwner(
 	channelId: string,
-): Promise<string | null> {
+): Promise<SlackChannelOwner> {
 	const trimmed = channelId.trim();
-	if (!trimmed) return null;
+	if (!trimmed) return { kind: "none" };
 
 	const run = await db.agentRun.findFirst({
 		where: {
@@ -105,10 +111,22 @@ export async function runOnSlackChannel(
 			status: { in: [...LIVE_STATUSES] },
 		},
 		orderBy: { createdAt: "desc" },
-		select: { id: true },
+		select: { id: true, agent: { select: { status: true } } },
 	});
 
-	return run?.id ?? null;
+	if (!run) return { kind: "none" };
+
+	return run.agent.status === "LIVE"
+		? { kind: "live", runId: run.id }
+		: { kind: "held", runId: run.id, agentStatus: run.agent.status };
+}
+
+export async function runOnSlackChannel(
+	channelId: string,
+): Promise<string | null> {
+	const owner = await slackChannelOwner(channelId);
+
+	return owner.kind === "live" ? owner.runId : null;
 }
 
 export async function channelOfRun(runId: string): Promise<string | null> {

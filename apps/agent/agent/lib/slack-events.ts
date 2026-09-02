@@ -6,7 +6,7 @@ import type { SendFn } from "eve/channels";
 import {
 	type ResumedSession,
 	resumeAgentRun,
-	runOnSlackChannel,
+	slackChannelOwner,
 } from "./run-resume";
 import { SLACK_EVENTS } from "./slack-events-config";
 
@@ -94,11 +94,21 @@ export async function dispatchSlackEvent(
 	const envelope = schemas.slackEvents.eventCallback.safeParse(row.payload);
 	if (!envelope.success) return settle("The stored payload cannot be read.");
 
-	const runId = await runOnSlackChannel(row.channelId);
-	if (!runId) {
+	const owner = await slackChannelOwner(row.channelId);
+	if (owner.kind === "none") {
 		return settle(`No live agent run owns ${row.channelId}.`);
 	}
 
+	if (owner.kind === "held") {
+		const outcome = `Run ${owner.runId} cannot take the event: its agent is ${owner.agentStatus.toLowerCase()}.`;
+		const age = Date.now() - row.receivedAt.getTime();
+		if (age < SLACK_EVENTS.retryHeldForMs) {
+			return { eventId: row.eventId, resumed: false, outcome };
+		}
+		return settle(outcome);
+	}
+
+	const runId = owner.runId;
 	const result = await resumeAgentRun(
 		{
 			runId,
