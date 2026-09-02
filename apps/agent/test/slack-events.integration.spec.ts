@@ -244,7 +244,7 @@ describe("turning a stored Slack event into a resume", () => {
 
 		const resumed = await drainSlackEvents(send);
 
-		expect(resumed).toBeGreaterThanOrEqual(2);
+		expect(resumed).toBe(2);
 
 		const rows = await db.slackEventInbox.findMany({
 			where: { id: { in: [first, second, orphan] } },
