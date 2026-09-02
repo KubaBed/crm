@@ -1,8 +1,11 @@
 import { describe, expect, it } from "bun:test";
-import { agentManifest } from "@crm/validation/agent-manifest";
+import {
+	agentManifest,
+	type SlackDestination,
+} from "@crm/validation/agent-manifest";
 import { toChannelName } from "../agent/lib/slack-channel-name";
 
-const manifestWith = (destination: unknown) => ({
+const manifestWith = (destination: SlackDestination) => ({
 	actions: [
 		{
 			type: "slack.message.post",
