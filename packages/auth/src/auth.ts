@@ -105,6 +105,11 @@ const slackConnection = (
 				message: `Slack authorization failed (${grant.error ?? "rejected"}).`,
 			});
 		}
+		if (oauth.teamId && grant.team?.id !== oauth.teamId) {
+			throw new APIError("BAD_REQUEST", {
+				message: `Slack installed into workspace ${grant.team?.id ?? "unknown"}, and this CRM is pinned to ${oauth.teamId}.`,
+			});
+		}
 		await rememberSlackInstall(grant);
 
 		return {
