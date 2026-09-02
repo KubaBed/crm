@@ -141,9 +141,9 @@ export function SlackScopeGroups({
 ```
 
 `apps/app/app/(app)/[slug]/settings/connections/slack/slack-scope-groups.tsx` is
-the real one. Every string it shows — the heading, the withheld-scope note —
-arrives as a prop, so the component holds no wording of its own and the page
-stays the only place that knows about Slack.
+the real one. It imports `@crm/ui` and icons and nothing else — never
+`describeSlackScopes`, never `SLACK_SCOPE_GROUPS`. The page groups the scopes and
+decides which ones were withheld. The component renders what it is handed.
 
 Rules that follow:
 
