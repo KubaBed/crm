@@ -97,8 +97,13 @@ function eventPrefix(conversationId: string): string {
 }
 
 function supersedes(event: InputRequested, current: InputRequested): boolean {
+	if (blocksTheSession(event)) return true;
 	if (event.sequence !== current.sequence) {
 		return event.sequence > current.sequence;
 	}
 	return event.stepIndex > current.stepIndex;
+}
+
+function blocksTheSession(event: InputRequested): boolean {
+	return event.requests.some((request) => request.kind === "session-limit");
 }

@@ -210,6 +210,69 @@ describe("builder persistence", () => {
 		).toEqual({ pendingInputRequest: request });
 	});
 
+	it("replaces a recorded question with a later session-limit prompt from an earlier step", async () => {
+		const conversation = await db.agentConversation.create({
+			data: {
+				kind: "BUILDER",
+				userId,
+				sessionId: `builder-limit-supersedes-${suffix}`,
+			},
+			select: { id: true },
+		});
+		conversationIds.push(conversation.id);
+
+		const question = {
+			kind: "question",
+			requestId: "channel-choice",
+			prompt: "Which channel?",
+			action: {
+				kind: "tool-call",
+				callId: "call-channel-choice",
+				toolName: "ask_question",
+				input: { prompt: "Which channel?" },
+			},
+			display: "select",
+		};
+		expect(
+			await persistBuilderInputRequest(
+				{ requests: [question], sequence: 0, stepIndex: 4, turnId: "turn_0" },
+				undefined,
+				conversation.id,
+			),
+		).toBe(true);
+
+		const limit = {
+			kind: "session-limit",
+			requestId: "child:limit:input:114375",
+			prompt: "This session has hit the input-token limit.",
+			action: {
+				kind: "tool-call",
+				callId: "child:limit:input:114375",
+				toolName: "session_limit_continuation",
+				input: { kind: "input", limit: 100000, usedTokens: 114375 },
+			},
+			display: "confirmation",
+			options: [
+				{ id: "continue", label: "Approve" },
+				{ id: "stop", label: "Stop" },
+			],
+		};
+		expect(
+			await persistBuilderInputRequest(
+				{ requests: [limit], sequence: 0, stepIndex: 3, turnId: "turn_0" },
+				undefined,
+				conversation.id,
+			),
+		).toBe(true);
+
+		expect(
+			await db.agentConversation.findUnique({
+				where: { id: conversation.id },
+				select: { pendingInputRequest: true },
+			}),
+		).toEqual({ pendingInputRequest: limit });
+	});
+
 	it("persists a tool-approval prompt", async () => {
 		const conversation = await db.agentConversation.create({
 			data: {

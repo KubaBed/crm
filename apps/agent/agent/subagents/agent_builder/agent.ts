@@ -17,7 +17,7 @@ export default defineAgent({
 		versionId: z.string().min(1),
 	}),
 	limits: {
-		maxInputTokensPerSession: 100_000,
+		maxInputTokensPerSession: 500_000,
 		maxOutputTokensPerSession: 40_000,
 		sessionTimeoutMs: 24 * 60 * 60 * 1000,
 	},
