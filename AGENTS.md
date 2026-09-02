@@ -117,17 +117,43 @@ export function ScopeGroups({ scopes }: { scopes: string[] }) {
 // page.tsx — server
 import { describeSlackScopes, SLACK_SCOPE_GROUPS } from "@crm/auth";
 
-const groups = groupScopes(status.scopes);
-return <ScopeGroups caption={SCOPE_CAPTION} groups={groups} />;
+return (
+  <ScopeGroups
+    caption={SCOPE_CAPTION}
+    groups={groupScopes(status.scopes)}
+    title="What this workspace granted"
+    withheld={missing.map(toLine)}
+    withheldNote={WITHHELD_NOTE}
+  />
+);
 ```
 
 ```tsx
 // scope-groups.tsx — client
 "use client";
 
-export type ScopeGroup = { id: string; label: string; scopes: ScopeLine[] };
+export type ScopeLine = { scope: string; grant: string; sensitive: boolean };
 
-export function ScopeGroups({ groups }: { groups: ScopeGroup[] }) { … }
+export type ScopeGroup = {
+  id: string;
+  label: string;
+  summary: string;
+  scopes: ScopeLine[];
+};
+
+export function ScopeGroups({
+  title,
+  caption,
+  groups,
+  withheld,
+  withheldNote,
+}: {
+  title: string;
+  caption: string;
+  groups: ScopeGroup[];
+  withheld: ScopeLine[];
+  withheldNote: string;
+}) { … }
 ```
 
 Rules that follow:
