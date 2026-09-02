@@ -7,7 +7,10 @@ import {
 	queueDueAgentRuns,
 } from "../lib/custom-agent-dispatch";
 import { brief, drainAll, taskAuth } from "../lib/dispatch";
-import { pendingSlackEventIds } from "../lib/slack-events";
+import {
+	pendingSlackEventIds,
+	SlackEventNotResumed,
+} from "../lib/slack-events";
 import { reconcileStaleTasks } from "../lib/stale-tasks";
 
 export default defineSchedule({
@@ -54,8 +57,9 @@ export default defineSchedule({
 								target: { slackEventId },
 								auth: appAuth,
 							}).catch((error) => {
+								if (error instanceof SlackEventNotResumed) return null;
 								console.error(
-									`[agent] Slack event ${slackEventId} resumed no run: ${
+									`[agent] Slack event ${slackEventId} could not be dispatched: ${
 										error instanceof Error ? error.message : String(error)
 									}`,
 								);

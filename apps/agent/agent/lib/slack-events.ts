@@ -10,6 +10,13 @@ import {
 } from "./run-resume";
 import { SLACK_EVENTS } from "./slack-events-config";
 
+export class SlackEventNotResumed extends Error {
+	constructor(outcome: string) {
+		super(outcome);
+		this.name = "SlackEventNotResumed";
+	}
+}
+
 export type SlackEventOutcome = {
 	eventId: string;
 	resumed: boolean;

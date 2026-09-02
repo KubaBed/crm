@@ -30,7 +30,11 @@ import { DISPATCH } from "../lib/dispatch-config";
 import { settle } from "../lib/enrichment";
 import { finishRun, runResultOf } from "../lib/run-runtime";
 import { attribute } from "../lib/session-purpose";
-import { dispatchSlackEvent, drainSlackEvents } from "../lib/slack-events";
+import {
+	dispatchSlackEvent,
+	drainSlackEvents,
+	SlackEventNotResumed,
+} from "../lib/slack-events";
 import { createSlackChannel } from "../lib/slack-membership";
 import { reconcileStaleTasks } from "../lib/stale-tasks";
 import { completeTask, taskSubject } from "../lib/tasks";
@@ -422,7 +426,7 @@ export default defineChannel({
 			assertInternalDispatchAuth(input.auth);
 			const outcome = await dispatchSlackEvent(target.slackEventId, send);
 			if (!outcome?.session) {
-				throw new Error(
+				throw new SlackEventNotResumed(
 					outcome?.outcome ?? "Another drain already took this Slack event.",
 				);
 			}
