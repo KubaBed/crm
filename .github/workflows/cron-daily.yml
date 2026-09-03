@@ -1,0 +1,23 @@
+# Dzienne zadania utrzymaniowe API (kursy walut dla PLN, sprzątanie archiwum).
+# Na Vercel Hobby dzienne crony z apps/api/vercel.json działają, ale trzymamy je tutaj
+# razem z cron-mailboxes, żeby cała automatyka była w jednym miejscu i widoczna w gh run list.
+name: cron-daily
+
+on:
+  schedule:
+    - cron: "17 5 * * *"
+  workflow_dispatch:
+
+jobs:
+  daily:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: rates + archive prune
+        env:
+          API_URL: ${{ secrets.API_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          for p in /internal/sync/rates /internal/archive/prune; do
+            curl -fsS -X POST "$API_URL$p" -H "Authorization: Bearer $CRON_SECRET" -w " -> HTTP %{http_code}\n" || echo "$p FAILED"
+          done
