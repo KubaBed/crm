@@ -47,7 +47,8 @@ function die(msg, code = 1) {
 
 export async function api(method, path, body) {
   if (!API_KEY) die('brak CRM_API_KEY w env')
-  const url = `${API_URL}/rest${path.startsWith('/') ? path : '/' + path}`
+  // Ścieżka zaczynająca się od '!' omija prefiks /rest (kontrolery Nest, np. !/auth/me).
+  const url = path.startsWith('!') ? `${API_URL}${path.slice(1)}` : `${API_URL}/rest${path.startsWith('/') ? path : '/' + path}`
   const res = await fetch(url, {
     method,
     headers: { 'x-api-key': API_KEY, 'content-type': 'application/json', accept: 'application/json' },
@@ -63,7 +64,9 @@ export async function api(method, path, body) {
   return data
 }
 
-const args = process.argv.slice(2)
+import { pathToFileURL } from 'node:url'
+const IS_CLI = process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href
+const args = IS_CLI ? process.argv.slice(2) : []
 const json = args.includes('--json')
 const flag = (name) => {
   const i = args.indexOf(name)
@@ -170,9 +173,11 @@ async function show(resource, key) {
   for (const a of Array.isArray(items) ? items : []) console.log(`  ${fmtDate(a.occurredAt || a.createdAt)}  ${a.type}  ${a.subject || ''} ${a.body ? '- ' + String(a.body).slice(0, 120).replace(/\n/g, ' ') : ''}`)
 }
 
-const cmd = positional[0]
-if (!cmd || !commands[cmd]) {
-  console.error(`użycie: crm.mjs <${Object.keys(commands).join('|')}> ...  (patrz nagłówek pliku)`)
-  process.exit(2)
+if (IS_CLI) {
+  const cmd = positional[0]
+  if (!cmd || !commands[cmd]) {
+    console.error(`użycie: crm.mjs <${Object.keys(commands).join('|')}> ...  (patrz nagłówek pliku)`)
+    process.exit(2)
+  }
+  commands[cmd]().catch((e) => die(e.message))
 }
-commands[cmd]().catch((e) => die(e.message))
