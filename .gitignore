@@ -50,3 +50,7 @@ yarn-error.log*
 
 # Agent scratch files
 .scratch/
+
+# Workshift: eksporty i dane klientów nigdy do publicznego forka
+workshift/export/
+workshift/*.json
