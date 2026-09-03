@@ -26,6 +26,8 @@ Turborepo + Bun. `apps/app` Next.js (shadcn), `apps/api` NestJS + nestjs-trpc + 
 | Gdzie | Co |
 |---|---|
 | `apps/app/lib/deal-stage.ts` | polskie etykiety stage'ów (enum bez zmian) |
+| `packages/db/src/currency.ts` | PLN dodany do listy walut (upstream: 11 walut, bez PLN) |
+| `biome.jsonc`, `.oxlintrc.json` | `workshift/` wyłączone z lintów upstreamu (tabs, zakaz komentarzy) |
 | `workshift/` | własne skrypty: `crm.mjs` (klient API), `sync-vault-crm.mjs` (vault -> CRM), `export/` |
 | `.github/workflows/cron-mailboxes.yml` | cron syncu skrzynki co 5 min (Vercel Hobby robi tylko dzienne) |
 
@@ -45,6 +47,27 @@ bun run --filter=api dev:session              # cookie sesji bez OAuth (tylko de
 `.env` w root (gitignored): `DATABASE_URL`, `BETTER_AUTH_SECRET`, `ALLOWED_SIGN_IN`, `GOOGLE_*`,
 `CRM_TELEMETRY_DISABLED=1`. Sekrety nigdy w repo ani w czacie.
 
+## Stan 2026-09-04 (sesja 1)
+
+Zrobione lokalnie i zweryfikowane: run app+api, klucz API przez REST (`x-api-key`), `workshift/crm.mjs`,
+`workshift/sync-vault-crm.mjs --apply` na lokalnej bazie (8 firm, 5 deali), polskie etykiety
+(screenshot), pola własne `vault` + `zrodlo`, skill `~/.claude/skills/crm`, hook SessionEnd.
+Supabase: SimpleCRM wyeksportowany do `~/Backups/simplecrm/` i spauzowany; nowy projekt
+`workshift-crm` (`oapkxooqnrrymiteenkz`, eu-central-1).
+
 ## Next action
 
-Patrz plan (fazy 0-1f). Ręce Kuby: Google Cloud OAuth (Internal, Workspace), `npx vercel login`.
+1. **Ręce Kuby** (nie da się zautomatyzować):
+   - Google Cloud: projekt na koncie Workspace jakub@workshift.pl, Gmail API + Calendar API,
+     consent screen **Internal**, OAuth client Web z redirect URI
+     `http://localhost:3001/api/auth/callback/google` i `https://api.crm.workshift.pl/api/auth/callback/google`.
+     Client ID + Secret do `.env` (lokalnie) i do Vercel env. Nie do czatu.
+   - `npx vercel login` na Macu.
+   - Supabase `workshift-crm`: Settings -> Database -> Reset database password (MCP nie zwraca hasła).
+     Potrzebne do `DATABASE_URL` (pooler 6543) i `DIRECT_DATABASE_URL` (5432).
+   - Po deployu: w app Settings -> API keys założyć `claude-code-mac`, `hermes-wsl`, `vault-sync`;
+     wartość do `~/.zshenv` jako `CRM_API_KEY` (+ `CRM_API_URL=https://api.crm.workshift.pl`).
+2. Claude: Vercel `crm-app` + `crm-api` (env, domeny `crm2.workshift.pl` / `api.crm.workshift.pl`),
+   sekrety repo `API_URL` + `CRON_SECRET` dla workflow, `db:deploy` przez build API,
+   `sync-vault-crm.mjs --apply` na prod (z write-back `crm:` do vaulta), test E2E Gmaila.
+3. Tydzień równolegle, potem Faza 1f (pożegnanie SimpleCRM) z osobnym potwierdzeniem kroków destrukcyjnych.

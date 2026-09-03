@@ -126,7 +126,7 @@ function domainOf(website) {
   try { return new URL(website.startsWith('http') ? website : `https://${website}`).hostname.replace(/^www\./, '') } catch { return null }
 }
 function companyName(fm) {
-  return fm['client-name'] || fm.title?.replace(/^Lead\s*[::-]\s*/i, '').split(/\s+[-|]\s+|\s+—\s+/)[0].trim() || 'Bez nazwy'
+  return fm['client-name'] || fm.title?.replace(/^Lead[^:]*:\s*/i, '').split(/\s+[-|]\s+|\s+—\s+/)[0].trim() || 'Bez nazwy'
 }
 function contactOf(fm) {
   const raw = fm.founder || fm.contact || fm.kontakt || fm['contact-name']
