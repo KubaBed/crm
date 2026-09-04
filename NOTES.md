@@ -75,3 +75,8 @@
 - Prod: `https://api.crm.workshift.pl/health` = ok/database up, migracje wykonane w buildzie,
   `https://crm2.workshift.pl` serwuje app. Domyślna gałąź forka przełączona na `workshift`
   (schedule GitHub Actions działa tylko z gałęzi domyślnej).
+- "Could not reach the sign-in service" na prod: app proxuje `/api/*` do `API_URL` z `@/lib/env`
+  (`NEXT_PUBLIC_API_URL`), a Turbo strict env przepuszcza do buildu tylko klucze z
+  `apps/app/turbo.json` (`NEXT_PUBLIC_API_URL`, nie `API_URL`). Build wziął domyślne
+  `localhost:3001` -> 502. Fix: env `NEXT_PUBLIC_API_URL=https://api.crm.workshift.pl` w `crm-app`
+  + redeploy. Diagnoza: browser-harness (klik w "Continue with Google" + `Network.enable`).
