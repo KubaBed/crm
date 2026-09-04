@@ -5,7 +5,7 @@ import { AuthShader } from "@/components/auth-shader";
 
 export function AuthShell({ children }: { children: ReactNode }) {
 	return (
-		<main className="dark grid min-h-svh bg-background text-foreground lg:grid-cols-[minmax(0,1fr)_minmax(420px,520px)]">
+		<main className="grid min-h-svh bg-background text-foreground lg:grid-cols-[minmax(0,1fr)_minmax(420px,520px)]">
 			<section className="relative hidden min-h-svh overflow-hidden bg-muted p-8 lg:flex lg:flex-col lg:justify-between xl:p-12">
 				<AuthShader />
 
@@ -21,20 +21,20 @@ export function AuthShell({ children }: { children: ReactNode }) {
 							CRM
 						</p>
 						<h1 className="max-w-[14ch] text-5xl/14 font-semibold text-balance">
-							Every customer, one place.
+							Każdy klient w jednym miejscu.
 						</h1>
 					</div>
 				</div>
 
 				<p className="relative font-mono text-xs/4 text-muted-foreground">
-					Made with love by{" "}
+					Workshift CRM na bazie{" "}
 					<a
-						href="https://trycomp.ai"
+						href="https://github.com/trycompai/crm"
 						target="_blank"
 						rel="noreferrer"
 						className="underline underline-offset-4 hover:text-foreground"
 					>
-						Workshift CRM
+						Comp AI CRM
 					</a>
 				</p>
 			</section>
