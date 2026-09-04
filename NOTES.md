@@ -64,3 +64,14 @@
   Deploy obu projektów z korzenia repo: `workshift/deploy.sh <api|app> [--prod]` (przelinkowuje
   `.vercel/project.json` przed deployem).
 - Deploy `--prod` z sesji Claude blokuje klasyfikator; produkcję odpala Kuba.
+
+## 2026-09-04 (sesja 3) - deploy prod + branding
+
+- Branding Workshift w forku (`1ca4530`): tokeny w `packages/ui/src/styles/globals.css` (sage/lime,
+  Inter + IBM Plex Mono), `logo.tsx`, favicony, manifest, teksty "Comp AI" -> "Workshift CRM"
+  poza katalogiem landing. Plik testowy upstreamu nietknięty.
+- Build Output API: `build-func.mjs` wpisywał cron `*/5` do `config.json`, Vercel Hobby odrzuca
+  taki deploy. Usunięty (`60cb2e9`); harmonogram prowadzi GitHub Actions z branchu domyślnego.
+- Prod: `https://api.crm.workshift.pl/health` = ok/database up, migracje wykonane w buildzie,
+  `https://crm2.workshift.pl` serwuje app. Domyślna gałąź forka przełączona na `workshift`
+  (schedule GitHub Actions działa tylko z gałęzi domyślnej).
