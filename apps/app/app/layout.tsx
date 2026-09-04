@@ -3,28 +3,30 @@ import { Toaster } from "@crm/ui/components/sonner";
 import { TooltipProvider } from "@crm/ui/components/tooltip";
 import { cn } from "@crm/ui/lib/utils";
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { IBM_Plex_Mono, Inter } from "next/font/google";
 import { NuqsAdapter } from "nuqs/adapters/next/app";
 import { LocalDateTimeHydrator } from "@/components/local-date-time";
 import { ThemeProvider } from "@/components/theme-provider";
 import { TRPCReactProvider } from "@/lib/trpc/client";
 
-const fontSans = Geist({
+const fontSans = Inter({
 	variable: "--font-geist-sans",
-	subsets: ["latin"],
+	subsets: ["latin", "latin-ext"],
 });
 
-const fontMono = Geist_Mono({
+const fontMono = IBM_Plex_Mono({
 	variable: "--font-geist-mono",
-	subsets: ["latin"],
+	subsets: ["latin", "latin-ext"],
+	weight: ["400", "500", "600"],
 });
 
 export const metadata: Metadata = {
 	title: {
-		default: "Comp AI - CRM",
-		template: "%s · Comp AI CRM",
+		default: "Workshift CRM",
+		template: "%s · Workshift CRM",
 	},
-	description: "Customer Relationship Management for Comp AI",
+	description:
+		"CRM Workshift: firmy, kontakty, deale i rozmowy w jednym miejscu.",
 	icons: {
 		icon: [
 			{ url: "/favicon.svg", type: "image/svg+xml" },
@@ -42,7 +44,7 @@ export default function RootLayout({
 }>) {
 	return (
 		<html
-			lang="en"
+			lang="pl"
 			suppressHydrationWarning
 			className={cn(fontSans.variable, fontMono.variable, "h-full antialiased")}
 		>
