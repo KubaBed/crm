@@ -80,3 +80,12 @@
   `apps/app/turbo.json` (`NEXT_PUBLIC_API_URL`, nie `API_URL`). Build wziął domyślne
   `localhost:3001` -> 502. Fix: env `NEXT_PUBLIC_API_URL=https://api.crm.workshift.pl` w `crm-app`
   + redeploy. Diagnoza: browser-harness (klik w "Continue with Google" + `Network.enable`).
+- Prod skonfigurowany po zalogowaniu Kuby (owner, workspace `workshift`): PLN jako waluta
+  raportowa + kursy, pola `Vault`/`Zrodlo`, `sync-vault-crm.mjs --apply` = 8 firm, 5 deali,
+  linki `crm:` w vaulcie (wskazują docelowe `crm.workshift.pl`, do przepięcia działają pod `crm2`).
+  Import z backupu SimpleCRM (skrypt jednorazowy w scratchpadzie): kontakty ALMA/Informax/Sawaryn,
+  kwoty deali, historia jako aktywności NOTE/EMAIL/MEETING/TASK.
+- `~/.zshenv`: klucze wklejone jako `nazwa API_Key: "..."` (zsh: command not found) -> przepisane
+  na `CRM_API_URL`, `CRM_API_KEY`, `CRM_API_KEY_HERMES`, `CRM_API_KEY_VAULT_SYNC`. Kopia `.zshenv.bak-2026-09-04`.
+- Ekran logowania: klasa `dark` na sztywno w `auth-shell.tsx` -> usunięta, polskie hasło, stopka
+  linkuje do upstreamu zamiast trycomp.ai.

@@ -65,13 +65,10 @@ Deploy: `workshift/deploy.sh <api|app> [--prod]` z korzenia repo.
 
 1. GOTOWE: env bazy w Vercelu, deploy prod API i app, migracje, cron GitHub Actions (pierwszy run
    success), domyślna gałąź forka `workshift`, branding Workshift.
-4. **Kuba**: pierwsze logowanie Google na `https://crm2.workshift.pl` (pierwszy user = owner),
-   onboarding (Workshift, workshift.pl), klucz Context: dowolny ciąg >= 8 znaków (agent Eve
-   dopiero w Fazie 2), Settings -> API keys: `claude-code-mac`, `hermes-wsl`, `vault-sync`;
-   `CRM_API_URL=https://api.crm.workshift.pl` i `CRM_API_KEY` do `~/.zshenv`.
-5. Claude: smoke prod (`crm.mjs whoami`, screenshot), pola własne `Vault`/`Zrodlo`,
-   `sync-vault-crm.mjs --apply` na prod (write-back `crm:` do vaulta), reporting currency PLN,
-   test E2E Gmaila (mail z zewnątrz -> `POST /internal/sync/mailboxes`), sprawdzić run cronu
-   `gh run list -R KubaBed/crm --workflow cron-mailboxes.yml`.
+2. GOTOWE: logowanie Kuby (owner), klucze API w `~/.zshenv`, PLN, pola własne, sync vault -> prod
+   (8 firm, 5 deali, `crm:` w vaulcie), import historii z SimpleCRM.
+3. Test E2E Gmaila: mail z zewnętrznej domeny na kontakt@workshift.pl -> cron/ręczny sync ->
+   kontakt w CRM. Hermes: klucz `CRM_API_KEY_HERMES` na WSL + skill `crm` + zmiana crona
+   `workshift-lead-research` (firmy przez API).
 6. Tydzień równolegle, potem Faza 1f (pożegnanie SimpleCRM) z osobnym potwierdzeniem kroków
    destrukcyjnych i zmianą `AUTH_COOKIE_DOMAIN` na `.crm.workshift.pl`.
