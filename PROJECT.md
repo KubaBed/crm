@@ -63,13 +63,8 @@ Deploy: `workshift/deploy.sh <api|app> [--prod]` z korzenia repo.
 
 ## Next action
 
-1. **Kuba**: utworzyć `~/.config/workshift-crm/supabase.env` z `DATABASE_URL` (pooler 6543,
-   `?pgbouncer=true&connection_limit=1`) i `DIRECT_DATABASE_URL` (pooler 5432), user
-   `postgres.oapkxooqnrrymiteenkz`, host `aws-0-eu-central-1.pooler.supabase.com`, chmod 600.
-2. Claude: `source` tego pliku -> `bunx vercel env add DATABASE_URL production` i
-   `DIRECT_DATABASE_URL` w obu projektach (przez stdin, bez literałów).
-3. **Kuba**: `workshift/deploy.sh api --prod`, potem `workshift/deploy.sh app --prod`
-   (build API sam robi `prisma migrate deploy` na produkcji). Sprawdzić log buildu w Vercel.
+1. GOTOWE: env bazy w Vercelu, deploy prod API i app, migracje, cron GitHub Actions (pierwszy run
+   success), domyślna gałąź forka `workshift`, branding Workshift.
 4. **Kuba**: pierwsze logowanie Google na `https://crm2.workshift.pl` (pierwszy user = owner),
    onboarding (Workshift, workshift.pl), klucz Context: dowolny ciąg >= 8 znaków (agent Eve
    dopiero w Fazie 2), Settings -> API keys: `claude-code-mac`, `hermes-wsl`, `vault-sync`;
