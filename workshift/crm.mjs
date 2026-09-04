@@ -19,6 +19,8 @@
  *                                                       DECISION_MAKER_BOUGHT_IN|CONTRACT_SENT|
  *                                                       CLOSED_WON|CLOSED_LOST|UNQUALIFIED_TO_BUY
  *   crm.mjs stale [dni=7] [--json]          otwarte deale bez aktywności >= N dni
+ *   crm.mjs addcompany "<nazwa>" [domena] [--industry "..."] [--zrodlo "Cron research"] [--note "..."]
+ *                                           firma bez deala; dedup po domenie/nazwie; źródło = opcja pola Zrodlo
  *   crm.mjs raw <METHOD> </rest/path> ['<json body>']   ucieczka: dowolny endpoint z /openapi.json
  *   crm.mjs whoami                          sprawdza klucz (1 zapytanie o firmy)
  *
@@ -147,6 +149,31 @@ const commands = {
     if (!id || !STAGE_LABEL[stage]) die(`użycie: stage <dealId> <${Object.keys(STAGE_LABEL).join('|')}>`)
     const r = await api('PATCH', `/deals/${id}/stage`, { stage, closedReason: flag('--reason') || undefined })
     console.log(json ? JSON.stringify(r, null, 2) : `deal ${id} -> ${STAGE_LABEL[stage]}`)
+  },
+
+  async addcompany() {
+    const [, name, domainArg] = positional
+    if (!name) die('użycie: addcompany "<nazwa>" [domena] [--industry ..] [--zrodlo ..] [--note ..]')
+    const domain = domainArg ? domainArg.replace(/^https?:\/\//, '').replace(/^www\./, '').split('/')[0] : undefined
+    const byName = await api('POST', '/companies/search', { q: name, page: 1, pageSize: 10 })
+    const byDomain = domain ? await api('POST', '/companies/search', { q: domain, page: 1, pageSize: 10 }) : { rows: [] }
+    const dup = [...(byName.rows || []), ...(byDomain.rows || [])].find((c) => (domain && c.domain === domain) || c.name.toLowerCase() === name.toLowerCase())
+    if (dup) return console.log(json ? JSON.stringify({ existing: dup }, null, 2) : `istnieje: ${dup.id}  ${dup.name}  ${dup.domain || ''}`)
+    const me = await api('GET', '!/auth/me')
+    const ownerId = me?.user?.id || me?.id
+    const company = await api('POST', '/companies', { name, domain, ownerId })
+    const fields = {}
+    const zrodloLabel = flag('--zrodlo') || 'Cron research'
+    const defs = await api('GET', '/fields?entity=COMPANY').catch(() => [])
+    const zrodlo = (Array.isArray(defs) ? defs : defs.rows || []).find((f) => f.key === 'zrodlo')
+    const opt = zrodlo?.options?.find((o) => o.label === zrodloLabel)
+    if (opt) fields.zrodlo = opt.id
+    const data = { fields }
+    if (flag('--industry')) data.industry = flag('--industry')
+    if (domain) data.website = `https://${domain}`
+    await api('PATCH', `/companies/${company.id}`, { data })
+    if (flag('--note')) await api('POST', '/activities', { type: 'NOTE', subject: 'Research', body: flag('--note'), companyId: company.id })
+    console.log(json ? JSON.stringify(company, null, 2) : `utworzono: ${company.id}  ${name}  ${domain || ''}  źródło: ${zrodloLabel}`)
   },
 
   async raw() {
