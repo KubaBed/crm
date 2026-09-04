@@ -55,19 +55,28 @@ Zrobione lokalnie i zweryfikowane: run app+api, klucz API przez REST (`x-api-key
 Supabase: SimpleCRM wyeksportowany do `~/Backups/simplecrm/` i spauzowany; nowy projekt
 `workshift-crm` (`oapkxooqnrrymiteenkz`, eu-central-1).
 
+## Stan 2026-09-04 (sesja 2)
+
+Vercel: projekty `crm-app` i `crm-api`, domeny `crm2.workshift.pl` / `api.crm.workshift.pl`,
+env produkcyjne (poza bazą), GitHub secrets cronu. Szczegóły i gotchas w `NOTES.md`.
+Deploy: `workshift/deploy.sh <api|app> [--prod]` z korzenia repo.
+
 ## Next action
 
-1. **Ręce Kuby** (nie da się zautomatyzować):
-   - Google Cloud: projekt na koncie Workspace jakub@workshift.pl, Gmail API + Calendar API,
-     consent screen **Internal**, OAuth client Web z redirect URI
-     `http://localhost:3001/api/auth/callback/google` i `https://api.crm.workshift.pl/api/auth/callback/google`.
-     Client ID + Secret do `.env` (lokalnie) i do Vercel env. Nie do czatu.
-   - `npx vercel login` na Macu.
-   - Supabase `workshift-crm`: Settings -> Database -> Reset database password (MCP nie zwraca hasła).
-     Potrzebne do `DATABASE_URL` (pooler 6543) i `DIRECT_DATABASE_URL` (5432).
-   - Po deployu: w app Settings -> API keys założyć `claude-code-mac`, `hermes-wsl`, `vault-sync`;
-     wartość do `~/.zshenv` jako `CRM_API_KEY` (+ `CRM_API_URL=https://api.crm.workshift.pl`).
-2. Claude: Vercel `crm-app` + `crm-api` (env, domeny `crm2.workshift.pl` / `api.crm.workshift.pl`),
-   sekrety repo `API_URL` + `CRON_SECRET` dla workflow, `db:deploy` przez build API,
-   `sync-vault-crm.mjs --apply` na prod (z write-back `crm:` do vaulta), test E2E Gmaila.
-3. Tydzień równolegle, potem Faza 1f (pożegnanie SimpleCRM) z osobnym potwierdzeniem kroków destrukcyjnych.
+1. **Kuba**: utworzyć `~/.config/workshift-crm/supabase.env` z `DATABASE_URL` (pooler 6543,
+   `?pgbouncer=true&connection_limit=1`) i `DIRECT_DATABASE_URL` (pooler 5432), user
+   `postgres.oapkxooqnrrymiteenkz`, host `aws-0-eu-central-1.pooler.supabase.com`, chmod 600.
+2. Claude: `source` tego pliku -> `bunx vercel env add DATABASE_URL production` i
+   `DIRECT_DATABASE_URL` w obu projektach (przez stdin, bez literałów).
+3. **Kuba**: `workshift/deploy.sh api --prod`, potem `workshift/deploy.sh app --prod`
+   (build API sam robi `prisma migrate deploy` na produkcji). Sprawdzić log buildu w Vercel.
+4. **Kuba**: pierwsze logowanie Google na `https://crm2.workshift.pl` (pierwszy user = owner),
+   onboarding (Workshift, workshift.pl), klucz Context: dowolny ciąg >= 8 znaków (agent Eve
+   dopiero w Fazie 2), Settings -> API keys: `claude-code-mac`, `hermes-wsl`, `vault-sync`;
+   `CRM_API_URL=https://api.crm.workshift.pl` i `CRM_API_KEY` do `~/.zshenv`.
+5. Claude: smoke prod (`crm.mjs whoami`, screenshot), pola własne `Vault`/`Zrodlo`,
+   `sync-vault-crm.mjs --apply` na prod (write-back `crm:` do vaulta), reporting currency PLN,
+   test E2E Gmaila (mail z zewnątrz -> `POST /internal/sync/mailboxes`), sprawdzić run cronu
+   `gh run list -R KubaBed/crm --workflow cron-mailboxes.yml`.
+6. Tydzień równolegle, potem Faza 1f (pożegnanie SimpleCRM) z osobnym potwierdzeniem kroków
+   destrukcyjnych i zmianą `AUTH_COOKIE_DOMAIN` na `.crm.workshift.pl`.
