@@ -89,3 +89,25 @@
   na `CRM_API_URL`, `CRM_API_KEY`, `CRM_API_KEY_HERMES`, `CRM_API_KEY_VAULT_SYNC`. Kopia `.zshenv.bak-2026-09-04`.
 - Ekran logowania: klasa `dark` na sztywno w `auth-shell.tsx` -> usunięta, polskie hasło, stopka
   linkuje do upstreamu zamiast trycomp.ai.
+
+## 2026-09-04 (sesja 4) - Hermes podpięty do CRM
+
+- "Host niedostępny" przez cały dzień = Tailscale zatrzymany na Macu (`tailscale up` naprawił).
+  Hermes v0.21.0 na WSL (`~/.hermes/hermes-agent/venv/bin/hermes`), gateway Telegram i WebUI chodzą,
+  Node w pakiecie Hermesa: `~/.hermes/node/bin/node`.
+- Na hoście: `~/.hermes/scripts/crm.mjs` + wrapper `~/.hermes/scripts/crm` (source `~/.hermes/.env`),
+  skill `~/.hermes/skills/crm/SKILL.md`, w `.env`: `CRM_API_URL`, `CRM_API_KEY` (klucz hermes-wsl).
+  `crm whoami` z hosta OK.
+- Vault na hoście: `~/baza-wiedzy` (symlink `~/.hermes/vault`), remote https bez poświadczeń, więc
+  `git pull` nie działa; transport = rsync z Maca (`vault-push-hermes.sh`, launchd co godzinę).
+  Hermes tworzył strony tylko lokalnie (weekly review W32/W34/W35, pipeline.md, informax reply):
+  ściągnięte rsync `--ignore-existing` do vaulta na Macu i zacommitowane (`039e519`).
+- Crony `workshift-lead-research` (30 6 * * *) i `workshift-weekly-review` (0 17 * * 5) padały od
+  dziś na `HTTP 401 Insufficient balance` z OpenCode Go/Zen. Przełączone na `openrouter` +
+  `deepseek/deepseek-v4-flash` (test curl: 200). Domyślny model Hermesa w `config.yaml` nadal
+  opencode-go/minimax-m3 = chat na Telegramie też może paść, decyzja Kuby (doładować OpenCode
+  albo zmienić default).
+- Prompty cronów: lead-research dostał Krok 6b (każda trafiona firma -> `crm addcompany ... --zrodlo
+  "Cron research"`), weekly-review podpunkt e) Pipeline CRM (`crm open`, `crm stale 7`) + 2 linie
+  w digest na Telegram. Oba mają skill `crm`.
+- `crm.mjs addcompany`: dedup po nazwie i domenie (pierwsza wersja zdublowała ALMĘ, usunięte).

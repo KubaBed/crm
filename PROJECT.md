@@ -67,8 +67,9 @@ Deploy: `workshift/deploy.sh <api|app> [--prod]` z korzenia repo.
    success), domyślna gałąź forka `workshift`, branding Workshift.
 2. GOTOWE: logowanie Kuby (owner), klucze API w `~/.zshenv`, PLN, pola własne, sync vault -> prod
    (8 firm, 5 deali, `crm:` w vaulcie), import historii z SimpleCRM.
-3. Test E2E Gmaila: mail z zewnętrznej domeny na kontakt@workshift.pl -> cron/ręczny sync ->
-   kontakt w CRM. Hermes: klucz `CRM_API_KEY_HERMES` na WSL + skill `crm` + zmiana crona
-   `workshift-lead-research` (firmy przez API).
+3. GOTOWE: Hermes (WSL) ma `crm` + skill + klucz; crony lead-research i weekly-review piszą/czytają
+   CRM, provider przełączony na OpenRouter (OpenCode bez środków).
+4. Test E2E Gmaila: mail z zewnętrznej domeny na jakub@workshift.pl -> cron/ręczny sync -> kontakt w CRM.
+   Sprawdzić pierwszy run lead-research po zmianie (`hermes cron runs 006b7d9d0fb5`) i Telegram.
 6. Tydzień równolegle, potem Faza 1f (pożegnanie SimpleCRM) z osobnym potwierdzeniem kroków
    destrukcyjnych i zmianą `AUTH_COOKIE_DOMAIN` na `.crm.workshift.pl`.
