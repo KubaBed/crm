@@ -137,3 +137,8 @@
 - CRM: pola własne `NIP` (key `nip`) i `PKD` (`pkd`) na Company; `crm.mjs addcompany --nip --pkd`.
 - Kopie skryptów Hermesa w repo: `workshift/hermes/` (źródło prawdy, na host przez scp).
 - Skill `crm` (Mac i host): reguła o notatkach dyktowanych (Whispr Flow) -> fakty do CRM, wiedza do vaulta.
+- 2026-09-07 (cd.): pierwszy run crona z ŹRÓDŁAMI (OpenRouter) przeszedł end-to-end: 9 firm spoza IT
+  prześwietlonych przez site-brief + GUS, wszystkie DQ na bramce ">50 osób". Decyzja Kuby: próg
+  250 (definicja MŚP UE) i "1+ oferta AI w firmie spoza IT". Crony bez własnego modelu (domyślny
+  z config.yaml; Kuba sam konfiguruje provider). Prompt crona w repo: `workshift/hermes/lead-research-prompt.md`.
+  `--script` musi być `.sh` (Hermes odpala `.py` systemowym Pythonem, nie venvem): `lead-sources.sh`.
