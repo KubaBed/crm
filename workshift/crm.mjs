@@ -19,7 +19,7 @@
  *                                                       DECISION_MAKER_BOUGHT_IN|CONTRACT_SENT|
  *                                                       CLOSED_WON|CLOSED_LOST|UNQUALIFIED_TO_BUY
  *   crm.mjs stale [dni=7] [--json]          otwarte deale bez aktywności >= N dni
- *   crm.mjs addcompany "<nazwa>" [domena] [--industry "..."] [--zrodlo "Cron research"] [--note "..."]
+ *   crm.mjs addcompany "<nazwa>" [domena] [--industry "..."] [--zrodlo "Cron research"] [--note "..."] [--nip ..] [--pkd ..]
  *                                           firma bez deala; dedup po domenie/nazwie; źródło = opcja pola Zrodlo
  *   crm.mjs raw <METHOD> </rest/path> ['<json body>']   ucieczka: dowolny endpoint z /openapi.json
  *   crm.mjs whoami                          sprawdza klucz (1 zapytanie o firmy)
@@ -168,6 +168,8 @@ const commands = {
     const zrodlo = (Array.isArray(defs) ? defs : defs.rows || []).find((f) => f.key === 'zrodlo')
     const opt = zrodlo?.options?.find((o) => o.label === zrodloLabel)
     if (opt) fields.zrodlo = opt.id
+    if (flag('--nip')) fields.nip = flag('--nip')
+    if (flag('--pkd')) fields.pkd = flag('--pkd')
     const data = { fields }
     if (flag('--industry')) data.industry = flag('--industry')
     if (domain) data.website = `https://${domain}`
