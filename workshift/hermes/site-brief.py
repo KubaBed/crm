@@ -33,6 +33,9 @@ async def main():
             if not r.success or not r.markdown:
                 continue
             md = str(r.markdown)
+            md = re.sub(r"!\[[^\]]*\]\([^)]*\)", "", md)
+            md = re.sub(r"\[([^\]]*)\]\((https?://[^)]*)\)", r"\1", md)
+            md = "\n".join(l for l in md.split("\n") if l.strip())
             for m in NIP_RE.findall(md):
                 nips.add(re.sub(r"\D", "", m))
             texts.append(f"### {p}\n" + re.sub(r"\n{3,}", "\n\n", md)[: limit if p == url else limit // 3])

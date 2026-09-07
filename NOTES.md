@@ -121,3 +121,19 @@
   uczestników spotkań (smartkancelaria.pl, mate.academy, sysopspolska.pl, Dzierzbicki Kurek).
 - Hermes: vault przez Obsidian Sync (`obsidian-headless`), szczegóły w wiki
   `hermes-agent-setup`. Crony wróciły na opencode-go/minimax-m3 (Kuba doładował).
+
+## 2026-09-07 (sesja 6) - sync co 5 min z Maca, dopływ leadów, GUS
+
+- Launchd `com.kuba.crm-mailbox-sync` (skrypt `~/.claude/hooks/crm-mailbox-sync.sh`, co 300 s,
+  log `crm-mailbox-sync.log`): pierwszy run HTTP 201 synced=2. GitHub Actions zostaje jako zapas.
+- Decyzje Kuby: nie ukrywamy zakładek bez backendu, UI po angielsku, bez konektorów/SSO.
+- Hermes, cron `workshift-lead-research`: `--script lead-sources.py` (CloakBrowser headless przechodzi
+  Cloudflare na Pracuj/JustJoin/NFJ: HTTP 200, 37 firm w 26 s; Xvfb niepotrzebny, choć zainstalowany).
+  Prompt: nowy Krok 2 "źródła są już pobrane" + bramka MŚP przez `gus-lookup.py` + `site-brief.py`
+  (crawl4ai) + `crm addcompany --nip --pkd`. Venv Hermesa: `playwright cloakbrowser gusregon crawl4ai`
+  (przez `uv pip`, venv nie ma pip). CloakBrowser binarka: `~/.cloakbrowser/chromium-146*/chrome`.
+- GUS BIR: sandbox działa (klucz testowy), produkcyjny klucz = mail Kuby do regon_bir@stat.gov.pl,
+  potem `GUS_BIR_KEY` w `~/.hermes/.env`. PKD z osobnego raportu (`gus.get_pkd`).
+- CRM: pola własne `NIP` (key `nip`) i `PKD` (`pkd`) na Company; `crm.mjs addcompany --nip --pkd`.
+- Kopie skryptów Hermesa w repo: `workshift/hermes/` (źródło prawdy, na host przez scp).
+- Skill `crm` (Mac i host): reguła o notatkach dyktowanych (Whispr Flow) -> fakty do CRM, wiedza do vaulta.

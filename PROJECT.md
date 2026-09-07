@@ -69,7 +69,11 @@ Deploy: `workshift/deploy.sh <api|app> [--prod]` z korzenia repo.
    (8 firm, 5 deali, `crm:` w vaulcie), import historii z SimpleCRM.
 3. GOTOWE: Hermes (WSL) ma `crm` + skill + klucz; crony lead-research i weekly-review piszą/czytają
    CRM, provider przełączony na OpenRouter (OpenCode bez środków).
-4. Test E2E Gmaila: mail z zewnętrznej domeny na jakub@workshift.pl -> cron/ręczny sync -> kontakt w CRM.
-   Sprawdzić pierwszy run lead-research po zmianie (`hermes cron runs 006b7d9d0fb5`) i Telegram.
+4. GOTOWE (07.09): launchd sync co 5 min; cron lead-research z CloakBrowser (`lead-sources.py`),
+   GUS (`gus-lookup.py`), crawl4ai (`site-brief.py`); pola NIP/PKD w CRM.
+5. **Kuba**: mail do regon_bir@stat.gov.pl o klucz produkcyjny BIR 1.1 -> `GUS_BIR_KEY` w
+   `~/.hermes/.env` na WSL. Do tego czasu sandbox (dane częściowo zanonimizowane).
+6. Obserwacja: 5 dni runów crona (06:30) - kryterium >= 5 kandydatów z twardym sygnałem; potem
+   Faza 1f (przepięcie `crm.workshift.pl`, archiwizacja SimpleCRM) z osobnym potwierdzeniem.
 6. Tydzień równolegle, potem Faza 1f (pożegnanie SimpleCRM) z osobnym potwierdzeniem kroków
    destrukcyjnych i zmianą `AUTH_COOKIE_DOMAIN` na `.crm.workshift.pl`.
