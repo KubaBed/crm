@@ -111,3 +111,13 @@
   "Cron research"`), weekly-review podpunkt e) Pipeline CRM (`crm open`, `crm stale 7`) + 2 linie
   w digest na Telegram. Oba mają skill `crm`.
 - `crm.mjs addcompany`: dedup po nazwie i domenie (pierwsza wersja zdublowała ALMĘ, usunięte).
+
+## 2026-09-07 (sesja 5) - weryfikacja E2E, Obsidian Sync na WSL
+
+- Cron GitHub odpala sam, ale co 1,5-4 h (dławienie schedule). Do rozważenia launchd na Macu.
+- Test maila z prywatnego Gmaila NIE tworzy kontaktu: `workDomain()` zwraca null dla domen
+  prywatnych, a `allowCreate = autoCreate && repliedTo` dotyczy tylko domen firmowych
+  (`mailbox-match.service.ts`, `thread-writer.service.ts`). Kalendarz założył sam firmy z domen
+  uczestników spotkań (smartkancelaria.pl, mate.academy, sysopspolska.pl, Dzierzbicki Kurek).
+- Hermes: vault przez Obsidian Sync (`obsidian-headless`), szczegóły w wiki
+  `hermes-agent-setup`. Crony wróciły na opencode-go/minimax-m3 (Kuba doładował).
