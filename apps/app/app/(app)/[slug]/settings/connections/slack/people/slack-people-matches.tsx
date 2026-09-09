@@ -64,8 +64,8 @@ export function SlackPeopleMatches({
 			</div>
 			{matches.data.sync === "stalled" ? (
 				<p className="text-center text-warning text-xs">
-					Workshift CRM is not reading Slack right now. These matches can be out of
-					date.
+					Workshift CRM is not reading Slack right now. These matches can be out
+					of date.
 				</p>
 			) : null}
 			<div className="flex flex-col divide-y border-y">
