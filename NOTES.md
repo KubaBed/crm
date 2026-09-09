@@ -158,3 +158,8 @@
   flat-namespace Go nie zna. Lepszy fallback: `openrouter` + `deepseek/deepseek-v4-flash` (działał 04-07.09).
 - Weekly-review (piątek 17:00) ostatnio padł 07.09 na tym samym błędzie; następny run 12.09 pójdzie
   już na Go. Nie odpalałem testowo (wysyła digest na Telegram).
+- 2026-09-10 (cd. sesji 7): `fallback_model` w `~/.hermes/config.yaml` = tylko `openrouter /
+  deepseek/deepseek-v4-flash` (backup `config.yaml.bak-2026-09-09`). Gateway trzeba startować
+  `setsid nohup hermes gateway run &` (brak unitu systemd; `pkill -f "hermes gateway"` z SSH
+  zabija też własną sesję). Weekly-review odpalony ręcznie: sukces na Go (7 wywołań, 0 fallbacków),
+  draft `wiki/synthesis/weekly-review-2026-W37.md` (7 otwartych deali, 0 bez ruchu >7 dni).
