@@ -68,7 +68,7 @@ Deploy: `workshift/deploy.sh <api|app> [--prod]` z korzenia repo.
 2. GOTOWE: logowanie Kuby (owner), klucze API w `~/.zshenv`, PLN, pola własne, sync vault -> prod
    (8 firm, 5 deali, `crm:` w vaulcie), import historii z SimpleCRM.
 3. GOTOWE: Hermes (WSL) ma `crm` + skill + klucz; crony lead-research i weekly-review piszą/czytają
-   CRM, provider przełączony na OpenRouter (OpenCode bez środków).
+   CRM, provider domyślny z config.yaml (OpenCode Go + deepseek-v4-flash, od 08.09 po `hermes update`).
 4. GOTOWE (07.09): launchd sync co 5 min; cron lead-research z CloakBrowser (`lead-sources.py`),
    GUS (`gus-lookup.py`), crawl4ai (`site-brief.py`); pola NIP/PKD w CRM.
 5. **Kuba**: mail do regon_bir@stat.gov.pl o klucz produkcyjny BIR 1.1 -> `GUS_BIR_KEY` w

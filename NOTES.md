@@ -142,3 +142,19 @@
   250 (definicja MŚP UE) i "1+ oferta AI w firmie spoza IT". Crony bez własnego modelu (domyślny
   z config.yaml; Kuba sam konfiguruje provider). Prompt crona w repo: `workshift/hermes/lead-research-prompt.md`.
   `--script` musi być `.sh` (Hermes odpala `.py` systemowym Pythonem, nie venvem): `lead-sources.sh`.
+
+## 2026-09-09 (sesja 7) - Hermes: provider OpenCode Go rozwiązany
+
+- Błąd "HTTP 401: Model MiniMax-M2.5 is not supported" był ostatnim ogniwem łańcucha fallbacków:
+  prawdziwa przyczyna to Hermes v0.21.0 bez nagłówka `x-opencode-session` (OpenCode Go odrzucał
+  każde żądanie HTTP 400 "cannot be routed efficiently"), a ostatni fallback `opencode-zen/MiniMax-M2.5`
+  bez środków zwracał 401. Kuba 08.09 zrobił `hermes update` do `main` (fix po v0.21.0), config
+  zmigrowany do schematu `model.default` (`provider: opencode-go`, `default: deepseek-v4-flash`).
+- Dowód: `hermes chat -q` odpowiada; cron lead-research 09.09 06:37 przeszedł na Go bez fallbacku
+  (10 wywołań API, `base_url=https://opencode.ai/zen/go/v1`) i dodał 3 firmy: Amplus, MB Recycling,
+  180heartbeats (Zrodlo=Cron research, NIP, PKD, notatka z sygnałem i decydentem).
+- Do rozważenia przez Kubę: `fallback_model` w `config.yaml` (linie 622-628) nadal kończy się na
+  `opencode-zen/MiniMax-M2.5` bez środków i używa prefiksów `deepseek/...`, `moonshotai/...`, których
+  flat-namespace Go nie zna. Lepszy fallback: `openrouter` + `deepseek/deepseek-v4-flash` (działał 04-07.09).
+- Weekly-review (piątek 17:00) ostatnio padł 07.09 na tym samym błędzie; następny run 12.09 pójdzie
+  już na Go. Nie odpalałem testowo (wysyła digest na Telegram).
