@@ -342,6 +342,37 @@ describe("OutlookSyncService budget", () => {
 		expect(kit.stored[119]?.rfcMessageId).toBe("m-119@acme.com");
 		expect(kit.settled.at(-1)?.cursor).toBe(lastProcessed);
 	});
+
+	it("stops on the tick deadline before the budget runs out", async () => {
+		const kit = harness({
+			pages: [bulk(50, 0), bulk(50, 50), bulk(50, 100)],
+		});
+
+		let checks = 0;
+		const deadline = { expired: () => checks++ >= 30 };
+
+		await kit.service.sync(row, deadline);
+
+		expect(kit.stored).toHaveLength(30);
+	});
+
+	it("leaves the cursor on the last message it read before the deadline", async () => {
+		const kit = harness({
+			pages: [bulk(50, 0), bulk(50, 50), bulk(50, 100)],
+		});
+
+		let checks = 0;
+		const deadline = { expired: () => checks++ >= 30 };
+
+		await kit.service.sync(row, deadline);
+
+		const lastProcessed = new Date(
+			Date.UTC(2025, 7, 1, 9, 0, 0) + 29 * 60_000,
+		).toISOString();
+
+		expect(kit.stored[29]?.rfcMessageId).toBe("m-29@acme.com");
+		expect(kit.settled.at(-1)?.cursor).toBe(lastProcessed);
+	});
 });
 
 describe("OutlookSyncService first run", () => {

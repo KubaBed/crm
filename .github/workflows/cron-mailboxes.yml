@@ -24,6 +24,6 @@ jobs:
           if [ -z "$API_URL" ] || [ -z "$CRON_SECRET" ]; then
             echo "Brak sekretów API_URL / CRON_SECRET w repo" >&2; exit 1
           fi
-          curl -fsS -X POST "$API_URL/internal/sync/mailboxes" \
+          curl -fsS --max-time 90 -X POST "$API_URL/internal/sync/mailboxes" \
             -H "Authorization: Bearer $CRON_SECRET" \
             -w "\nHTTP %{http_code}\n"

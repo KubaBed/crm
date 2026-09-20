@@ -13,6 +13,7 @@ import {
 	stripQuotedHistory,
 } from "../mailbox/message-text";
 import { type Participant, parseAddress } from "../mailbox/participants";
+import { NO_DEADLINE, type SyncDeadline } from "../mailbox/sync-deadline";
 import { SyncStateService } from "../mailbox/sync-state.service";
 import {
 	type IncomingMessage,
@@ -59,7 +60,10 @@ export class OutlookSyncService {
 		private readonly threads: ThreadWriterService,
 	) {}
 
-	async sync(row: MailboxSync): Promise<OutlookSyncOutcome> {
+	async sync(
+		row: MailboxSync,
+		deadline: SyncDeadline = NO_DEADLINE,
+	): Promise<OutlookSyncOutcome> {
 		const initializedAt = new Date();
 
 		const token = await this.tokens.accessTokenFor(row.userId, "outlook");
@@ -113,7 +117,13 @@ export class OutlookSyncService {
 			return this.start(row, initializedAt);
 		}
 
-		return this.incremental(row, token.accessToken, mailbox, row.cursor);
+		return this.incremental(
+			row,
+			token.accessToken,
+			mailbox,
+			row.cursor,
+			deadline,
+		);
 	}
 
 	private async start(
@@ -138,6 +148,7 @@ export class OutlookSyncService {
 		accessToken: string,
 		mailbox: string,
 		cursor: string,
+		deadline: SyncDeadline,
 	): Promise<OutlookSyncOutcome> {
 		const from = new Date(cursor);
 		if (Number.isNaN(from.getTime())) {
@@ -172,6 +183,8 @@ export class OutlookSyncService {
 			const messages = (page.data.value ?? []).slice(0, Math.max(remaining, 0));
 
 			for (const message of messages) {
+				if (deadline.expired()) break;
+
 				seen += 1;
 
 				const receivedAt = message.receivedDateTime
@@ -201,6 +214,7 @@ export class OutlookSyncService {
 
 			const nextLink = page.data["@odata.nextLink"];
 			if (!nextLink || seen >= MAX_MESSAGES_PER_TICK) break;
+			if (deadline.expired()) break;
 
 			page = await this.graph.nextPage(accessToken, nextLink);
 		}
