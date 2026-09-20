@@ -6,11 +6,12 @@ import {
 	isGoogleSyncSource,
 	isMicrosoftSyncSource,
 } from "../mailbox/mailbox.constants";
+import { deadlineIn, type SyncDeadline } from "../mailbox/sync-deadline";
 import { SyncStateService } from "../mailbox/sync-state.service";
 import { MicrosoftConnectionService } from "../microsoft/microsoft-connection.service";
 import { MicrosoftSyncService } from "../microsoft/microsoft-sync.service";
 
-const TICK_BUDGET_MS = 60_000;
+const TICK_BUDGET_MS = 45_000;
 
 export type TickSummary = {
 	attempted: number;
@@ -35,6 +36,7 @@ export class MailboxSyncService {
 
 	async runDue(): Promise<TickSummary> {
 		const startedAt = Date.now();
+		const deadline = deadlineIn(TICK_BUDGET_MS);
 		const summary: TickSummary = {
 			attempted: 0,
 			synced: 0,
@@ -50,7 +52,7 @@ export class MailboxSyncService {
 		const due = await this.state.due(new Date());
 
 		for (const [index, row] of due.entries()) {
-			if (Date.now() - startedAt > TICK_BUDGET_MS) {
+			if (deadline.expired()) {
 				this.logger.log({
 					message: "Sync tick budget reached",
 					remaining: due.length - index,
@@ -63,7 +65,7 @@ export class MailboxSyncService {
 			summary.attempted += 1;
 
 			try {
-				const outcome = await this.runOne(row.userId, row.source);
+				const outcome = await this.runOne(row.userId, row.source, deadline);
 
 				if (outcome === null || outcome.status === "skipped") {
 					summary.skipped += 1;
@@ -112,11 +114,13 @@ export class MailboxSyncService {
 		return summary;
 	}
 
-	private async runOne(userId: string, source: string) {
-		if (isGoogleSyncSource(source)) return this.google.runOne(userId, source);
+	private async runOne(userId: string, source: string, deadline: SyncDeadline) {
+		if (isGoogleSyncSource(source)) {
+			return this.google.runOne(userId, source, deadline);
+		}
 
 		if (isMicrosoftSyncSource(source)) {
-			return this.microsoft.runOne(userId, source);
+			return this.microsoft.runOne(userId, source, deadline);
 		}
 
 		return null;

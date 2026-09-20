@@ -12,6 +12,7 @@ import {
 	stripQuotedHistory,
 } from "../mailbox/message-text";
 import { parseAddress, parseAddressList } from "../mailbox/participants";
+import { NO_DEADLINE, type SyncDeadline } from "../mailbox/sync-deadline";
 import { SyncStateService } from "../mailbox/sync-state.service";
 import {
 	type IncomingMessage,
@@ -48,7 +49,10 @@ export class GmailSyncService {
 		private readonly threads: ThreadWriterService,
 	) {}
 
-	async sync(row: MailboxSync): Promise<GmailSyncOutcome> {
+	async sync(
+		row: MailboxSync,
+		deadline: SyncDeadline = NO_DEADLINE,
+	): Promise<GmailSyncOutcome> {
 		const token = await this.tokens.accessTokenFor(row.userId, "gmail");
 
 		if (token.outcome === "not-connected") {
@@ -92,7 +96,13 @@ export class GmailSyncService {
 			return this.start(row, profile.data.historyId ?? null);
 		}
 
-		return this.incremental(row, token.accessToken, mailbox, row.cursor);
+		return this.incremental(
+			row,
+			token.accessToken,
+			mailbox,
+			row.cursor,
+			deadline,
+		);
 	}
 
 	private async start(
@@ -127,6 +137,7 @@ export class GmailSyncService {
 		accessToken: string,
 		mailbox: string,
 		startHistoryId: string,
+		deadline: SyncDeadline,
 	): Promise<GmailSyncOutcome> {
 		const history = await this.gmail.listHistory(accessToken, {
 			startHistoryId,
@@ -159,6 +170,7 @@ export class GmailSyncService {
 			accessToken,
 			mailbox,
 			[...ids],
+			deadline,
 		);
 
 		await this.state.settle(row.id, {
@@ -191,6 +203,7 @@ export class GmailSyncService {
 		accessToken: string,
 		mailbox: string,
 		ids: readonly string[],
+		deadline: SyncDeadline,
 	): Promise<{ written: number; remaining: number }> {
 		if (ids.length === 0) return { written: 0, remaining: 0 };
 
@@ -204,15 +217,19 @@ export class GmailSyncService {
 
 		const pending = ids.filter((id) => !seen.has(id));
 		const batch = pending.slice(0, MAX_MESSAGES_PER_TICK);
-		const remaining = pending.length - batch.length;
 
-		if (batch.length === 0) return { written: 0, remaining };
+		if (batch.length === 0) return { written: 0, remaining: 0 };
 
 		const context: MatchContext = await this.threads.context();
 
 		let written = 0;
+		let consumed = 0;
 
 		for (const id of batch) {
+			if (deadline.expired()) break;
+
+			consumed += 1;
+
 			const message = await this.gmail.getMessage(accessToken, id);
 			if (message.outcome !== "ok") continue;
 
@@ -228,7 +245,7 @@ export class GmailSyncService {
 			if (stored) written += 1;
 		}
 
-		return { written, remaining };
+		return { written, remaining: pending.length - consumed };
 	}
 
 	private parse(message: GmailMessage): IncomingMessage | null {
