@@ -163,3 +163,27 @@
   `setsid nohup hermes gateway run &` (brak unitu systemd; `pkill -f "hermes gateway"` z SSH
   zabija też własną sesję). Weekly-review odpalony ręcznie: sukces na Go (7 wywołań, 0 fallbacków),
   draft `wiki/synthesis/weekly-review-2026-W37.md` (7 otwartych deali, 0 bez ruchu >7 dni).
+
+## 2026-09-21 (sesja 8) - cron mailboxes: timeout, region, automatyka PR
+
+- Mail z GitHuba "cron-mailboxes: All jobs have failed" miał dwie niezależne przyczyny, nie jedną.
+- Przyczyna 1 (naprawiona w PR #1, `6693589`): `TICK_BUDGET_MS` był równy limitowi Vercela (60 s)
+  i sprawdzany tylko między skrzynkami, więc tick ginął w locie i nie zapisywał kursora.
+  Budżet to teraz deadline 45 s przekazany w głąb pętli wiadomości Gmaila i Outlooka.
+- Deploy jest ręczny (`workshift/deploy.sh api --prod`). Integracji Git z Vercelem nie ma, więc
+  sam merge do `workshift` niczego nie wdraża. Produkcja stała 16 dni za gałęzią.
+- Przyczyna 2 (znaleziona 21.09, po deployu poprawki): część cold startów wiesza się na łączeniu
+  z bazą. W logach runtime udany start kończy się `Database connected` i `Nest application
+  successfully started`, nieudany urywa się na mapowaniu tras i ginie po 60 s. Dlatego ręczne
+  wywołania (rozgrzana instancja) przechodziły, a ticki co 5 min padały.
+- Region: funkcja miała w `apps/api/scripts/build-func.mjs` zaszyte `iad1`, baza stoi w
+  eu-central-1. Po zmianie na `fra1` (PR #3) czas rozgrzanego ticka spadł z ~1,8 s do ~0,43 s.
+- Supabase nie jest wąskim gardłem: limit 60 połączeń, w użyciu 15, aplikacja łączy się przez pooler.
+- `com.kuba.crm-mailbox-sync` (launchd, co 5 min) to główny wyzwalacz i to on obrywał. Skrypt
+  `~/.claude/hooks/crm-mailbox-sync.sh` ma teraz 3 próby, ponawia też przy HTTP 5xx, a do logu
+  zapisuje kod wyjścia curla i status zamiast "brak sieci lub timeout".
+- Automatyka PR w forku naprawiona: uprawnienie "Allow GitHub Actions to create and approve pull
+  requests" włączone, `auto-pr.yml` celuje w gałąź domyślną (`github.event.repository.default_branch`),
+  CI odpala się też na pushach do `workshift`. PR otwarty przez automat wymaga ręcznego zatwierdzenia
+  przebiegu CI (`gh api -X POST repos/KubaBed/crm/actions/runs/<id>/approve`), bo zdarzenia od
+  GITHUB_TOKEN nie wyzwalają kolejnych workflow.
