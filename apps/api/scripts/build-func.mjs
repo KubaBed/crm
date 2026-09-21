@@ -169,7 +169,7 @@ writeFileSync(
 		maxDuration: 60,
 		memory: 1769,
 		environment: { NODE_ENV: "production" },
-		regions: ["iad1"],
+		regions: ["fra1"],
 	}),
 );
 writeFileSync(
