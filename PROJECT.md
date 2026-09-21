@@ -5,7 +5,9 @@
 - **Type:** personal (narzędzie firmowe Workshift)
 - **Status:** active (migracja z SimpleCRM, plan: `~/.claude/plans/chyba-dojrza-em-do-tego-polished-brooks.md`)
 - **Repo:** https://github.com/KubaBed/crm (fork), upstream https://github.com/trycompai/crm (MIT)
-- **Branch roboczy:** `workshift` (z tagu `v1.15.3`); `release` = upstream stabilny
+- **Branch roboczy:** `workshift` (z tagu `v1.15.3`), zarazem gałąź domyślna forka;
+  `release` = upstream stabilny. `CONTRIBUTING.md` opisuje przepływ upstreamu
+  (`main` -> `release`) i w forku jest nieaktualny.
 - **Wiki:** `wiki/projects/comp-ai-crm.md` (baza-wiedzy)
 - **Created:** 2026-09-04
 
