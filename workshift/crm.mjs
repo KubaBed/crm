@@ -19,8 +19,8 @@
  *                                                       DECISION_MAKER_BOUGHT_IN|CONTRACT_SENT|
  *                                                       CLOSED_WON|CLOSED_LOST|UNQUALIFIED_TO_BUY
  *   crm.mjs stale [dni=7] [--json]          otwarte deale bez aktywności >= N dni
- *   crm.mjs addcompany "<nazwa>" [domena] [--industry "..."] [--zrodlo "Cron research"] [--note "..."] [--nip ..] [--pkd ..]
- *                                           firma bez deala; dedup po domenie/nazwie; źródło = opcja pola Zrodlo
+ *   crm.mjs addcompany "<nazwa>" [domena] [--industry "..."] [--zrodlo "Cron research"] [--sygnal "Rekrutacja AI"] [--note "..."] [--nip ..] [--pkd ..]
+ *                                           firma bez deala; dedup po domenie/nazwie; źródło i sygnał = opcje pól Zrodlo i Sygnał
  *   crm.mjs raw <METHOD> </rest/path> ['<json body>']   ucieczka: dowolny endpoint z /openapi.json
  *   crm.mjs whoami                          sprawdza klucz (1 zapytanie o firmy)
  *
@@ -153,7 +153,7 @@ const commands = {
 
   async addcompany() {
     const [, name, domainArg] = positional
-    if (!name) die('użycie: addcompany "<nazwa>" [domena] [--industry ..] [--zrodlo ..] [--note ..]')
+    if (!name) die('użycie: addcompany "<nazwa>" [domena] [--industry ..] [--zrodlo ..] [--sygnal ..] [--note ..]')
     const domain = domainArg ? domainArg.replace(/^https?:\/\//, '').replace(/^www\./, '').split('/')[0] : undefined
     const byName = await api('POST', '/companies/search', { q: name, page: 1, pageSize: 10 })
     const byDomain = domain ? await api('POST', '/companies/search', { q: domain, page: 1, pageSize: 10 }) : { rows: [] }
@@ -165,9 +165,16 @@ const commands = {
     const fields = {}
     const zrodloLabel = flag('--zrodlo') || 'Cron research'
     const defs = await api('GET', '/fields?entity=COMPANY').catch(() => [])
-    const zrodlo = (Array.isArray(defs) ? defs : defs.rows || []).find((f) => f.key === 'zrodlo')
-    const opt = zrodlo?.options?.find((o) => o.label === zrodloLabel)
-    if (opt) fields.zrodlo = opt.id
+    const defList = Array.isArray(defs) ? defs : defs.rows || []
+    const optionId = (key, label) => defList.find((f) => f.key === key)?.options?.find((o) => o.label === label)?.id
+    const zrodloId = optionId('zrodlo', zrodloLabel)
+    if (zrodloId) fields.zrodlo = zrodloId
+    const sygnalLabel = flag('--sygnal')
+    if (sygnalLabel) {
+      const sygnalId = optionId('sygnal', sygnalLabel)
+      if (sygnalId) fields.sygnal = sygnalId
+      else console.error(`uwaga: brak opcji Sygnał "${sygnalLabel}", pole pominięte`)
+    }
     if (flag('--nip')) fields.nip = flag('--nip')
     if (flag('--pkd')) fields.pkd = flag('--pkd')
     const data = { fields }
@@ -175,7 +182,7 @@ const commands = {
     if (domain) data.website = `https://${domain}`
     await api('PATCH', `/companies/${company.id}`, { data })
     if (flag('--note')) await api('POST', '/activities', { type: 'NOTE', subject: 'Research', body: flag('--note'), companyId: company.id })
-    console.log(json ? JSON.stringify(company, null, 2) : `utworzono: ${company.id}  ${name}  ${domain || ''}  źródło: ${zrodloLabel}`)
+    console.log(json ? JSON.stringify(company, null, 2) : `utworzono: ${company.id}  ${name}  ${domain || ''}  źródło: ${zrodloLabel}${sygnalLabel ? `  sygnał: ${sygnalLabel}` : ''}`)
   },
 
   async raw() {

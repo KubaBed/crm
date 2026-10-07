@@ -187,3 +187,18 @@
   CI odpala się też na pushach do `workshift`. PR otwarty przez automat wymaga ręcznego zatwierdzenia
   przebiegu CI (`gh api -X POST repos/KubaBed/crm/actions/runs/<id>/approve`), bo zdarzenia od
   GITHUB_TOKEN nie wyzwalają kolejnych workflow.
+
+## 2026-10-07 (sesja 9) - portfel sygnałów leadów, cron v4, pola Źródło/Sygnał
+
+- Decyzja Kuby: sygnał rekrutacyjny AI przestaje być jedynym źródłem leadów. Koncepcja w vaulcie:
+  `wiki/playbooks/workshift-sygnaly-leadow.md` (7 sygnałów, punktacja timing x siła, przegląd 04.11).
+- CRM: pole `zrodlo` ma nowe opcje (Polecenie, Relacja, Formularz WWW, Email inbound, Telefon inbound,
+  Event / społeczność, LinkedIn, Meta Lead Ads, Cron research, Nieznane). Stare id zachowane:
+  Email -> Email inbound, Strona WWW -> Formularz WWW, Baza wiedzy -> Nieznane. Nowe pole firmy
+  `sygnal` (label "Sygnał"; utworzone jako "Sygnal" i przemianowane, bo slug z "ł" dawał klucz `sygna`).
+  Źródła 32 firm poprawione na podstawie vaulta (np. PET = Relacja, nie Polecenie).
+- `crm.mjs addcompany --sygnal "<etykieta>"`, `sync-vault-crm.mjs`: nowe mapowanie źródeł, domyślnie "Nieznane".
+- Cron v4 w repo (`hermes/lead-sources.py`, `hermes/lead-research-prompt.md`): S2 praca ręczna + S7 z tagiem
+  seniority; poprawka parsera (linia "Opublikowana: data" brana za tytuł). NIEWDROŻONE: Tailscale na Macu
+  zatrzymany, host 100.124.203.79 niedostępny. Wdrożenie: scp obu plików do `~/.hermes/scripts/` i podmiana
+  promptu crona `workshift-lead-research`, potem `--debug` run skryptu.
