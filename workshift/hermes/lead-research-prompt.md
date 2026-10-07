@@ -17,7 +17,9 @@ Dla każdej znalezionej firmy sprawdź:
 
 **Twarde sygnały** (MUSI być co najmniej jeden, z linkiem i datą; bez linku nie ma sygnału):
 - **S2 Praca ręczna:** firma 20-250 os. spoza IT rekrutuje do powtarzalnej pracy biurowej (fakturowanie,
-  wprowadzanie danych, rozliczenia, obsługa zamówień, dokumentacja): 2+ takie oferty w 60 dniach albo jedna ponowiona.
+  wprowadzanie danych, rozliczenia, obsługa zamówień). JEDNA aktualna oferta wystarczy, jeśli stanowisko to wprost
+  powtarzalna praca na dokumentach lub danych (nie: księgowość ekspercka, kadry/płace, dokumentacja techniczna
+  inżynierska, archiwista w instytucji). `[ofert: 2+]` = siła 2. Instytucje publiczne, banki, spółki giełdowe = DQ.
 - **S7 Rekrutacja AI (zawężona):** PIERWSZA lub juniorska rola AI/automatyzacji w firmie spoza IT, 20-150 os.
   Oferta z tagiem `[SENIOR: ryzyko budowy u siebie]` = DQ, chyba że firma nie ma działu IT ani zespołu danych
   (wtedy max score 3.5 i dopisek "ryzyko in-house").
