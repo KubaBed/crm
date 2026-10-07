@@ -19,7 +19,7 @@ import time
 os.environ.setdefault("CLOAKBROWSER_SUPPRESS_FONT_WARNING", "1")
 from cloakbrowser import launch  # noqa: E402
 
-LIMIT_PER_SOURCE = 15
+LIMIT_PER_SOURCE = {"S7": 15, "S2": 10}
 DEBUG = "--debug" in sys.argv
 
 SOURCES = [
@@ -36,7 +36,7 @@ SOURCES = [
     ("S2", "Pracuj.pl", "https://www.pracuj.pl/praca/specjalista%20ds.%20dokumentacji;kw", "/praca/"),
 ]
 SIGNAL_NAME = {"S7": "Rekrutacja AI", "S2": "Praca ręczna"}
-SENIOR = re.compile(r"(?i)\b(senior|lead|head|principal|architect|kierownik|manager|dyrektor|chief|staff)\b")
+SENIOR = re.compile(r"(?i)\b(senior|lead|head|principal|architect|kierownik|manager|dyrektor|chief|staff|starsz\w*|główn\w*)\b")
 JUNIOR = re.compile(r"(?i)\b(junior|młodszy|młodsza|stażyst|staż|intern|trainee|asystent)")
 
 # rekrutacja / body leasing / konkurenci Workshift: sygnał z nich to szum, filtr twardy
@@ -108,6 +108,7 @@ def main():
                 continue
             kept = 0
             for c in cards:
+                c["href"] = c["href"].split("?")[0]  # bez parametrów śledzących (tokeny w prompcie)
                 title, company, city = parse(source, c["text"], c["href"])
                 if DEBUG:
                     print(f"[{signal} {source}] {c['href']}\n{c['text']}\n---", file=sys.stderr)
@@ -122,7 +123,7 @@ def main():
                 if not rows:
                     kept += 1
                 rows.append({"source": source, "company": company, "title": title, "city": city, "href": c["href"]})
-                if kept >= LIMIT_PER_SOURCE:
+                if kept >= LIMIT_PER_SOURCE[signal]:
                     break
     finally:
         browser.close()

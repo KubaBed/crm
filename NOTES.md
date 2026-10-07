@@ -202,3 +202,9 @@
   seniority; poprawka parsera (linia "Opublikowana: data" brana za tytuł). NIEWDROŻONE: Tailscale na Macu
   zatrzymany, host 100.124.203.79 niedostępny. Wdrożenie: scp obu plików do `~/.hermes/scripts/` i podmiana
   promptu crona `workshift-lead-research`, potem `--debug` run skryptu.
+- 2026-10-07 (cd.): WDROŻONE na host po `tailscale up`. Kopie zapasowe na hoście: prompt
+  `~/.hermes/cron/prompt-006b7d9d0fb5-backup-2026-10-07.md` (v3), nowy w `prompt-006b7d9d0fb5-v4.md`;
+  podmiana przez `hermes cron edit 006b7d9d0fb5 --prompt "$(cat ...)"`. Próbny run `lead-sources.sh`
+  na hoście: 11 źródeł, 107 firm (S2: 50), 47 s, 24 KB (z 35 KB po wycięciu parametrów śledzących z linków).
+  Poprawki po teście: limit S2 = 10 firm na zapytanie, "starszy/główny" = tag SENIOR ("ekspert" celowo bez
+  tagu: w MŚP to zwykle rola "zanim zatrudnicie"). Pierwszy run agenta v4: 2026-10-08 06:30.
