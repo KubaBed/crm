@@ -65,6 +65,8 @@ Deploy: `workshift/deploy.sh <api|app> [--prod]` z korzenia repo.
 
 ## Next action
 
+0. **10.10: PR #4 (`feat/crm-w-trakcie`) wdrożony na prod, czeka na merge do `workshift`.** Deale w trakcie,
+   strona Zadania, Tablica, pole `outreach`. Do zrobienia: flaga `--outreach` w `crm.mjs`, edycja terminu zadania.
 1. GOTOWE: env bazy w Vercelu, deploy prod API i app, migracje, cron GitHub Actions (pierwszy run
    success), domyślna gałąź forka `workshift`, branding Workshift.
 2. GOTOWE: logowanie Kuby (owner), klucze API w `~/.zshenv`, PLN, pola własne, sync vault -> prod
