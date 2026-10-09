@@ -209,7 +209,7 @@
   Poprawki po teście: limit S2 = 10 firm na zapytanie, "starszy/główny" = tag SENIOR ("ekspert" celowo bez
   tagu: w MŚP to zwykle rola "zanim zatrudnicie"). Pierwszy run agenta v4: 2026-10-08 06:30.
 
-## 2026-10-09/10 (sesja 10) - deale w trakcie, strona Zadania, poprawki wyświetlania (PR #4)
+## 2026-10-09/10 (sesja 10) - deale w trakcie, strona Zadania, poprawki wyświetlania (PR #4, scalony `7bd2443`)
 
 - Zgłoszenie Kuby: trudno znaleźć deale faktycznie w toku, zadania nieklikalne, część rzeczy źle się wyświetla.
   Diagnoza na prod: 21 otwartych zadań, a pulpit pokazywał tylko 2 zaległe; endpoint `my-tasks` nieużywany
