@@ -43,7 +43,7 @@ function AddButton(props: ComponentProps<typeof Button>) {
 	return (
 		<Button {...props}>
 			<Icon icon={Add} data-icon="inline-start" />
-			New company
+			Nowa firma
 		</Button>
 	);
 }
@@ -96,7 +96,7 @@ function CreateCompanyForm() {
 			</SheetTrigger>
 			<SheetContent side="right">
 				<SheetHeader>
-					<SheetTitle>New company</SheetTitle>
+					<SheetTitle>Nowa firma</SheetTitle>
 					<SheetDescription>
 						Give it a name and a domain. The agent fills in the logo,
 						description, industry, address and socials.

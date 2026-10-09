@@ -20,7 +20,7 @@ const RATE_WINDOW_DAYS = 90;
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-const MONTH_LABEL = new Intl.DateTimeFormat("en-US", { month: "short" });
+const MONTH_LABEL = new Intl.DateTimeFormat("pl-PL", { month: "short" });
 
 function monthStart(from: Date, offset: number): Date {
 	return new Date(from.getFullYear(), from.getMonth() + offset, 1);

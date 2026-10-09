@@ -24,10 +24,13 @@ import { ListSearch } from "@/components/data-table/list-search";
 import { useTableQuery } from "@/components/data-table/use-table-query";
 import { LocalDay, LocalRelativeTime } from "@/components/local-date-time";
 import { DEAL_STAGE_OPTIONS } from "@/lib/deal-stage";
+import { plural } from "@/lib/plural";
 import { useTRPC } from "@/lib/trpc/client";
 import type { RouterOutputs } from "@/lib/trpc/types";
+import { DEAL_VIEW_OPTIONS } from "./deal-view-options";
 import { DealsBulkActions } from "./deals-bulk-actions";
-import { dealsSearchParams } from "./deals-search-params";
+import { DEALS_DEFAULT_VIEW, dealsSearchParams } from "./deals-search-params";
+import { NextStep } from "./next-step";
 
 type DealRow = RouterOutputs["deals"]["list"]["rows"][number];
 
@@ -37,29 +40,36 @@ const COLUMNS: DataTableColumn<DealRow>[] = [
 		header: "Deal",
 		sortable: true,
 		hideable: false,
-		width: "w-[24%]",
+		width: "w-[26%]",
 		cell: (row) => <span className="truncate font-medium">{row.name}</span>,
 	},
 	{
 		id: "company",
-		header: "Company",
+		header: "Firma",
 		sortable: true,
-		width: "w-[18%]",
+		width: "w-[16%]",
 		cell: (row) => <CompanyCell company={row.company} />,
 	},
 	{
 		id: "stage",
-		header: "Stage",
+		header: "Etap",
 		sortable: true,
-		width: "w-[18%]",
+		width: "w-[13%]",
 		cell: (row) => <DealStageMenu dealId={row.id} stage={row.stage} />,
 	},
 	{
+		id: "nextTask",
+		header: "Następny krok",
+		width: "w-[22%]",
+		hideBelow: "md",
+		cell: (row) => <NextStep stage={row.stage} nextTask={row.nextTask} />,
+	},
+	{
 		id: "amount",
-		header: "Amount",
+		header: "Kwota",
 		sortable: true,
 		align: "right",
-		width: "w-[12%]",
+		width: "w-[11%]",
 		hideBelow: "sm",
 		cell: (row) =>
 			row.amountCents === null ? (
@@ -72,18 +82,21 @@ const COLUMNS: DataTableColumn<DealRow>[] = [
 	},
 	{
 		id: "owner",
-		header: "Owner",
+		header: "Właściciel",
 		sortable: true,
 		width: "w-[14%]",
 		hideBelow: "md",
+		defaultHidden: true,
 		cell: (row) => <OwnerCell owner={row.owner} />,
 	},
 	{
 		id: "expectedCloseDate",
-		header: "Close date",
+		header: "Zamknięcie",
+		label: "Planowane zamknięcie",
 		sortable: true,
-		width: "w-[12%]",
+		width: "w-[11%]",
 		hideBelow: "lg",
+		defaultHidden: true,
 		cell: (row) =>
 			row.expectedCloseDate ? (
 				<span className="text-muted-foreground">
@@ -95,8 +108,8 @@ const COLUMNS: DataTableColumn<DealRow>[] = [
 	},
 	{
 		id: "createdAt",
-		header: "Created",
-		label: "Created date",
+		header: "Dodany",
+		label: "Data dodania",
 		sortable: true,
 		align: "right",
 		width: "w-[10%]",
@@ -109,7 +122,8 @@ const COLUMNS: DataTableColumn<DealRow>[] = [
 	},
 	{
 		id: "lastActivity",
-		header: "Last activity",
+		header: "Ostatnio",
+		label: "Ostatnia aktywność",
 		sortable: true,
 		align: "right",
 		width: "w-[12%]",
@@ -128,8 +142,8 @@ const COLUMNS: DataTableColumn<DealRow>[] = [
 
 const ARCHIVED_COLUMN: DataTableColumn<DealRow> = {
 	id: "archivedAt",
-	header: "Archived",
-	label: "Archived date",
+	header: "Zarchiwizowany",
+	label: "Data archiwizacji",
 	sortable: true,
 	align: "right",
 	width: "w-[12%]",
@@ -186,7 +200,7 @@ export function DealsTable() {
 	const facets: DataTableFacet[] = [
 		{
 			id: "owner",
-			label: "Owner",
+			label: "Właściciel",
 			options: (users.data ?? []).flatMap((user) =>
 				(facetCounts?.owner?.[user.id] ?? 0) > 0
 					? [{ value: user.id, label: user.name }]
@@ -195,14 +209,14 @@ export function DealsTable() {
 		},
 		{
 			id: "stage",
-			label: "Stage",
+			label: "Etap",
 			options: DEAL_STAGE_OPTIONS.filter(
 				(option) => (facetCounts?.stage?.[option.value] ?? 0) > 0,
 			),
 		},
 		{
 			id: "closing",
-			label: "Closing",
+			label: "Zamknięcie",
 			options: CLOSING_OPTIONS.flatMap((option) =>
 				(facetCounts?.closing?.[option.value] ?? 0) > 0
 					? [{ value: option.value, label: option.label }]
@@ -230,7 +244,7 @@ export function DealsTable() {
 	return (
 		<DataTable
 			query={query}
-			search={<ListSearch placeholder="Search deals by name or company…" />}
+			search={<ListSearch placeholder="Szukaj deala lub firmy…" />}
 			actions={
 				<Button
 					variant={input.archived ? "contrast" : "outline"}
@@ -239,7 +253,7 @@ export function DealsTable() {
 					onClick={() => toggleArchived(!input.archived)}
 				>
 					<Archive data-icon="inline-start" />
-					Archived
+					Archiwum
 				</Button>
 			}
 			columns={columns}
@@ -249,11 +263,9 @@ export function DealsTable() {
 			facets={facets}
 			tabs={{
 				id: "status",
-				allLabel: "All deals",
-				options: [
-					{ value: "open", label: "Open" },
-					{ value: "closed", label: "Closed" },
-				],
+				allLabel: "Wszystkie deale",
+				defaultValue: DEALS_DEFAULT_VIEW,
+				options: DEAL_VIEW_OPTIONS,
 			}}
 			selection={{
 				state: selection,
@@ -271,21 +283,23 @@ export function DealsTable() {
 			onRowHover={(row) => prefetchRecord({ kind: "deal", id: row.id })}
 			onRowClick={(row) => openRecord({ kind: "deal", id: row.id })}
 			empty={
-				input.archived ? "No archived deals." : "No deals match this view."
+				input.archived
+					? "Brak zarchiwizowanych deali."
+					: "Żaden deal nie pasuje do tego widoku. Sprawdź widok Wszystkie deale."
 			}
 			meta={
 				input.archived || openPipelineCents === null ? undefined : (
 					<span>
-						{deals.data?.total ?? 0} deals ·{" "}
+						{plural(deals.data?.total ?? 0, "deal", "deale", "deali")} ·{" "}
 						<span className="tabular-nums">
 							{formatMoney(openPipelineCents, reportingCurrency)}
 						</span>{" "}
-						open pipeline
+						otwartego pipeline'u
 						{unconverted && unconverted.count > 0 ? (
 							<span className="text-muted-foreground">
 								{" "}
-								· {unconverted.count} not counted (no{" "}
-								{unconverted.currencies.join(", ")} rate)
+								· pominięte: {unconverted.count} (brak kursu{" "}
+								{unconverted.currencies.join(", ")})
 							</span>
 						) : null}
 					</span>

@@ -18,7 +18,7 @@ import { CompaniesTable } from "./companies-table";
 import { CreateCompanySheet } from "./create-company-sheet";
 
 export const metadata: Metadata = {
-	title: "Companies",
+	title: "Firmy",
 };
 
 export default function CompaniesPage({
@@ -28,9 +28,10 @@ export default function CompaniesPage({
 		<PageShell className="min-h-0">
 			<PageShellHeader>
 				<PageShellHeading>
-					<PageShellTitle>Companies</PageShellTitle>
+					<PageShellTitle>Firmy</PageShellTitle>
 					<PageShellDescription>
-						Every account in the pipeline.
+						Domyślnie firmy z dealem w trakcie. Reszta jest w widoku Wszystkie
+						firmy.
 					</PageShellDescription>
 				</PageShellHeading>
 				<PageShellActions>

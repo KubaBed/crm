@@ -16,6 +16,7 @@ import {
 } from "@crm/ui/components/popover";
 import { Spinner } from "@crm/ui/components/spinner";
 import { ToggleGroup, ToggleGroupItem } from "@crm/ui/components/toggle-group";
+import { LOCALE } from "@crm/ui/lib/format";
 import { useMutation } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -29,17 +30,17 @@ const TYPES = ["NOTE", "CALL", "EMAIL", "MEETING", "TASK"] as const;
 
 type ComposableType = (typeof TYPES)[number];
 
-const dueFormat = new Intl.DateTimeFormat("en-US", {
+const dueFormat = new Intl.DateTimeFormat(LOCALE, {
 	month: "short",
 	day: "numeric",
 });
 
 const PLACEHOLDER = {
-	NOTE: "Log a note, call, email, meeting or task…",
-	CALL: "What came out of the call?",
-	EMAIL: "What was said?",
-	MEETING: "What came out of the meeting?",
-	TASK: "What needs doing?",
+	NOTE: "Zapisz notatkę, telefon, maila, spotkanie albo zadanie…",
+	CALL: "Co wyszło z rozmowy?",
+	EMAIL: "Co padło w mailu?",
+	MEETING: "Co wyszło ze spotkania?",
+	TASK: "Co trzeba zrobić?",
 } satisfies Record<ComposableType, string>;
 
 export function ActivityComposer({ anchor }: { anchor: TimelineAnchor }) {
@@ -91,7 +92,7 @@ export function ActivityComposer({ anchor }: { anchor: TimelineAnchor }) {
 					value={draft}
 					onChange={(event) => setDraft(event.target.value)}
 					placeholder={PLACEHOLDER[type]}
-					aria-label="What happened"
+					aria-label="Co się wydarzyło"
 					onKeyDown={(event) => {
 						if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
 							event.preventDefault();
@@ -126,7 +127,7 @@ export function ActivityComposer({ anchor }: { anchor: TimelineAnchor }) {
 							<PopoverTrigger asChild>
 								<InputGroupButton variant="ghost" size="xs">
 									<Icon icon={Calendar} data-icon="inline-start" />
-									{dueAt ? dueFormat.format(dueAt) : "Due date"}
+									{dueAt ? dueFormat.format(dueAt) : "Termin"}
 								</InputGroupButton>
 							</PopoverTrigger>
 							<PopoverContent size="fit" align="start">
@@ -149,7 +150,9 @@ export function ActivityComposer({ anchor }: { anchor: TimelineAnchor }) {
 							disabled={create.isPending}
 						>
 							{create.isPending ? <Spinner /> : null}
-							{isTask ? "Add task" : `Log ${activityLabel(type).toLowerCase()}`}
+							{isTask
+								? "Dodaj zadanie"
+								: `Zapisz: ${activityLabel(type).toLowerCase()}`}
 						</InputGroupButton>
 					)}
 				</InputGroupAddon>

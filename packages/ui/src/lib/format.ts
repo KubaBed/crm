@@ -6,8 +6,11 @@ export function formatCount(
 	return `${count} ${count === 1 ? noun : plural}`;
 }
 
+export const LOCALE = "pl-PL";
+export const TIME_ZONE = "Europe/Warsaw";
+
 const WELL_FORMED_CURRENCY_CODE = /^[A-Za-z]{3}$/;
-const percentFormat = new Intl.NumberFormat("en-US", {
+const percentFormat = new Intl.NumberFormat(LOCALE, {
 	style: "percent",
 	maximumFractionDigits: 0,
 });
@@ -39,7 +42,7 @@ export function formatMoney(cents: number, currency = "usd"): string {
 	const whole = cents % 100 === 0;
 	const digits = fractionDigits(code);
 
-	return new Intl.NumberFormat(undefined, {
+	return new Intl.NumberFormat(LOCALE, {
 		style: "currency",
 		currency: code,
 		minimumFractionDigits: whole ? 0 : Math.min(2, digits),
@@ -48,7 +51,7 @@ export function formatMoney(cents: number, currency = "usd"): string {
 }
 
 export function formatMoneyCompact(cents: number, currency = "usd"): string {
-	return new Intl.NumberFormat(undefined, {
+	return new Intl.NumberFormat(LOCALE, {
 		style: "currency",
 		currency: displayCurrencyCode(currency),
 		notation: "compact",
@@ -60,7 +63,7 @@ export function formatPercent(rate: number): string {
 	return percentFormat.format(rate);
 }
 
-const dayFormat = new Intl.DateTimeFormat("en-US", {
+const dayFormat = new Intl.DateTimeFormat(LOCALE, {
 	month: "short",
 	day: "numeric",
 	year: "numeric",
@@ -68,6 +71,17 @@ const dayFormat = new Intl.DateTimeFormat("en-US", {
 
 function pad(value: number): string {
 	return String(value).padStart(2, "0");
+}
+
+const zonedDayFormat = new Intl.DateTimeFormat("en-CA", {
+	timeZone: TIME_ZONE,
+	year: "numeric",
+	month: "2-digit",
+	day: "2-digit",
+});
+
+export function zonedDay(date: Date): string {
+	return zonedDayFormat.format(date);
 }
 
 export function toDay(date: Date): string {

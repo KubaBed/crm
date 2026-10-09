@@ -11,7 +11,6 @@ import {
 	CardTitle,
 } from "@crm/ui/components/card";
 import { CardTableEmpty } from "@crm/ui/components/card-table";
-import { Checkbox } from "@crm/ui/components/checkbox";
 import { EmptyCellValue } from "@crm/ui/components/empty-cell";
 import {
 	EntityLogo,
@@ -23,22 +22,22 @@ import {
 	SimpleTableRow,
 } from "@crm/ui/components/simple-table";
 import { Spinner } from "@crm/ui/components/spinner";
-import { StatusIndicator } from "@crm/ui/components/status-indicator";
 import { TableCell } from "@crm/ui/components/table";
-import { formatCount, formatMoneyCompact } from "@crm/ui/lib/format";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { formatMoneyCompact } from "@crm/ui/lib/format";
+import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { useQueryState } from "nuqs";
-import type { CSSProperties, ReactNode } from "react";
-import { toast } from "sonner";
+import { type CSSProperties, type ReactNode, useState } from "react";
 import { DealStageIndicator } from "@/components/crm/deal-stage";
 import { RecordLink } from "@/components/crm/record-sheet/record-link";
 import { useOpenRecord } from "@/components/crm/record-sheet/record-stack";
+import { TaskTable } from "@/components/crm/tasks/task-table";
 import { LocalRelativeTime } from "@/components/local-date-time";
 import { activityLabel } from "@/lib/activity-presentation";
 import { dealStageColor } from "@/lib/deal-stage";
+import { plural } from "@/lib/plural";
 import { SEARCH_PARAM } from "@/lib/search-param-keys";
-import { useCrmCache } from "@/lib/trpc/cache";
+import { TASKS, type TaskBucket, taskBucket } from "@/lib/tasks";
 import { useTRPC } from "@/lib/trpc/client";
 import { useWorkspaceUrl } from "@/lib/use-workspace-url";
 import { overviewParsers } from "./overview-search-params";
@@ -49,28 +48,23 @@ const OPEN_COLUMNS: SimpleTableColumn[] = [
 	{ id: "deal", header: "Deal" },
 	{
 		id: "stage",
-		header: "Stage",
+		header: "Etap",
 		width: "w-32",
 		className: "hidden lg:table-cell",
 	},
 	{
 		id: "share",
-		srLabel: "Share of the largest",
-		width: "w-24",
+		srLabel: "Udział w największym dealu",
+		width: "w-20",
 		className: "hidden sm:table-cell",
 	},
-	{ id: "value", header: "Value", width: "w-20", align: "right" },
-];
-const TASK_COLUMNS: SimpleTableColumn[] = [
-	{ id: "done", srLabel: "Done", width: "w-8" },
-	{ id: "task", header: "Task" },
-	{ id: "overdue", header: "Overdue", width: "w-24", align: "right" },
+	{ id: "value", header: "Wartość", width: "w-28", align: "right" },
 ];
 const ACTIVITY_COLUMNS: SimpleTableColumn[] = [
-	{ id: "activity", header: "Activity" },
+	{ id: "activity", header: "Aktywność" },
 	{
 		id: "company",
-		header: "Company",
+		header: "Firma",
 		width: "w-44",
 		className: "hidden md:table-cell",
 	},
@@ -82,18 +76,19 @@ const ACTIVITY_COLUMNS: SimpleTableColumn[] = [
 	},
 	{
 		id: "who",
-		header: "Who",
+		header: "Kto",
 		width: "w-32",
 		className: "hidden md:table-cell",
 	},
-	{ id: "when", header: "When", width: "w-20", align: "right" },
+	{ id: "when", header: "Kiedy", width: "w-28", align: "right" },
 ];
+const SOON: ReadonlySet<TaskBucket> = new Set(["overdue", "today", "upcoming"]);
 
 export function DashboardSummary() {
 	const trpc = useTRPC();
-	const cache = useCrmCache();
 	const openRecord = useOpenRecord();
 	const workspaceUrl = useWorkspaceUrl();
+	const [now] = useState(() => new Date());
 
 	const [scope] = useQueryState(
 		SEARCH_PARAM.overview.scope,
@@ -105,10 +100,10 @@ export function DashboardSummary() {
 		placeholderData: (previous) => previous,
 	});
 
-	const complete = useMutation(
-		trpc.activities.complete.mutationOptions({
-			onSuccess: () => cache.activity(),
-			onError: (error) => toast.error(error.message),
+	const tasksQuery = useQuery(
+		trpc.activities.myTasks.queryOptions({
+			window: "all",
+			limit: TASKS.listLimit,
 		}),
 	);
 
@@ -122,7 +117,14 @@ export function DashboardSummary() {
 		);
 	}
 
-	const { biggestOpen, overdueTasks, recentActivity } = summary;
+	const { biggestOpen, recentActivity } = summary;
+
+	const dueSoon = (tasksQuery.data ?? []).filter((task) =>
+		SOON.has(taskBucket(task.dueAt, now)),
+	);
+	const overdueCount = dueSoon.filter(
+		(task) => taskBucket(task.dueAt, now) === "overdue",
+	).length;
 
 	const mine = scope === "me";
 	const largestOpenCents = biggestOpen[0]?.baseAmountCents ?? 0;
@@ -134,20 +136,20 @@ export function DashboardSummary() {
 			<div className="grid gap-6 @3xl/page-content:grid-cols-2">
 				<Card className="min-w-0">
 					<CardHeader>
-						<CardTitle>Deals in progress</CardTitle>
+						<CardTitle>Deale w trakcie</CardTitle>
 						<CardDescription>
-							The largest open deals, and how long each has sat in its stage
+							Największe otwarte deale i od kiedy stoją w etapie
 						</CardDescription>
 						<CardAction>
 							<Button asChild variant="contrast" size="sm">
-								<Link href={workspaceUrl("/deals")}>Open deals</Link>
+								<Link href={workspaceUrl("/deals")}>Lista deali</Link>
 							</Button>
 						</CardAction>
 					</CardHeader>
 					<CardPanel>
 						{biggestOpen.length === 0 ? (
 							<CardPanelEmpty>
-								Nothing open. Time to fill the pipeline.
+								Nic otwartego. Czas dopełnić pipeline.
 							</CardPanelEmpty>
 						) : (
 							<SimpleTable
@@ -198,65 +200,28 @@ export function DashboardSummary() {
 
 				<Card className="min-w-0">
 					<CardHeader>
-						<CardTitle>Overdue tasks</CardTitle>
+						<CardTitle>Najbliższe zadania</CardTitle>
 						<CardDescription>
-							{overdueTasks.length === 0
-								? "Every task you have logged is either done or still to come"
-								: `${formatCount(overdueTasks.length, "task")} past due`}
+							{dueSoon.length === 0
+								? `Nic na najbliższe ${TASKS.upcomingDays} dni`
+								: `${plural(dueSoon.length, "zadanie", "zadania", "zadań")} na ${TASKS.upcomingDays} dni${overdueCount > 0 ? `, zaległe: ${overdueCount}` : ""}`}
 						</CardDescription>
+						<CardAction>
+							<Button asChild variant="contrast" size="sm">
+								<Link href={workspaceUrl("/tasks")}>Wszystkie zadania</Link>
+							</Button>
+						</CardAction>
 					</CardHeader>
 					<CardPanel>
-						{overdueTasks.length === 0 ? (
-							<CardPanelEmpty>Nothing overdue. Good.</CardPanelEmpty>
+						{dueSoon.length === 0 ? (
+							<CardPanelEmpty>Nic pilnego.</CardPanelEmpty>
 						) : (
-							<SimpleTable
+							<TaskTable
+								tasks={dueSoon.slice(0, TASKS.overviewLimit)}
+								now={now}
 								variant="panel"
 								surface="page"
-								columns={TASK_COLUMNS}
-							>
-								{overdueTasks.map((task) => (
-									<SimpleTableRow key={task.id}>
-										<TableCell className={CELL}>
-											<Checkbox
-												checked={false}
-												disabled={complete.isPending}
-												aria-label="Mark as done"
-												onCheckedChange={() =>
-													complete.mutate({ id: task.id, completed: true })
-												}
-											/>
-										</TableCell>
-										<TableCell className={CELL}>
-											<span className="flex min-w-0 flex-col">
-												<span className="truncate">{task.subject}</span>
-												<span className="flex min-w-0 text-muted-foreground">
-													{task.deal ? (
-														<RecordLink kind="deal" id={task.deal.id}>
-															{task.deal.name}
-														</RecordLink>
-													) : task.company ? (
-														<RecordLink kind="company" id={task.company.id}>
-															{task.company.name}
-														</RecordLink>
-													) : null}
-												</span>
-											</span>
-										</TableCell>
-										<TableCell className={`${CELL} text-right`}>
-											<StatusIndicator
-												tone="error"
-												label={
-													task.dueAt ? (
-														<LocalRelativeTime date={task.dueAt} />
-													) : (
-														"No due date"
-													)
-												}
-											/>
-										</TableCell>
-									</SimpleTableRow>
-								))}
-							</SimpleTable>
+							/>
 						)}
 					</CardPanel>
 				</Card>
@@ -265,21 +230,21 @@ export function DashboardSummary() {
 			<Card className="min-w-0">
 				<CardHeader>
 					<CardTitle>
-						{mine ? "Your recent activity" : "Recent activity"}
+						{mine ? "Twoja ostatnia aktywność" : "Ostatnia aktywność"}
 					</CardTitle>
 					<CardDescription>
 						{mine
-							? "Every note, task and stage change you have logged"
-							: "Every note, task and stage change across the workspace"}
+							? "Notatki, zadania i zmiany etapów zapisane przez ciebie"
+							: "Notatki, zadania i zmiany etapów w całym CRM"}
 					</CardDescription>
 					<CardAction>
 						<Button asChild variant="contrast" size="sm">
-							<Link href={workspaceUrl("/companies")}>All companies</Link>
+							<Link href={workspaceUrl("/companies")}>Lista firm</Link>
 						</Button>
 					</CardAction>
 				</CardHeader>
 				{recentActivity.length === 0 ? (
-					<CardTableEmpty>Nothing has happened yet.</CardTableEmpty>
+					<CardTableEmpty>Jeszcze nic się nie wydarzyło.</CardTableEmpty>
 				) : (
 					<SimpleTable columns={ACTIVITY_COLUMNS}>
 						{recentActivity.map((entry) => (

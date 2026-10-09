@@ -10,6 +10,7 @@ import { Button } from "@crm/ui/components/button";
 import type { CarbonIcon } from "@crm/ui/components/icon";
 import { Spinner } from "@crm/ui/components/spinner";
 import { ToggleGroup, ToggleGroupItem } from "@crm/ui/components/toggle-group";
+import { LOCALE } from "@crm/ui/lib/format";
 import { cn } from "@crm/ui/lib/utils";
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { useQueryState } from "nuqs";
@@ -32,43 +33,43 @@ export type TimelineAnchor =
 	| { dealId: string };
 
 const TAB_LABELS = {
-	all: "All",
-	notes: "Notes",
-	email: "Email",
-	meetings: "Meetings",
-	upcoming: "Upcoming",
-	done: "Done",
+	all: "Wszystko",
+	notes: "Notatki",
+	email: "E-mail",
+	meetings: "Spotkania",
+	upcoming: "Do zrobienia",
+	done: "Zrobione",
 } satisfies Record<TimelineTab, string>;
 
 const EMPTY_STATES = {
 	all: {
-		title: "Nothing has happened yet",
+		title: "Jeszcze nic się nie wydarzyło",
 		description:
-			"Calls, notes, emails and meetings all land here. Log the first one above, or wait for Gmail and Calendar to sync.",
+			"Tu trafiają telefony, notatki, maile i spotkania. Zapisz pierwszą aktywność powyżej albo poczekaj na synchronizację Gmaila i Kalendarza.",
 	},
 	notes: {
-		title: "No notes",
+		title: "Brak notatek",
 		description:
-			"Notes are what you write down for the next person to read — what they care about, who else is involved, what you promised.",
+			"Notatka to to, co warto zapamiętać na później: na czym im zależy, kto jeszcze decyduje, co obiecaliśmy.",
 	},
 	email: {
-		title: "No email",
+		title: "Brak maili",
 		description:
-			"Threads appear here as they are synced from Gmail. Nothing from before this mailbox was connected is imported.",
+			"Wątki pojawiają się tu po synchronizacji z Gmailem. Maile sprzed podłączenia skrzynki nie są importowane.",
 	},
 	meetings: {
-		title: "No meetings",
+		title: "Brak spotkań",
 		description:
-			"Calendar events with someone from this record on them show up here, past and upcoming.",
+			"Tu widać wydarzenia z kalendarza z udziałem osób z tego rekordu, minione i nadchodzące.",
 	},
 	upcoming: {
-		title: "Nothing outstanding",
+		title: "Nic do zrobienia",
 		description:
-			"Tasks you have not finished appear here, and at the top of the All tab until they are done.",
+			"Tu są niezakończone zadania. Do czasu odhaczenia widać je też na górze zakładki Wszystko.",
 	},
 	done: {
-		title: "Nothing finished yet",
-		description: "Tasks move here once you tick them off.",
+		title: "Nic jeszcze nie zrobiono",
+		description: "Zadania trafiają tu po odhaczeniu.",
 	},
 } satisfies Record<TimelineTab, { title: string; description: string }>;
 
@@ -81,7 +82,7 @@ const EMPTY_ICONS = {
 	done: Checkmark,
 } satisfies Record<TimelineTab, CarbonIcon>;
 
-const dayFormat = new Intl.DateTimeFormat("en-US", {
+const dayFormat = new Intl.DateTimeFormat(LOCALE, {
 	weekday: "short",
 	month: "short",
 	day: "numeric",
@@ -96,8 +97,8 @@ function dayLabel(day: string, local: boolean): string {
 		: new Date(Date.now() - 86_400_000);
 	const yesterday = dayKey(yesterdayDate.toISOString(), local);
 
-	if (day === today) return "Today";
-	if (day === yesterday) return "Yesterday";
+	if (day === today) return "Dziś";
+	if (day === yesterday) return "Wczoraj";
 	return dayFormat.format(new Date(`${day}T00:00:00`));
 }
 
@@ -225,7 +226,7 @@ export function Timeline({ anchor }: { anchor: TimelineAnchor }) {
 				<div className="flex min-h-0 flex-1 flex-col overflow-y-auto px-5 pb-4">
 					{pinnedEntries.length > 0 ? (
 						<TimelineDay
-							label="Outstanding"
+							label="Do zrobienia"
 							entries={pinnedEntries}
 							anchor={anchor}
 						/>

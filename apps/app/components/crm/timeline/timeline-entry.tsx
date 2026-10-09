@@ -70,8 +70,8 @@ export function TimelineEntry({
 	const synced = entry.meta?.synced === true;
 	const author = synced
 		? entry.emailThread
-			? "via Gmail"
-			: "via Calendar"
+			? "z Gmaila"
+			: "z Kalendarza"
 		: entry.createdBy.name;
 
 	const headline = change
@@ -94,7 +94,9 @@ export function TimelineEntry({
 					<Checkbox
 						checked={done}
 						disabled={complete.isPending}
-						aria-label={done ? "Mark as not done" : "Mark as done"}
+						aria-label={
+							done ? "Oznacz jako niezrobione" : "Oznacz jako zrobione"
+						}
 						onCheckedChange={(checked) =>
 							complete.mutate({ id: entry.id, completed: checked === true })
 						}
@@ -171,7 +173,7 @@ export function TimelineEntry({
 								tone={overdue ? "error" : "info"}
 								label={
 									<>
-										{overdue ? "Overdue" : "Due"}{" "}
+										{overdue ? "Zaległe," : "Termin:"}{" "}
 										<LocalRelativeTime date={entry.dueAt} />
 									</>
 								}
