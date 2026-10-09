@@ -34,14 +34,18 @@ import {
 import { useTRPC } from "@/lib/trpc/client";
 import type { RouterOutputs } from "@/lib/trpc/types";
 import { CompaniesBulkActions } from "./companies-bulk-actions";
-import { companiesSearchParams } from "./companies-search-params";
+import {
+	COMPANIES_DEFAULT_VIEW,
+	COMPANY_VIEW_OPTIONS,
+	companiesSearchParams,
+} from "./companies-search-params";
 
 type CompanyRow = RouterOutputs["companies"]["list"]["rows"][number];
 
 const COLUMNS: DataTableColumn<CompanyRow>[] = [
 	{
 		id: "name",
-		header: "Company",
+		header: "Firma",
 		sortable: true,
 		hideable: false,
 		width: "w-[26%]",
@@ -60,7 +64,7 @@ const COLUMNS: DataTableColumn<CompanyRow>[] = [
 	},
 	{
 		id: "domain",
-		header: "Domain",
+		header: "Domena",
 		sortable: true,
 		width: "w-[16%]",
 		hideBelow: "md",
@@ -73,7 +77,7 @@ const COLUMNS: DataTableColumn<CompanyRow>[] = [
 	},
 	{
 		id: "industry",
-		header: "Industry",
+		header: "Branża",
 		sortable: true,
 		width: "w-[16%]",
 		hideBelow: "lg",
@@ -86,7 +90,7 @@ const COLUMNS: DataTableColumn<CompanyRow>[] = [
 	},
 	{
 		id: "owner",
-		header: "Owner",
+		header: "Właściciel",
 		sortable: true,
 		width: "w-[16%]",
 		hideBelow: "md",
@@ -94,7 +98,7 @@ const COLUMNS: DataTableColumn<CompanyRow>[] = [
 	},
 	{
 		id: "contacts",
-		header: "Contacts",
+		header: "Kontakty",
 		sortable: true,
 		align: "right",
 		width: "w-[9%]",
@@ -103,7 +107,8 @@ const COLUMNS: DataTableColumn<CompanyRow>[] = [
 	},
 	{
 		id: "deals",
-		header: "Open deals",
+		header: "Deale",
+		label: "Otwarte deale",
 		sortable: true,
 		align: "right",
 		width: "w-[9%]",
@@ -111,8 +116,8 @@ const COLUMNS: DataTableColumn<CompanyRow>[] = [
 	},
 	{
 		id: "createdAt",
-		header: "Created",
-		label: "Created date",
+		header: "Dodana",
+		label: "Data dodania",
 		sortable: true,
 		align: "right",
 		width: "w-[10%]",
@@ -125,7 +130,8 @@ const COLUMNS: DataTableColumn<CompanyRow>[] = [
 	},
 	{
 		id: "lastActivity",
-		header: "Last activity",
+		header: "Ostatnio",
+		label: "Ostatnia aktywność",
 		sortable: true,
 		align: "right",
 		width: "w-[12%]",
@@ -200,9 +206,9 @@ export function CompaniesTable() {
 	const facets: DataTableFacet[] = [
 		{
 			id: "owner",
-			label: "Owner",
+			label: "Właściciel",
 			options: [
-				{ value: "unassigned", label: "Unassigned" },
+				{ value: "unassigned", label: "Bez właściciela" },
 				...(users.data ?? []).map((user) => ({
 					value: user.id,
 					label: user.name,
@@ -211,7 +217,7 @@ export function CompaniesTable() {
 		},
 		{
 			id: "industry",
-			label: "Industry",
+			label: "Branża",
 			options: Object.keys(facetCounts?.industry ?? {})
 				.sort()
 				.map((value) => ({ value, label: value })),
@@ -245,7 +251,7 @@ export function CompaniesTable() {
 	return (
 		<DataTable
 			query={query}
-			search={<ListSearch placeholder="Search companies by name or domain…" />}
+			search={<ListSearch placeholder="Szukaj firmy lub domeny…" />}
 			actions={
 				<>
 					<SavedViewsMenu entity="COMPANY" table={table} />
@@ -256,7 +262,7 @@ export function CompaniesTable() {
 						onClick={() => setArchived(!input.archived)}
 					>
 						<Archive data-icon="inline-start" />
-						Archived
+						Archiwum
 					</Button>
 				</>
 			}
@@ -265,6 +271,12 @@ export function CompaniesTable() {
 			total={companies.data?.total ?? 0}
 			facetCounts={facetCounts}
 			facets={facets}
+			tabs={{
+				id: "status",
+				allLabel: "Wszystkie firmy",
+				defaultValue: COMPANIES_DEFAULT_VIEW,
+				options: COMPANY_VIEW_OPTIONS,
+			}}
 			selection={{
 				state: selection,
 				actions: (
@@ -282,8 +294,8 @@ export function CompaniesTable() {
 			onRowClick={(row) => openRecord({ kind: "company", id: row.id })}
 			empty={
 				input.archived
-					? "No archived companies."
-					: "No companies match this view."
+					? "Brak zarchiwizowanych firm."
+					: "Żadna firma nie pasuje do tego widoku. Sprawdź widok Wszystkie firmy."
 			}
 		/>
 	);

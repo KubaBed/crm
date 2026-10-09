@@ -84,6 +84,7 @@ export type DataTableFacet = {
 export type DataTableTabs = {
 	id: string;
 	allLabel?: string;
+	defaultValue?: string;
 	options: { value: string; label: string }[];
 };
 
@@ -348,7 +349,8 @@ export function DataTable<TRow, TSub = unknown>({
 		(facet) => (query.filters[facet.id]?.length ?? 0) > 0,
 	).length;
 	const activeFilterCount =
-		(tabs && query.tab !== "all" ? 1 : 0) + activeFacetFilterCount;
+		(tabs && query.tab !== (tabs.defaultValue ?? "all") ? 1 : 0) +
+		activeFacetFilterCount;
 
 	return (
 		<div className={cn("flex min-h-0 flex-1 flex-col gap-3", className)}>

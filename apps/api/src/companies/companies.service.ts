@@ -45,6 +45,11 @@ import type {
 	CompanyRow,
 	CompanyUpdateInput,
 } from "./companies.contracts";
+import {
+	COMPANY_VIEW_WHERE,
+	COMPANY_VIEWS,
+	isCompanyView,
+} from "./company-views";
 import { normalizeDomain } from "./domain";
 import { FaviconService } from "./favicon.service";
 
@@ -666,6 +671,10 @@ export class CompaniesService {
 		const activity = activityFilter(input.activity);
 		if (activity) and.push(activity);
 
+		if (isCompanyView(input.status)) {
+			and.push(COMPANY_VIEW_WHERE[input.status]);
+		}
+
 		return { AND: and };
 	}
 
@@ -677,35 +686,52 @@ export class CompaniesService {
 			AND: [this.searchFilter(input.q), archivedFilter(input.archived)],
 		};
 
-		const [owners, industries, enrichment, sources, activity, fieldFacets] =
-			await Promise.all([
-				this.db.company.groupBy({
-					by: ["ownerId"],
-					where,
-					_count: { _all: true },
-				}),
-				this.db.company.groupBy({
-					by: ["industry"],
-					where,
-					_count: { _all: true },
-				}),
-				this.db.company.groupBy({
-					by: ["enrichmentStatus"],
-					where,
-					_count: { _all: true },
-				}),
-				this.db.company.groupBy({
-					by: ["source"],
-					where,
-					_count: { _all: true },
-				}),
-				activityFacetCounts((activityWhere) =>
-					this.db.company.count({ where: { AND: [where, activityWhere] } }),
+		const [
+			owners,
+			industries,
+			enrichment,
+			sources,
+			activity,
+			fieldFacets,
+			viewCounts,
+		] = await Promise.all([
+			this.db.company.groupBy({
+				by: ["ownerId"],
+				where,
+				_count: { _all: true },
+			}),
+			this.db.company.groupBy({
+				by: ["industry"],
+				where,
+				_count: { _all: true },
+			}),
+			this.db.company.groupBy({
+				by: ["enrichmentStatus"],
+				where,
+				_count: { _all: true },
+			}),
+			this.db.company.groupBy({
+				by: ["source"],
+				where,
+				_count: { _all: true },
+			}),
+			activityFacetCounts((activityWhere) =>
+				this.db.company.count({ where: { AND: [where, activityWhere] } }),
+			),
+			this.fields.filterFacetCounts("COMPANY", where, filterableFields),
+			Promise.all(
+				COMPANY_VIEWS.map((view) =>
+					this.db.company.count({
+						where: { AND: [where, COMPANY_VIEW_WHERE[view]] },
+					}),
 				),
-				this.fields.filterFacetCounts("COMPANY", where, filterableFields),
-			]);
+			),
+		]);
 
 		return {
+			status: Object.fromEntries(
+				COMPANY_VIEWS.map((view, index) => [view, viewCounts[index] ?? 0]),
+			),
 			owner: countsByKey(owners, "ownerId", FACET_UNASSIGNED),
 			industry: countsByKey(industries, "industry"),
 			enrichment: countsByKey(enrichment, "enrichmentStatus"),

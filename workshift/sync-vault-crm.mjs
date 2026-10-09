@@ -61,10 +61,14 @@ const STATUS_TO_STAGE = {
 const NOTE_SUBJECT = 'Z bazy wiedzy'
 const ZRODLO_MAP = [
   [/linkedin/i, 'LinkedIn'],
-  [/polecen|referral|znajom/i, 'Polecenie'],
+  [/polecen|referral/i, 'Polecenie'],
+  [/znajom|relacj|klient/i, 'Relacja'],
   [/cron|research|digest/i, 'Cron research'],
-  [/mail|inbound|zapytanie|formularz/i, 'Email'],
-  [/www|strona|web/i, 'Strona WWW'],
+  [/meta|lead ads|instant form/i, 'Meta Lead Ads'],
+  [/formularz|www|strona|web/i, 'Formularz WWW'],
+  [/telefon/i, 'Telefon inbound'],
+  [/event|webinar|prelekc|konferenc|społeczn|grupa fb/i, 'Event / społeczność'],
+  [/mail|inbound|zapytanie|rfp/i, 'Email inbound'],
 ]
 
 // ─── parsowanie ──────────────────────────────────────────────────────────────
@@ -137,7 +141,7 @@ function contactOf(fm) {
 function zrodloOf(fm) {
   const src = String(fm.source || '')
   for (const [re, label] of ZRODLO_MAP) if (re.test(src)) return label
-  return 'Baza wiedzy'
+  return 'Nieznane'
 }
 function buildNote(fm, rel) {
   const lines = [`Źródło: ${rel}`, '']
@@ -177,7 +181,7 @@ async function ensureFields() {
   const wanted = [
     { entity: 'COMPANY', label: 'Vault', type: 'TEXT' },
     { entity: 'DEAL', label: 'Vault', type: 'TEXT' },
-    { entity: 'COMPANY', label: 'Zrodlo', type: 'SELECT', options: ['Email', 'LinkedIn', 'Polecenie', 'Strona WWW', 'Cron research', 'Baza wiedzy'].map((label) => ({ label })) },
+    { entity: 'COMPANY', label: 'Zrodlo', type: 'SELECT', options: ['Polecenie', 'Relacja', 'Formularz WWW', 'Email inbound', 'Telefon inbound', 'Event / społeczność', 'LinkedIn', 'Meta Lead Ads', 'Cron research', 'Nieznane'].map((label) => ({ label })) },
   ]
   const out = {}
   for (const w of wanted) {

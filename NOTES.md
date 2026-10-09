@@ -187,3 +187,50 @@
   CI odpala się też na pushach do `workshift`. PR otwarty przez automat wymaga ręcznego zatwierdzenia
   przebiegu CI (`gh api -X POST repos/KubaBed/crm/actions/runs/<id>/approve`), bo zdarzenia od
   GITHUB_TOKEN nie wyzwalają kolejnych workflow.
+
+## 2026-10-07 (sesja 9) - portfel sygnałów leadów, cron v4, pola Źródło/Sygnał
+
+- Decyzja Kuby: sygnał rekrutacyjny AI przestaje być jedynym źródłem leadów. Koncepcja w vaulcie:
+  `wiki/playbooks/workshift-sygnaly-leadow.md` (7 sygnałów, punktacja timing x siła, przegląd 04.11).
+- CRM: pole `zrodlo` ma nowe opcje (Polecenie, Relacja, Formularz WWW, Email inbound, Telefon inbound,
+  Event / społeczność, LinkedIn, Meta Lead Ads, Cron research, Nieznane). Stare id zachowane:
+  Email -> Email inbound, Strona WWW -> Formularz WWW, Baza wiedzy -> Nieznane. Nowe pole firmy
+  `sygnal` (label "Sygnał"; utworzone jako "Sygnal" i przemianowane, bo slug z "ł" dawał klucz `sygna`).
+  Źródła 32 firm poprawione na podstawie vaulta (np. PET = Relacja, nie Polecenie).
+- `crm.mjs addcompany --sygnal "<etykieta>"`, `sync-vault-crm.mjs`: nowe mapowanie źródeł, domyślnie "Nieznane".
+- Cron v4 w repo (`hermes/lead-sources.py`, `hermes/lead-research-prompt.md`): S2 praca ręczna + S7 z tagiem
+  seniority; poprawka parsera (linia "Opublikowana: data" brana za tytuł). NIEWDROŻONE: Tailscale na Macu
+  zatrzymany, host 100.124.203.79 niedostępny. Wdrożenie: scp obu plików do `~/.hermes/scripts/` i podmiana
+  promptu crona `workshift-lead-research`, potem `--debug` run skryptu.
+- 2026-10-07 (cd.): WDROŻONE na host po `tailscale up`. Kopie zapasowe na hoście: prompt
+  `~/.hermes/cron/prompt-006b7d9d0fb5-backup-2026-10-07.md` (v3), nowy w `prompt-006b7d9d0fb5-v4.md`;
+  podmiana przez `hermes cron edit 006b7d9d0fb5 --prompt "$(cat ...)"`. Próbny run `lead-sources.sh`
+  na hoście: 11 źródeł, 107 firm (S2: 50), 47 s, 24 KB (z 35 KB po wycięciu parametrów śledzących z linków).
+  Poprawki po teście: limit S2 = 10 firm na zapytanie, "starszy/główny" = tag SENIOR ("ekspert" celowo bez
+  tagu: w MŚP to zwykle rola "zanim zatrudnicie"). Pierwszy run agenta v4: 2026-10-08 06:30.
+
+## 2026-10-09/10 (sesja 10) - deale w trakcie, strona Zadania, poprawki wyświetlania (PR #4)
+
+- Zgłoszenie Kuby: trudno znaleźć deale faktycznie w toku, zadania nieklikalne, część rzeczy źle się wyświetla.
+  Diagnoza na prod: 21 otwartych zadań, a pulpit pokazywał tylko 2 zaległe; endpoint `my-tasks` nieużywany
+  w UI; 7 deali outreachowych z 05.10 w etapie Kontakt mieszało się z rozmowami; kwoty ucinane
+  ("101,9 tys. z"); format liczb przeskakiwał między serwerem (en-US) a przeglądarką (pl-PL).
+- Zmiany (gałąź `feat/crm-w-trakcie`, PR #4, wdrożone na prod 10.10): strona `/tasks` z grupami terminów
+  (czas warszawski, `apps/app/lib/tasks.ts`), klik w zadanie otwiera rekord na Activity z filtrem
+  "Do zrobienia" (`useOpenRecord(ref, { tab, timeline })`), odhaczenie z "Cofnij"; deale: widoki
+  `active` / `outreach` / `open` / `closed` (`apps/api/src/deals/deal-views.ts`), domyślnie `active`,
+  sort `progress` (etap malejąco, potem ostatnia aktywność), kolumna "Następny krok" (`nextTask` w liście),
+  układ Tablica z przeciąganiem (`packages/ui/src/components/kanban.tsx`); firmy: widoki
+  `active` / `outreach` / `idle` (`apps/api/src/companies/company-views.ts`), domyślnie `active`;
+  stała locale `LOCALE = "pl-PL"` i `TIME_ZONE` w `packages/ui/src/lib/format.ts`; polskie etykiety
+  na pulpicie, w dealach, firmach, zadaniach, menu i osi aktywności.
+- **Outreach = pole deala CHECKBOX z kluczem `outreach`** (prod: `cmv1iazv6000006jn42azim2k`).
+  Zaznaczone na 7 dealach (Interlogis, HORIZON, FreshQ, Reto MB, Fastline, Nacomi, Ferma Materna).
+  Nowy deal outreachowy trzeba oznaczyć (`PATCH /rest/deals/{id}` z `{"data":{"fields":{"outreach":true}}}`),
+  inaczej trafi do "W trakcie". `crm.mjs` i Hermes jeszcze tego nie robią.
+- Testy integracyjne wymagają bazy `crm_test`. Bez niej pada 54 testów API i 16 telemetrii (wygląda jak
+  regresja, a nie jest). Założenie: `cd packages/db && bun --env-file=../../.env run db:test`.
+- Podgląd lokalny w Claude Code: konfiguracja `crm` w `~/Projekty/workshift-landing/.claude/launch.json`
+  z `unset PORT` (harness podaje `PORT=3000` obu aplikacjom i API zajmowało port aplikacji).
+- Prod po deployu: API `/health` ok, `deals/search status=active` = 11, `outreach` = 7; strony pulpitu,
+  zadań, listy i tablicy sprawdzone w Brave.

@@ -5,6 +5,7 @@ import Close from "@carbon/icons-react/es/Close";
 import Dashboard from "@carbon/icons-react/es/Dashboard";
 import Partnership from "@carbon/icons-react/es/Partnership";
 import Settings from "@carbon/icons-react/es/Settings";
+import Task from "@carbon/icons-react/es/Task";
 import UserMultiple from "@carbon/icons-react/es/UserMultiple";
 import { Button } from "@crm/ui/components/button";
 import type { CarbonIcon } from "@crm/ui/components/icon";
@@ -40,7 +41,7 @@ type RailItem = {
 };
 
 const ITEMS: RailItem[] = [
-	{ title: "Overview", href: "/", icon: Dashboard, match: "exact" },
+	{ title: "Pulpit", href: "/", icon: Dashboard, match: "exact" },
 	{
 		title: "Chat",
 		href: "/chat",
@@ -49,15 +50,16 @@ const ITEMS: RailItem[] = [
 		match: "prefix",
 		related: ["/agents"],
 	},
-	{ title: "Companies", href: "/companies", icon: Building, match: "prefix" },
+	{ title: "Zadania", href: "/tasks", icon: Task, match: "prefix" },
+	{ title: "Deale", href: "/deals", icon: Partnership, match: "prefix" },
+	{ title: "Firmy", href: "/companies", icon: Building, match: "prefix" },
 	{
-		title: "Contacts",
+		title: "Kontakty",
 		href: "/contacts",
 		icon: UserMultiple,
 		match: "prefix",
 	},
-	{ title: "Deals", href: "/deals", icon: Partnership, match: "prefix" },
-	{ title: "Settings", href: "/settings", icon: Settings, match: "prefix" },
+	{ title: "Ustawienia", href: "/settings", icon: Settings, match: "prefix" },
 ];
 
 function isActive(item: RailItem, pathname: string): boolean {

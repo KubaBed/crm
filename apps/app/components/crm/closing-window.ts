@@ -1,7 +1,7 @@
 export const CLOSING_OPTIONS = [
-	{ value: "overdue", label: "Overdue" },
-	{ value: "this-month", label: "Closing this month" },
-	{ value: "next-month", label: "Closing next month" },
-	{ value: "later", label: "Later" },
-	{ value: "none", label: "No close date" },
+	{ value: "overdue", label: "Po terminie" },
+	{ value: "this-month", label: "Zamknięcie w tym miesiącu" },
+	{ value: "next-month", label: "Zamknięcie w przyszłym miesiącu" },
+	{ value: "later", label: "Później" },
+	{ value: "none", label: "Bez daty zamknięcia" },
 ] as const;

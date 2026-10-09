@@ -65,7 +65,7 @@ export function useTableQuery<TTab extends string, TFacet extends string>(
 	searchParams: ListSearchParams<TTab, TFacet>,
 ): TableQuery<TTab, TFacet> {
 	const { parsers, config, toInput } = searchParams;
-	const { defaultDir, pageSize, tabId, facetIds } = config;
+	const { defaultDir, pageSize, tabId, tabDefault, facetIds } = config;
 
 	const [rawState, rawSetState] = useQueryStates(parsers);
 	const values = rawValuesSchema.parse(rawState);
@@ -83,7 +83,7 @@ export function useTableQuery<TTab extends string, TFacet extends string>(
 	const page = rawPage > 0 ? rawPage : 1;
 	const fields = values.fields;
 	const archived = values.archived;
-	const tab = tabId ? asString(values[tabId]) : "all";
+	const tab = tabId ? asString(values[tabId], tabDefault) : "all";
 
 	const filters: Record<string, string[]> = {};
 	if (tabId) filters[tabId] = [tab];
@@ -169,7 +169,7 @@ export function useTableQuery<TTab extends string, TFacet extends string>(
 			if (key.startsWith(FIELD_FILTER_PREFIX)) {
 				nextFields[key.slice(FIELD_FILTER_PREFIX.length)] = selected;
 			} else if (key === tabId) {
-				update[key] = selected[0] ?? "all";
+				update[key] = selected[0] ?? tabDefault;
 			} else {
 				update[key] = selected;
 			}

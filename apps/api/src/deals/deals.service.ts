@@ -7,7 +7,6 @@ import {
 } from "@crm/db";
 import { normalizeCurrency } from "@crm/db/currency";
 import {
-	CLOSED_DEAL_STAGES,
 	isClosedStage,
 	LOSING_DEAL_STAGES,
 	OPEN_DEAL_STAGES,
@@ -45,6 +44,7 @@ import {
 	paginate,
 	resolveOrderBy,
 } from "../trpc/list-input";
+import { DEAL_VIEW_WHERE, DEAL_VIEWS, isDealView } from "./deal-views";
 import type {
 	ClosingWindow,
 	DealAttachContactInput,
@@ -91,6 +91,11 @@ const SORTABLE: OrderByColumns<Prisma.DealOrderByWithRelationInput[]> = {
 	name: (dir) => [{ name: dir }],
 	company: (dir) => [{ company: { name: dir } }, { name: "asc" }],
 	stage: (dir) => [{ stage: dir }, { expectedCloseDate: "asc" }],
+	progress: (dir) => [
+		{ stage: dir },
+		{ lastActivityAt: { sort: "desc", nulls: "last" } },
+		{ createdAt: "desc" },
+	],
 	amount: (dir) => [{ baseAmount: { sort: dir, nulls: "last" } }],
 	expectedCloseDate: (dir) => [{ expectedCloseDate: dir }],
 	createdAt: (dir) => [{ createdAt: dir }],
@@ -140,6 +145,15 @@ export class DealsService {
 						lastActivityAt: true,
 						createdAt: true,
 						archivedAt: true,
+						activities: {
+							where: { type: ActivityType.TASK, completedAt: null },
+							orderBy: [
+								{ dueAt: { sort: "asc", nulls: "last" } },
+								{ createdAt: "asc" },
+							],
+							take: 1,
+							select: { id: true, subject: true, dueAt: true },
+						},
 					},
 				}),
 				this.db.deal.count({ where }),
@@ -166,9 +180,11 @@ export class DealsService {
 					lastActivityAt,
 					createdAt,
 					archivedAt,
+					activities,
 					...row
 				}) => ({
 					...row,
+					nextTask: nextTask(activities),
 					amountCents: toCents(amount),
 					baseAmountCents: toCents(baseAmount),
 					expectedCloseDate: expectedCloseDate?.toISOString() ?? null,
@@ -760,11 +776,7 @@ export class DealsService {
 		const owner = ownerFilter<Prisma.DealWhereInput>(input.owner);
 		if (owner) and.push(owner);
 
-		if (input.status === "open") {
-			and.push({ stage: { in: [...OPEN_DEAL_STAGES] } });
-		} else if (input.status === "closed") {
-			and.push({ stage: { in: [...CLOSED_DEAL_STAGES] } });
-		}
+		if (isDealView(input.status)) and.push(DEAL_VIEW_WHERE[input.status]);
 
 		if (input.stage.length > 0) {
 			and.push({ stage: { in: input.stage as DealStage[] } });
@@ -789,27 +801,35 @@ export class DealsService {
 			AND: [this.searchFilter(input.q), archivedFilter(input.archived)],
 		};
 
-		const [owners, stages, fieldFacets, ...closingCounts] = await Promise.all([
-			this.db.deal.groupBy({ by: ["ownerId"], where, _count: { _all: true } }),
-			this.db.deal.groupBy({ by: ["stage"], where, _count: { _all: true } }),
-			this.fields.filterFacetCounts("DEAL", where, filterableFields),
-			...CLOSING_WINDOWS.map((window) =>
-				this.db.deal.count({ where: { AND: [where, closingFilter(window)] } }),
-			),
-		]);
+		const [owners, stages, fieldFacets, viewCounts, ...closingCounts] =
+			await Promise.all([
+				this.db.deal.groupBy({
+					by: ["ownerId"],
+					where,
+					_count: { _all: true },
+				}),
+				this.db.deal.groupBy({ by: ["stage"], where, _count: { _all: true } }),
+				this.fields.filterFacetCounts("DEAL", where, filterableFields),
+				Promise.all(
+					DEAL_VIEWS.map((view) =>
+						this.db.deal.count({
+							where: { AND: [where, DEAL_VIEW_WHERE[view]] },
+						}),
+					),
+				),
+				...CLOSING_WINDOWS.map((window) =>
+					this.db.deal.count({
+						where: { AND: [where, closingFilter(window)] },
+					}),
+				),
+			]);
 
 		const stageCounts = countsByKey(stages, "stage");
-		const openCount = OPEN_DEAL_STAGES.reduce(
-			(total, stage) => total + (stageCounts[stage] ?? 0),
-			0,
-		);
-		const closedCount = CLOSED_DEAL_STAGES.reduce(
-			(total, stage) => total + (stageCounts[stage] ?? 0),
-			0,
-		);
 
 		return {
-			status: { open: openCount, closed: closedCount },
+			status: Object.fromEntries(
+				DEAL_VIEWS.map((view, index) => [view, viewCounts[index] ?? 0]),
+			),
 			owner: countsByKey(owners, "ownerId", FACET_UNASSIGNED),
 			stage: stageCounts,
 			closing: Object.fromEntries(
@@ -888,4 +908,16 @@ function parseDate(value: string | null | undefined): Date | null {
 		throw new BadRequestException(`"${value}" is not a date.`);
 	}
 	return date;
+}
+
+function nextTask(
+	tasks: { id: string; subject: string | null; dueAt: Date | null }[],
+) {
+	const task = tasks[0];
+	if (!task) return null;
+	return {
+		id: task.id,
+		subject: task.subject,
+		dueAt: task.dueAt?.toISOString() ?? null,
+	};
 }

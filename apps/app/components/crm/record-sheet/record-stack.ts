@@ -7,7 +7,10 @@ import {
 	useQueryStates,
 } from "nuqs";
 import { useCallback, useMemo } from "react";
-import { timelineTabParser } from "@/components/crm/timeline/timeline-search-params";
+import {
+	type TimelineTab,
+	timelineTabParser,
+} from "@/components/crm/timeline/timeline-search-params";
 import { SEARCH_PARAM } from "@/lib/search-param-keys";
 
 const RECORD_KINDS = ["company", "contact", "deal"] as const;
@@ -15,6 +18,8 @@ const RECORD_KINDS = ["company", "contact", "deal"] as const;
 export type RecordKind = (typeof RECORD_KINDS)[number];
 
 export type RecordRef = { kind: RecordKind; id: string };
+
+export type RecordView = { tab?: string; timeline?: TimelineTab };
 
 const RECORD_FORMS = ["contact", "deal"] as const;
 
@@ -60,17 +65,17 @@ export function useRecordStack() {
 	);
 
 	const write = useCallback(
-		(next: RecordRef[], history: "push" | "replace") => {
+		(next: RecordRef[], history: "push" | "replace", view?: RecordView) => {
 			void setParams(
 				{
 					[SEARCH_PARAM.record.stack]:
 						next.length === 0 ? null : next.map(recordKey),
-					[SEARCH_PARAM.record.tab]: null,
+					[SEARCH_PARAM.record.tab]: view?.tab ?? null,
 					[SEARCH_PARAM.record.add]: null,
 					[SEARCH_PARAM.record.thread]: null,
 					[SEARCH_PARAM.fieldsSheet.entity]: null,
 					[SEARCH_PARAM.fieldsSheet.field]: null,
-					[SEARCH_PARAM.record.timeline]: null,
+					[SEARCH_PARAM.record.timeline]: view?.timeline ?? null,
 				},
 				{ history },
 			);
@@ -79,11 +84,12 @@ export function useRecordStack() {
 	);
 
 	const open = useCallback(
-		(ref: RecordRef) => {
+		(ref: RecordRef, view?: RecordView) => {
 			const key = recordKey(ref);
 			write(
 				[...stack.filter((entry) => recordKey(entry) !== key), ref],
 				stack.length === 0 ? "push" : "replace",
+				view,
 			);
 		},
 		[stack, write],

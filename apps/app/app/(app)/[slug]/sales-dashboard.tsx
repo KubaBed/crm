@@ -10,7 +10,6 @@ import type { ChartConfig } from "@crm/ui/components/chart";
 import { DashboardRow, StatGroup } from "@crm/ui/components/dashboard";
 import { StatCard, type StatDelta } from "@crm/ui/components/stat-card";
 import {
-	formatCount,
 	formatMoney,
 	formatMoneyCompact,
 	formatPercent,
@@ -19,15 +18,25 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { AreaTrend, DonutStat } from "@/components/dashboard-charts";
 import { dealStageColor, dealStageLabel } from "@/lib/deal-stage";
+import { plural } from "@/lib/plural";
 import type { RouterOutputs } from "@/lib/trpc/types";
 import { useWorkspaceUrl } from "@/lib/use-workspace-url";
 
 type Summary = RouterOutputs["dashboard"]["summary"];
 
 const TREND_CONFIG: ChartConfig = {
-	won: { label: "Closed won", color: "var(--success)" },
-	created: { label: "New pipeline", color: "var(--chart-1)" },
+	won: { label: "Wygrane", color: "var(--success)" },
+	created: { label: "Nowy pipeline", color: "var(--chart-1)" },
 };
+
+function dealCount(count: number): string {
+	return plural(count, "deal", "deale", "deali");
+}
+
+function cycleLabel(days: number): string {
+	if (days < 1) return "Średni cykl: poniżej dnia";
+	return `Średni cykl: ${plural(days, "dzień", "dni", "dni")}`;
+}
 
 function changeDelta(
 	current: number,
@@ -81,22 +90,22 @@ export function SalesDashboard({ summary }: { summary: Summary }) {
 		<div className="flex flex-col gap-6">
 			<StatGroup>
 				<StatCard
-					label="Closed won this month"
+					label="Wygrane w tym miesiącu"
 					value={money(wonThisMonth.valueCents)}
 					delta={changeDelta(
 						wonThisMonth.valueCents,
 						wonPrevMonth.valueCents,
-						"vs. last month",
+						"vs poprzedni miesiąc",
 					)}
-					description={`${formatCount(wonThisMonth.count, "deal")} · ${money(wonPrevMonth.valueCents)} last month`}
+					description={`${dealCount(wonThisMonth.count)} · ${money(wonPrevMonth.valueCents)} miesiąc wcześniej`}
 				/>
 				<StatCard
-					label="Open pipeline"
+					label="Otwarty pipeline"
 					value={money(pipeline.totalCents)}
-					description={`${formatCount(pipeline.totalDeals, "deal")} in progress · ${money(closingThisMonthTotal.valueCents)} due this month`}
+					description={`${dealCount(pipeline.totalDeals)} w grze · ${money(closingThisMonthTotal.valueCents)} do zamknięcia w tym miesiącu`}
 				/>
 				<StatCard
-					label={`Win rate (${performance.windowDays}d)`}
+					label={`Skuteczność (${performance.windowDays} dni)`}
 					value={
 						performance.winRate === null
 							? "—"
@@ -104,12 +113,12 @@ export function SalesDashboard({ summary }: { summary: Summary }) {
 					}
 					description={
 						performance.wins + performance.losses === 0
-							? "Nothing has closed yet"
-							: `${performance.wins} won · ${performance.losses} lost`
+							? "Nic jeszcze nie zamknięto"
+							: `Wygrane: ${performance.wins} · przegrane: ${performance.losses}`
 					}
 				/>
 				<StatCard
-					label={`Average deal (${performance.windowDays}d)`}
+					label={`Średni deal (${performance.windowDays} dni)`}
 					value={
 						performance.avgDealCents === null
 							? "—"
@@ -117,25 +126,22 @@ export function SalesDashboard({ summary }: { summary: Summary }) {
 					}
 					description={
 						performance.avgCycleDays === null
-							? "No wins to measure"
-							: `${performance.avgCycleDays}-day average cycle`
+							? "Brak wygranych do policzenia"
+							: cycleLabel(performance.avgCycleDays)
 					}
 				/>
 			</StatGroup>
 
 			{unconverted.count > 0 ? (
 				<p className="text-muted-foreground text-xs">
-					Every figure above is in {reportingCurrency}.{" "}
-					{formatCount(unconverted.count, "deal")} in{" "}
-					{unconverted.currencies.join(", ")}{" "}
-					{unconverted.count === 1 ? "is" : "are"} not included — there is no
-					rate to convert {unconverted.currencies.length === 1 ? "it" : "them"}{" "}
-					with.{" "}
+					Kwoty powyżej są w {reportingCurrency}. Pominięto{" "}
+					{dealCount(unconverted.count)} w {unconverted.currencies.join(", ")},
+					bo brakuje kursu do przeliczenia.{" "}
 					<Link
 						href={workspaceUrl("/settings/currencies")}
 						className="underline hover:no-underline"
 					>
-						Set one
+						Ustaw kurs
 					</Link>
 					.
 				</p>
@@ -143,8 +149,8 @@ export function SalesDashboard({ summary }: { summary: Summary }) {
 
 			<DashboardRow split="hero">
 				<ChartPanel
-					title="Closed won vs. new pipeline"
-					description="Last six months, by the month a deal closed or was created"
+					title="Wygrane a nowy pipeline"
+					description="Ostatnie pół roku, według miesiąca zamknięcia albo dodania deala"
 				>
 					{hasTrend ? (
 						<div className="flex flex-1 flex-col justify-center py-4">
@@ -160,28 +166,28 @@ export function SalesDashboard({ summary }: { summary: Summary }) {
 							/>
 						</div>
 					) : (
-						<EmptyChart label="No deals closed or created yet" />
+						<EmptyChart label="Brak zamkniętych i nowych deali" />
 					)}
 				</ChartPanel>
 
 				<ChartPanel
-					title="Open pipeline by stage"
-					description="Where the value sits right now"
+					title="Otwarty pipeline według etapu"
+					description="Gdzie teraz leży wartość"
 				>
 					{stageSlices.length > 0 ? (
 						<div className="flex flex-1 flex-col justify-between gap-1 pt-4">
 							<DonutStat
 								data={stageSlices}
 								height={168}
-								centerValue={money(pipeline.totalCents)}
-								centerLabel="open"
+								centerValue={String(pipeline.totalDeals)}
+								centerLabel="w grze"
 								formatValue={exact}
 							/>
 							<ul className="flex flex-col px-5 pb-1 md:px-6">
 								{stageSlices.map((slice) => (
 									<li key={slice.key} className="border-t first:border-t-0">
 										<Link
-											href={`${workspaceUrl("/deals")}?stage=${slice.key}`}
+											href={`${workspaceUrl("/deals")}?status=open&stage=${slice.key}`}
 											className="flex items-center gap-2.5 py-2 text-xs hover:underline"
 										>
 											<span
@@ -195,7 +201,7 @@ export function SalesDashboard({ summary }: { summary: Summary }) {
 											<span className="shrink-0 text-muted-foreground tabular-nums">
 												{slice.count}
 											</span>
-											<span className="w-14 shrink-0 text-right font-medium tabular-nums">
+											<span className="w-24 shrink-0 text-right font-medium tabular-nums">
 												{money(slice.value)}
 											</span>
 										</Link>
@@ -204,7 +210,7 @@ export function SalesDashboard({ summary }: { summary: Summary }) {
 							</ul>
 						</div>
 					) : (
-						<EmptyChart label="Nothing open" />
+						<EmptyChart label="Nic otwartego" />
 					)}
 				</ChartPanel>
 			</DashboardRow>

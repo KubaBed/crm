@@ -39,7 +39,7 @@ function AddButton(props: ComponentProps<typeof Button>) {
 	return (
 		<Button {...props}>
 			<Icon icon={Add} data-icon="inline-start" />
-			New contact
+			Nowy kontakt
 		</Button>
 	);
 }
@@ -100,7 +100,7 @@ function CreateContactForm({ companyId }: { companyId?: string }) {
 			</SheetTrigger>
 			<SheetContent side="right">
 				<SheetHeader>
-					<SheetTitle>New contact</SheetTitle>
+					<SheetTitle>Nowy kontakt</SheetTitle>
 					<SheetDescription>
 						Email addresses are unique, so importing the same person twice
 						updates them rather than duplicating them.

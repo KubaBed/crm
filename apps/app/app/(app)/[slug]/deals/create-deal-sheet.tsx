@@ -47,7 +47,7 @@ function AddButton(props: ComponentProps<typeof Button>) {
 	return (
 		<Button {...props}>
 			<Icon icon={Add} data-icon="inline-start" />
-			New deal
+			Nowy deal
 		</Button>
 	);
 }
@@ -115,7 +115,7 @@ function CreateDealForm({ companyId }: { companyId?: string }) {
 			</SheetTrigger>
 			<SheetContent side="right">
 				<SheetHeader>
-					<SheetTitle>New deal</SheetTitle>
+					<SheetTitle>Nowy deal</SheetTitle>
 					<SheetDescription>
 						Every deal belongs to a company and has someone's name against it.
 					</SheetDescription>

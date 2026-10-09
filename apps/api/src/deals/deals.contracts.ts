@@ -193,6 +193,12 @@ const dealContactOutput = dealContactSummaryOutput.extend({
 	role: z.string().nullable(),
 });
 
+const dealNextTaskOutput = z.object({
+	id: z.string(),
+	subject: z.string().nullable(),
+	dueAt: z.string().nullable(),
+});
+
 const dealListRowOutput = z.object({
 	id: z.string(),
 	name: z.string(),
@@ -207,6 +213,7 @@ const dealListRowOutput = z.object({
 	lastActivityAt: z.string().nullable(),
 	createdAt: z.string(),
 	archivedAt: z.string().nullable(),
+	nextTask: dealNextTaskOutput.nullable(),
 	fields: z.record(z.string(), fieldValueOutput),
 });
 
