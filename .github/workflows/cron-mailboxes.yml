@@ -1,7 +1,9 @@
 # Cron syncu skrzynek (Gmail/Outlook -> CRM) i otwarć ofert co 5 minut.
 #
-# Vercel Hobby po cichu degraduje minutowe crony z apps/api/vercel.json do dziennych,
-# więc harmonogram prowadzi GitHub Actions (ten sam wzorzec co w SimpleCRM).
+# Vercel Hobby po cichu degraduje minutowe crony z apps/api/vercel.json do dziennych.
+# Od 2026-10-15 główny harmonogram to pg_cron w Supabase (workshift/supabase/pg-cron.sql):
+# GitHub wyłączył workflowy w tym forku ("due to the scale of GitHub Actions usage"), a wcześniej
+# dławił */5 do 1,5-6 h. Ten workflow zostaje jako zapas na wypadek ponownego włączenia Actions.
 # Sekrety repo: CRON_SECRET (identyczny jak w env crm-api na Vercelu), API_URL
 # (np. https://api.crm.workshift.pl, bez końcowego ukośnika).
 name: cron-mailboxes
