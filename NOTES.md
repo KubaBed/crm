@@ -257,3 +257,22 @@
   ale RLS trzeba im włączać w migracji, inaczej advisor znów pokaże ERROR. Default privileges roli
   `supabase_admin` w public nadal dają anon granty (postgres nie może ich zmienić); dotyczy tylko
   obiektów tworzonych przez Supabase, nie przez Prismę.
+
+## 2026-10-15 (sesja 12) - oferty z landingu widoczne przy dealu
+
+- Landing (KubaBed/workshift-landing#25) trzyma oferty w schemacie `offers` tej samej bazy (`offers.offer`
+  z `deal_id` -> `public.deal.id`, log `offers.offer_event`). Schemat należy do `postgres`, więc CRM czyta go
+  `$queryRaw` bez grantów; Prisma go nie zna (zero dryfu migracji), definicja żyje w repo landingu.
+- Moduł `apps/api/src/offers/`: `offers.forDeal` (tRPC + `GET /rest/deals/{id}/offers`): oferty deala z licznikami
+  (otwarcia = `view`, wejścia = `unlock_*`, pobrania PDF, liczba różnych `ip_hash`, pierwsze/ostatnie otwarcie)
+  i 20 ostatnich zdarzeń. Nie wychodzą `ip_hash`, `user_agent`, `pdf_path`, `content`, hashe haseł/tokenów.
+  Brak schematu (lokalny docker, `crm_test`) = pusta lista.
+- Sweep `POST /internal/offers/first-opens` (CRON_SECRET, krok w `cron-mailboxes.yml`): pierwsze `view`/`unlock_*`
+  oferty podpiętej do niearchiwalnego deala -> `activity NOTE` "Klient otworzył ofertę", autor = owner deala,
+  `meta {source: "offer", event: "first_open", offerId, slug, eventId, kind}`, dedup po `meta.offerId`,
+  advisory lock. Oś czasu pokazuje autora "z oferty".
+- Pułapka: liczą się też wejścia samego Kuby (np. podgląd przed wysłaniem). Podpinaj `deal_id` dopiero po
+  wysłaniu linku albo licz się z tym, że "pierwsze otwarcie" będzie Twoje.
+- `crm.mjs offers <dealId>`. Test: `apps/api/test/deal-offers.integration.spec.ts` (tworzy minimalny schemat
+  `offers` w `crm_test` i go usuwa).
+
