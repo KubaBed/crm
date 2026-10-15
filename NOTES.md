@@ -234,3 +234,26 @@
   z `unset PORT` (harness podaje `PORT=3000` obu aplikacjom i API zajmowało port aplikacji).
 - Prod po deployu: API `/health` ok, `deals/search status=active` = 11, `outreach` = 7; strony pulpitu,
   zadań, listy i tablicy sprawdzone w Brave.
+
+## 2026-10-15 (sesja 11) - schemat public zamknięty przed Data API Supabase
+
+- Znalezisko z sesji ofert (workshift-landing): advisor `rls_disabled_in_public` (ERROR) na 61 tabelach.
+  Stan faktyczny był gorszy niż SELECT: domyślne granty Supabase dawały `anon` i `authenticated` pełne
+  CRUD + TRUNCATE, a `curl /rest/v1/deal` i `/rest/v1/apikey` z kluczem anon zwracały 200 z danymi.
+- Rekonesans: nic w CRM nie używa Data API ani kluczy Supabase (brak SDK, w Vercelu crm-app/crm-api
+  zero zmiennych SUPABASE, zero ruchu w edge_logs w 24 h). Klucze anon/publishable nie występują w
+  żadnym pliku ani w historii gita; ref projektu jest w historii publicznego forka (PROJECT.md).
+  Decyzja Kuby: bez rotacji kluczy.
+- Migracja `20261015120000_lock_public_from_data_api`: revoke dla anon/authenticated (tabele, sekwencje,
+  funkcje), `ALTER DEFAULT PRIVILEGES FOR ROLE postgres` na przyszłe tabele, ENABLE RLS bez polityk na
+  każdej tabeli public. Blok w `DO` pomija revoke, gdy ról Supabase nie ma (lokalny docker, crm_test).
+  `service_role` i schemat `offers` nietknięte. Próba na sucho w transakcji wycofanej wyjątkiem, potem
+  ręcznie `prisma migrate deploy` przez pooler 5432 (`DATABASE_URL=$DIRECT_DATABASE_URL` z
+  `~/.config/workshift-crm/supabase.env`, uruchomione z `packages/db`).
+- Po wdrożeniu: anon (legacy i `sb_publishable_`) dostaje 42501 na odczyt i zapis, advisor bez
+  `rls_disabled_in_public` (zostaje INFO `rls_enabled_no_policy`, zamierzone), API `/health` ok,
+  `crm.mjs whoami` i `open` działają, w logach Postgresa brak innych błędów uprawnień.
+- Pułapka na przyszłość: nowe tabele z migracji Prisma nie dostaną grantów dla API (default privileges),
+  ale RLS trzeba im włączać w migracji, inaczej advisor znów pokaże ERROR. Default privileges roli
+  `supabase_admin` w public nadal dają anon granty (postgres nie może ich zmienić); dotyczy tylko
+  obiektów tworzonych przez Supabase, nie przez Prismę.
