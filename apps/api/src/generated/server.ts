@@ -26,6 +26,7 @@ import { enrichmentQueueInput } from "@crm/validation/enrichment-queue";
 import { fieldListInput, fieldListOutput, fieldByKeyInput, serializedFieldOutput, fieldEntityInput, fieldFiltersOutput, fieldIdInput, fieldCoverageOutput, fieldCreateInput, fieldUpdateArgs, fieldReorderInput, fieldReorderOutput, fieldDeleteOutput, fieldBackfillOutput } from "../fields/fields.contracts";
 import { googleConnectionStatusOutput, setAutoCreateInput, suppressDomainInput, suppressDomainOutput, threadInput, emailThreadOutput, calendarEventInput, calendarEventOutput } from "../google/google.contracts";
 import { purgeSyncedDataOutput, revokeAccessOutput, microsoftConnectionStatusOutput, setOutlookAutoCreateInput } from "../microsoft/microsoft.contracts";
+import { dealOffersInput, dealOffersOutput } from "../offers/offers.contracts";
 import { savedViewListInput, savedViewListOutput, savedViewCreateInput, savedViewOutput, savedViewUpdateArgs, savedViewIdInput, savedViewDeleteOutput } from "../saved-views/saved-views.contracts";
 import { agentModelOutput, modelCatalogOutput, setAgentModelInput, researchKeyOutput, setResearchKeyInput, archiveRetentionOutput, setArchiveRetentionDaysInput } from "../settings/settings.contracts";
 import { slackStatusOutput, slackMatchesOutput, slackChannelsInput, slackChannelsOutput, slackJoinChannelInput, slackJoinChannelOutput, slackRefreshPeopleOutput, slackCreateChannelInput, slackCreateChannelOutput, slackDisconnectOutput } from "../slack/slack.contracts";
@@ -575,6 +576,12 @@ const appRouter = t.router({
       .input(setOutlookAutoCreateInput)
       .output(microsoftConnectionStatusOutput)
       .mutation(async () => "PLACEHOLDER_DO_NOT_REMOVE" as any)
+    }),
+  offers: t.router({
+    forDeal: publicProcedure
+      .input(dealOffersInput)
+      .output(dealOffersOutput)
+      .query(async () => "PLACEHOLDER_DO_NOT_REMOVE" as any)
     }),
   savedViews: t.router({
     list: publicProcedure

@@ -31,7 +31,8 @@ Turborepo + Bun. `apps/app` Next.js (shadcn), `apps/api` NestJS + nestjs-trpc + 
 | `packages/db/src/currency.ts` | PLN dodany do listy walut (upstream: 11 walut, bez PLN) |
 | `biome.jsonc`, `.oxlintrc.json` | `workshift/` wyłączone z lintów upstreamu (tabs, zakaz komentarzy) |
 | `workshift/` | własne skrypty: `crm.mjs` (klient API), `sync-vault-crm.mjs` (vault -> CRM), `export/` |
-| `.github/workflows/cron-mailboxes.yml` | cron syncu skrzynki co 5 min (Vercel Hobby robi tylko dzienne) |
+| `.github/workflows/cron-mailboxes.yml` | cron syncu skrzynki i sweep otwarć ofert co 5 min (Vercel Hobby robi tylko dzienne) |
+| `apps/api/src/offers/`, `record-sheet/deal-offers.tsx` | oferty z landingu (schemat `offers`, poza Prismą): sekcja "Oferta" na dealu, `GET /rest/deals/{id}/offers`, `POST /internal/offers/first-opens` (notatka przy pierwszym otwarciu); autor "z oferty" w `timeline-entry.tsx` |
 
 Upstream merge: `git fetch upstream --tags && git merge <tag>` po przeczytaniu CHANGELOG. Nigdy automatycznie.
 

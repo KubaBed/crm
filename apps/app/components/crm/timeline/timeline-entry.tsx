@@ -68,11 +68,14 @@ export function TimelineEntry({
 	const when = entry.occurredAt ?? entry.createdAt;
 
 	const synced = entry.meta?.synced === true;
+	const fromOffer = entry.meta?.source === "offer";
 	const author = synced
 		? entry.emailThread
 			? "z Gmaila"
 			: "z Kalendarza"
-		: entry.createdBy.name;
+		: fromOffer
+			? "z oferty"
+			: entry.createdBy.name;
 
 	const headline = change
 		? `${dealStageLabel(change.from)} → ${dealStageLabel(change.to)}`

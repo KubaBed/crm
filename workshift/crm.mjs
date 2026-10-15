@@ -19,6 +19,7 @@
  *                                                       DECISION_MAKER_BOUGHT_IN|CONTRACT_SENT|
  *                                                       CLOSED_WON|CLOSED_LOST|UNQUALIFIED_TO_BUY
  *   crm.mjs stale [dni=7] [--json]          otwarte deale bez aktywności >= N dni
+ *   crm.mjs offers <dealId> [--json]        oferty deala (schemat offers): status, ważność, otwarcia, PDF, zdarzenia
  *   crm.mjs addcompany "<nazwa>" [domena] [--industry "..."] [--zrodlo "Cron research"] [--sygnal "Rekrutacja AI"] [--note "..."] [--nip ..] [--pkd ..]
  *                                           firma bez deala; dedup po domenie/nazwie; źródło i sygnał = opcje pól Zrodlo i Sygnał
  *   crm.mjs raw <METHOD> </rest/path> ['<json body>']   ucieczka: dowolny endpoint z /openapi.json
@@ -78,6 +79,9 @@ const positional = args.filter((a, i) => !a.startsWith('--') && !(i > 0 && args[
 
 const fmtDate = (iso) => (iso ? String(iso).slice(0, 10) : '-')
 const daysSince = (iso) => (iso ? Math.floor((Date.now() - new Date(iso).getTime()) / 86400000) : null)
+const fmtStamp = (iso) => (iso ? new Date(iso).toLocaleString('pl-PL', { timeZone: 'Europe/Warsaw', dateStyle: 'short', timeStyle: 'short' }) : '-')
+const OFFER_URL = 'https://www.workshift.pl/oferta'
+const OFFER_EVENT_LABEL = { unlock_password: 'wejście hasłem', unlock_token: 'wejście z linku', view: 'otwarcie', pdf: 'pobranie PDF' }
 const money = (d) => (d.amountCents != null ? `${(d.amountCents / 100).toLocaleString('pl-PL')} ${d.currency}` : '-')
 
 function printDeals(rows) {
@@ -183,6 +187,21 @@ const commands = {
     await api('PATCH', `/companies/${company.id}`, { data })
     if (flag('--note')) await api('POST', '/activities', { type: 'NOTE', subject: 'Research', body: flag('--note'), companyId: company.id })
     console.log(json ? JSON.stringify(company, null, 2) : `utworzono: ${company.id}  ${name}  ${domain || ''}  źródło: ${zrodloLabel}${sygnalLabel ? `  sygnał: ${sygnalLabel}` : ''}`)
+  },
+
+  async offers() {
+    const id = positional[1]
+    if (!id) die('użycie: offers <dealId>')
+    const r = await api('GET', `/deals/${encodeURIComponent(id)}/offers`)
+    if (json) return console.log(JSON.stringify(r, null, 2))
+    if (!r.offers.length) return console.log('(brak ofert przy tym dealu)')
+    const status = (o) => (o.status === 'active' ? (o.expired ? 'wygasła' : 'aktywna') : o.status === 'draft' ? 'szkic' : 'wycofana')
+    for (const o of r.offers) {
+      console.log(`${OFFER_URL}/${o.slug}  ${status(o)}${o.isTest ? ' [test]' : ''}  ważna do ${fmtDate(o.expiresAt)}`)
+      console.log(`  otwarcia ${o.views} (adresów ${o.visitors}), wejścia ${o.unlocks}, PDF ${o.hasPdf ? o.pdfDownloads : 'brak'}, pierwsze ${fmtStamp(o.firstOpenedAt)}, ostatnie ${fmtStamp(o.lastOpenedAt)}`)
+    }
+    console.log('--- ostatnie zdarzenia:')
+    for (const e of r.events) console.log(`  ${fmtStamp(e.occurredAt)}  ${OFFER_EVENT_LABEL[e.kind] || e.kind}  ${e.slug}  ${e.country || ''}`)
   },
 
   async raw() {

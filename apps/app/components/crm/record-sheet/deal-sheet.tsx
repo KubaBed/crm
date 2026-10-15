@@ -58,6 +58,7 @@ import { savingField } from "@/lib/pending-field";
 import { useCrmCache } from "@/lib/trpc/cache";
 import { useTRPC } from "@/lib/trpc/client";
 import type { RouterOutputs } from "@/lib/trpc/types";
+import { DealOffersSection } from "./deal-offers";
 import { AttachDealContact } from "./quick-add";
 import { RecordActions } from "./record-actions";
 import { AddRow, RecordSheetFrame } from "./record-parts";
@@ -291,6 +292,8 @@ function DealOverview({ deal }: { deal: Deal }) {
 					</DetailSheetProperties>
 				) : null}
 			</DetailSheetSection>
+
+			<DealOffersSection dealId={deal.id} />
 
 			<DetailSheetSection title="Details" action={<FieldsCog kind="deal" />}>
 				<DetailSheetProperties>

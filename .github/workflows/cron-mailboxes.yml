@@ -1,4 +1,4 @@
-# Cron syncu skrzynek (Gmail/Outlook -> CRM) co 5 minut.
+# Cron syncu skrzynek (Gmail/Outlook -> CRM) i otwarć ofert co 5 minut.
 #
 # Vercel Hobby po cichu degraduje minutowe crony z apps/api/vercel.json do dziennych,
 # więc harmonogram prowadzi GitHub Actions (ten sam wzorzec co w SimpleCRM).
@@ -25,5 +25,17 @@ jobs:
             echo "Brak sekretów API_URL / CRON_SECRET w repo" >&2; exit 1
           fi
           curl -fsS --max-time 90 -X POST "$API_URL/internal/sync/mailboxes" \
+            -H "Authorization: Bearer $CRON_SECRET" \
+            -w "\nHTTP %{http_code}\n"
+
+      # Pierwsze otwarcie oferty (schemat offers, landing) -> notatka na osi czasu deala.
+      # Osobny krok z if: always(), żeby błąd syncu skrzynek nie blokował ofert i odwrotnie.
+      - name: POST /internal/offers/first-opens
+        if: always()
+        env:
+          API_URL: ${{ secrets.API_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          curl -fsS --max-time 60 -X POST "$API_URL/internal/offers/first-opens" \
             -H "Authorization: Bearer $CRON_SECRET" \
             -w "\nHTTP %{http_code}\n"
