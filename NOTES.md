@@ -276,3 +276,11 @@
 - `crm.mjs offers <dealId>`. Test: `apps/api/test/deal-offers.integration.spec.ts` (tworzy minimalny schemat
   `offers` w `crm_test` i go usuwa).
 
+- Prod 15.10: PR #6 scalony (`6e3be64`), API i app wdrożone. Test na `test-supabase` podpiętej do deala testowego:
+  sekcja i notatka "Klient otworzył ofertę" (autor "z oferty") widoczne w UI, drugi sweep nic nie dubluje; oferta
+  odpięta, deal i firma "TEST oferty CRM" zarchiwizowane. Sweep na prod wołany kodem serwisu przeciw bazie
+  (`CRON_SECRET` w Vercelu jest szyfrowany, nie da się go pobrać).
+- **Do sprawdzenia: cron GitHub Actions.** `cron-mailboxes` w praktyce odpala się kilka razy na dobę (14.10: 06:45,
+  12:27, 17:28, 20:54 UTC), a `gh workflow run` zwraca 422 "Actions has been disabled for this repository", mimo że
+  `actions/permissions` pokazuje `enabled: true`. Dopóki to trwa, notatka o pierwszym otwarciu (i sync skrzynek)
+  przychodzi z opóźnieniem godzin, nie minut.
