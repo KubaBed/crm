@@ -297,3 +297,6 @@
   `crm-offers-first-opens` (`2-59/5`), `crm-cron-history-cleanup` (dziennie 03:17). CRON_SECRET w Vault
   (`crm_cron_secret`), wgrany z pliku lokalnego przez `bunx prisma db execute --stdin` (md5 zgodne z plikiem).
   Zapis stanu i komendy kontrolne: `workshift/supabase/pg-cron.sql`. Nie jest to migracja Prismy.
+- Weryfikacja 15.10: ticki 07:15 i 07:20 (sync, HTTP 201 `synced:1`) i 07:17 (oferty, HTTP 201 `logged:0`).
+  Po niej launchd `com.kuba.crm-mailbox-sync` wyładowany (`launchctl unload`, plist zostaje), żeby sync nie szedł
+  podwójnie. Powrót: `launchctl load ~/Library/LaunchAgents/com.kuba.crm-mailbox-sync.plist`.
