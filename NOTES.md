@@ -280,7 +280,7 @@
   sekcja i notatka "Klient otworzył ofertę" (autor "z oferty") widoczne w UI, drugi sweep nic nie dubluje; oferta
   odpięta, deal i firma "TEST oferty CRM" zarchiwizowane. Sweep na prod wołany kodem serwisu przeciw bazie
   (`CRON_SECRET` w Vercelu jest szyfrowany, nie da się go pobrać).
-- **Do sprawdzenia: cron GitHub Actions.** `cron-mailboxes` w praktyce odpala się kilka razy na dobę (14.10: 06:45,
+- **Zamknięte 19.10 (sesja 14): cron GitHub Actions.** `cron-mailboxes` w praktyce odpala się kilka razy na dobę (14.10: 06:45,
   12:27, 17:28, 20:54 UTC), a `gh workflow run` zwraca 422 "Actions has been disabled for this repository", mimo że
   `actions/permissions` pokazuje `enabled: true`. Dopóki to trwa, notatka o pierwszym otwarciu (i sync skrzynek)
   przychodzi z opóźnieniem godzin, nie minut.
@@ -300,3 +300,14 @@
 - Weryfikacja 15.10: ticki 07:15 i 07:20 (sync, HTTP 201 `synced:1`) i 07:17 (oferty, HTTP 201 `logged:0`).
   Po niej launchd `com.kuba.crm-mailbox-sync` wyładowany (`launchctl unload`, plist zostaje), żeby sync nie szedł
   podwójnie. Powrót: `launchctl load ~/Library/LaunchAgents/com.kuba.crm-mailbox-sync.plist`.
+
+## 2026-10-19 (sesja 14) - Actions w forku włączone
+
+- Od 14.10 21:00 UTC nie poszedł żaden przebieg Actions: ani crony, ani CI i Auto PR dla PR-ów #5-#7 (otwarte
+  ręcznie). `cron-daily` (`/internal/sync/rates`, `/internal/archive/prune`) nie miał zastępstwa w pg_cron.
+- Najpierw `cron-mailboxes` wyłączony przez API (`PUT .../workflows/cron-mailboxes.yml/disable`, stan
+  `disabled_manually`), bo te same endpointy woła pg_cron. Potem Actions włączone przyciskiem "I understand my
+  workflows, go ahead and re-enable them" na github.com/KubaBed/crm/actions. Blokady forka nie da się zdjąć przez API.
+- Aktywne: Auto PR, CI, PR base, PR title, Release, `cron-daily` (05:17 UTC).
+- Uwagi z HANDOFF.md z 20.09 o Auto PR (uprawnienie do tworzenia PR, cel `main`) są nieaktualne: naprawione 21.09
+  w PR #2, `can_approve_pull_request_reviews: true`.
