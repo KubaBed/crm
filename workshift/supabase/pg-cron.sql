@@ -22,6 +22,7 @@
 --   select id, status_code, timed_out, error_msg, created from net._http_response order by created desc limit 10;
 --   (net._http_response trzyma odpowiedzi ok. 6 h)
 -- Wyłącznik: select cron.unschedule('crm-sync-mailboxes'); select cron.unschedule('crm-offers-first-opens');
+--   select cron.unschedule('crm-sync-rates'); select cron.unschedule('crm-archive-prune');
 
 create extension if not exists pg_cron;
 create extension if not exists pg_net with schema extensions;
@@ -49,4 +50,27 @@ $job$);
 
 select cron.schedule('crm-cron-history-cleanup', '17 3 * * *', $job$
   delete from cron.job_run_details where end_time < now() - interval '7 days';
+$job$);
+
+-- Od 2026-10-20 także zadania dzienne, wcześniej w workflow cron-daily (wyłączony, disabled_manually).
+-- Po blokadzie forka 14-19.10 kursy walut stały 6 dni, a GitHub i tak startował 05:17 z opóźnieniem 4-8 h.
+-- Crony z apps/api/vercel.json nie działają: projekt crm-api ma crons.definitions = [].
+select cron.schedule('crm-sync-rates', '17 5 * * *', $job$
+  select net.http_post(
+    url := 'https://api.crm.workshift.pl/internal/sync/rates',
+    headers := jsonb_build_object(
+      'Authorization', 'Bearer ' || (select decrypted_secret from vault.decrypted_secrets where name = 'crm_cron_secret'),
+      'Content-Type', 'application/json'),
+    body := '{}'::jsonb,
+    timeout_milliseconds := 60000);
+$job$);
+
+select cron.schedule('crm-archive-prune', '22 5 * * *', $job$
+  select net.http_post(
+    url := 'https://api.crm.workshift.pl/internal/archive/prune',
+    headers := jsonb_build_object(
+      'Authorization', 'Bearer ' || (select decrypted_secret from vault.decrypted_secrets where name = 'crm_cron_secret'),
+      'Content-Type', 'application/json'),
+    body := '{}'::jsonb,
+    timeout_milliseconds := 60000);
 $job$);
