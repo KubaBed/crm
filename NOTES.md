@@ -311,3 +311,14 @@
 - Aktywne: Auto PR, CI, PR base, PR title, Release, `cron-daily` (05:17 UTC).
 - Uwagi z HANDOFF.md z 20.09 o Auto PR (uprawnienie do tworzenia PR, cel `main`) są nieaktualne: naprawione 21.09
   w PR #2, `can_approve_pull_request_reviews: true`.
+
+## 2026-10-20 - cron-daily przeniesiony do pg_cron
+
+- Nocny przegląd infry: `cron-daily` bez przebiegu od 14.10 10:13 UTC. Przyczyna: blokada forka 14-19.10
+  (wszystkie workflowy), a w dniu włączenia 05:17 już minęło. GitHub startował ten cron z opóźnieniem 4-8 h
+  (09:30-13:10 UTC). Kursy w `exchangeRate` stały na 14.10.
+- Innego wyzwalacza nie było: projekt Vercel `crm-api` ma `crons.definitions = []`, więc `apps/api/vercel.json`
+  nic nie odpala.
+- Wybór Kuby (B + A): ręczny `gh workflow run` (kursy z 20.10, HTTP 201), joby pg_cron `crm-sync-rates`
+  (05:17) i `crm-archive-prune` (05:22), test `net.http_post` z bazy = 201 dla obu. `cron-daily` wyłączony
+  przez API (`disabled_manually`).

@@ -1,6 +1,8 @@
 # Dzienne zadania utrzymaniowe API (kursy walut dla PLN, sprzątanie archiwum).
-# Na Vercel Hobby dzienne crony z apps/api/vercel.json działają, ale trzymamy je tutaj
-# razem z cron-mailboxes, żeby cała automatyka była w jednym miejscu i widoczna w gh run list.
+# Od 2026-10-20 główny harmonogram to pg_cron w Supabase (workshift/supabase/pg-cron.sql),
+# joby crm-sync-rates i crm-archive-prune. Workflow wyłączony (disabled_manually): GitHub blokował
+# workflowy w tym forku 14-19.10, a crony z apps/api/vercel.json nie są zarejestrowane w Vercelu.
+# Zostaje jako zapas do ręcznego `gh workflow run` po ponownym włączeniu.
 name: cron-daily
 
 on:
